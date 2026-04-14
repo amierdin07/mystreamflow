@@ -398,6 +398,18 @@ function createTables() {
         }
       });
 
+      db.run(`ALTER TABLE users ADD COLUMN telegram_bot_token TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+          console.error('Error adding telegram_bot_token column:', err.message);
+        }
+      });
+
+      db.run(`ALTER TABLE users ADD COLUMN telegram_chat_id TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+          console.error('Error adding telegram_chat_id column:', err.message);
+        }
+      });
+
       db.run(`CREATE TABLE IF NOT EXISTS app_settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         setting_key TEXT UNIQUE NOT NULL,

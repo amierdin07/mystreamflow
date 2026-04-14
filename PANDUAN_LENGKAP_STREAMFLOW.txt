@@ -1,0 +1,94 @@
+========================================================================
+PANDUAN LENGKAP: INSTALASI STREAMFLOW, DOMAIN, & OAUTH YOUTUBE
+(Untuk Pemula - Step by Step)
+========================================================================
+
+Panduan ini disusun untuk memudahkan Instalasi Streamflow di VPS sampai 
+bisa terhubung ke YouTube secara permanen (Multi-Domain Ready).
+
+------------------------------------------------------------------------
+TAHAP 1: PERSIAPAN VPS & AAPANEL
+------------------------------------------------------------------------
+aaPanel adalah control panel untuk memudahkan kita pasang SSL (HTTPS) 
+tanpa harus pakai terminal terus-menerus.
+
+1. Login ke Terminal VPS kamu (lewat Putty/Termius).
+2. Jalankan perintah instalasi aaPanel (cek di aapanel.com).
+3. Jika ditanya "Web service is already installed...", ketik: yes (lengkap).
+4. Setelah beres, catat URL Login, Username, dan Password aaPanel-nya.
+
+------------------------------------------------------------------------
+TAHAP 2: INSTALASI STREAMFLOW (CARA OTOMATIS)
+------------------------------------------------------------------------
+Kita akan menggunakan script sakti "install.sh" agar semua dependency 
+(Node.js, Git, PM2, SQLite) terpasang otomatis.
+
+1. Buka terminal VPS, jalankan perintah persiapan ini dulu:
+   sudo apt update && sudo apt install curl -y
+
+2. Lalu jalankan perintah instalasi otomatis ini:
+   curl -sL https://raw.githubusercontent.com/amierdin07/mystreamflow/main/install.sh | bash
+
+   (Tunggu sampai muncul tulisan "INSTALASI SELESAI").
+
+------------------------------------------------------------------------
+TAHAP 3: SETTING DOMAIN & SSL DI AAPANEL
+------------------------------------------------------------------------
+Agar web kamu bisa diakses lewat domain (https://domain-kamu.com).
+
+1. Buka dashboard aaPanel kamu di browser.
+2. Klik menu Website -> Add Site.
+   - Domain: Masukkan domain kamu (contoh: pphqfinance.web.id).
+   - PHP Version: Static (atau biarkan default).
+3. Setelah Site dibuat, klik nama domainnya di list.
+4. Klik menu SSL (di sebelah kiri):
+   - Pilih "Let's Encrypt".
+   - Centang domain kamu -> Klik Apply.
+   - Nyalakan tombol "Force HTTPS" (biar gemboknya muncul terus).
+5. Klik menu Reverse Proxy -> Add Reverse Proxy:
+   - Proxy Name: Streamflow
+   - Target URL: http://127.0.0.1:7575
+   - Klik Submit.
+6. Klik menu Site Directory:
+   - Ubah Site Directory dari folder default ke: /root/mystreamflow
+   - Klik Save.
+
+------------------------------------------------------------------------
+TAHAP 4: SETTING GOOGLE CLOUD CONSOLE (OAUTH)
+------------------------------------------------------------------------
+Agar aplikasi kamu diizinkan akses ke akun YouTube.
+
+1. Buka: https://console.cloud.google.com/
+2. Buat Project Baru (New Project).
+3. Cari "YouTube Data API v3" -> Klik ENABLE.
+4. Klik menu OAuth Consent Screen:
+   - User Type: External -> Create.
+   - Tahap 1: Isi App Name dan Email Support -> Save and Continue.
+   - Tahap 2 (Scopes): Klik Add Scopes -> Cari & centang "YouTube" (ada 3 scope) -> Update -> Save and Continue.
+   - Tahap 3 (Test Users): Klik Add Users -> Masukkan email YouTube-mu -> Save and Continue.
+   - TERAKHIR: Klik tombol "PUBLISH APP" di dashboard agar token tidak habis dalam 7 hari.
+5. Klik menu Credentials -> Create Credentials -> OAuth client ID.
+   - Application type: Web application.
+   - Authorized JavaScript origins: https://domain-kamu.com
+   - Authorized redirect URIs: https://domain-kamu.com/auth/youtube/callback
+   - Klik Create. Catat "Client ID" dan "Client Secret".
+
+------------------------------------------------------------------------
+TAHAP 5: AKTIVASI & KONEKSI AKHIR
+------------------------------------------------------------------------
+Agar aplikasi tahu domain-nya, kita pasang otomatis lewat terminal.
+
+1. Jalankan perintah ini (GANTI domain-kamu.com dengan domain aslimu):
+   echo "BASE_URL=https://domain-kamu.com" >> /root/mystreamflow/.env
+
+2. Restart aplikasi agar setingan terbaca:
+   pm2 restart all
+
+3. Buka web kamu di browser: https://domain-kamu.com
+4. Masuk menu Settings -> Masukkan Client ID & Secret dari Google tadi -> Save.
+5. Klik "Add Channel" -> Login Google -> Selesai! Gaskaan!
+
+========================================================================
+TIPS: Jika ganti domain, cukup ganti BASE_URL di .env dan 
+tambah Redirect URI baru di Google Cloud Console. Gaskaan!
+========================================================================

@@ -430,6 +430,26 @@ async function deleteYouTubeBroadcast(streamId) {
   }
 }
 
+async function getStreamHealth(userId, channelId, youtubeStreamId) {
+  try {
+    const youtube = await getYoutubeInstance(userId, channelId);
+    if (!youtube) return null;
+
+    const res = await youtube.liveStreams.list({
+      part: 'status',
+      id: youtubeStreamId
+    });
+
+    if (res.data.items && res.data.items.length > 0) {
+      return res.data.items[0].status.streamHealthStatus;
+    }
+    return null;
+  } catch (e) {
+    console.error('[YouTubeService] Error getting stream health:', e.message);
+    return null;
+  }
+}
+
 module.exports = {
   createYouTubeBroadcast,
   deleteYouTubeBroadcast,
@@ -437,6 +457,7 @@ module.exports = {
   syncBroadcastMonetization,
   getChannelStats,
   getLiveStreamMetrics,
+  getStreamHealth,
   handleYoutubeError,
   getYoutubeInstance
 };

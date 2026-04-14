@@ -2498,6 +2498,53 @@ app.post('/api/settings/gdrive-api-key', isAuthenticated, [
   }
 });
 
+app.post('/api/settings/telegram', isAuthenticated, [
+  body('telegramBotToken').trim().notEmpty().withMessage('Bot Token is required'),
+  body('telegramChatId').trim().notEmpty().withMessage('Chat ID is required'),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, error: errors.array()[0].msg });
+    }
+    await User.updateProfile(req.session.userId, {
+      telegram_bot_token: req.body.telegramBotToken,
+      telegram_chat_id: req.body.telegramChatId
+    });
+    res.json({ success: true, message: 'Telegram settings saved successfully!' });
+  } catch (error) {
+    console.error('Error saving Telegram settings:', error);
+    res.status(500).json({ success: false, error: 'Failed to save Telegram settings' });
+  }
+});
+
+app.get('/api/youtube/stream-health/:streamId', isAuthenticated, async (req, res) => {
+  try {
+    const stream = await Stream.findById(req.params.streamId);
+    if (!stream) {
+      return res.status(404).json({ success: false, error: 'Stream not found' });
+    }
+    if (stream.user_id !== req.session.userId) {
+      return res.status(403).json({ success: false, error: 'Not authorized' });
+    }
+    if (!stream.is_youtube_api || !stream.youtube_stream_id) {
+      return res.json({ success: true, health: null });
+    }
+
+    const youtubeService = require('./services/youtubeService');
+    const health = await youtubeService.getStreamHealth(
+      req.session.userId,
+      stream.youtube_channel_id,
+      stream.youtube_stream_id
+    );
+
+    res.json({ success: true, health });
+  } catch (error) {
+    console.error('Error fetching stream health:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 const { encrypt, decrypt } = require('./utils/encryption');
 
 app.post('/api/settings/youtube-credentials', isAuthenticated, [

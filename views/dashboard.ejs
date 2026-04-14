@@ -173,12 +173,13 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Platform</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Schedule</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Signal</th>
               <th class="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-700">
             <tr id="empty-state" class="hover:bg-dark-700/50 transition-colors" style="display: none;">
-              <td colspan="<%= (typeof youtubeConnected !== 'undefined' && youtubeConnected) ? '7' : '5' %>" class="px-6 py-10 text-center">
+              <td colspan="<%= (typeof youtubeConnected !== 'undefined' && youtubeConnected) ? '8' : '6' %>" class="px-6 py-10 text-center">
                 <div class="flex flex-col items-center">
                   <div class="w-16 h-16 rounded-full bg-dark-700 flex items-center justify-center mb-4">
                     <i class="ti ti-broadcast text-gray-500 text-2xl"></i>
@@ -1940,6 +1941,63 @@
       }
     }
 
+    function getSignalBadgeHTML(healthStatus, streamId) {
+      if (!healthStatus) return '<span class="text-gray-500 text-xs">—</span>';
+      
+      const status = healthStatus.status ? healthStatus.status.toLowerCase() : 'nodata';
+      let color = 'text-gray-400';
+      let bg = 'bg-gray-400/10';
+      let label = 'N/A';
+      let icon = 'ti-antenna-off';
+
+      switch (status) {
+        case 'excellent':
+          color = 'text-green-400';
+          bg = 'bg-green-400/10';
+          label = 'Excellent';
+          icon = 'ti-antenna-bars-5';
+          break;
+        case 'good':
+          color = 'text-blue-400';
+          bg = 'bg-blue-400/10';
+          label = 'Good';
+          icon = 'ti-antenna-bars-4';
+          break;
+        case 'fair':
+          color = 'text-yellow-400';
+          bg = 'bg-yellow-400/10';
+          label = 'Fair';
+          icon = 'ti-antenna-bars-3';
+          break;
+        case 'poor':
+          color = 'text-orange-400';
+          bg = 'bg-orange-400/10';
+          label = 'Poor';
+          icon = 'ti-antenna-bars-2';
+          break;
+        case 'bad':
+          color = 'text-red-400';
+          bg = 'bg-red-400/10';
+          label = 'Bad';
+          icon = 'ti-antenna-bars-1';
+          break;
+        case 'nodata':
+        default:
+          color = 'text-gray-400';
+          bg = 'bg-gray-400/10';
+          label = 'No Data';
+          icon = 'ti-antenna-off';
+          break;
+      }
+
+      return `
+        <span class="flex items-center ${bg} ${color} rounded-full px-2.5 py-1 signal-badge" data-stream-id="${streamId}" title="YouTube Stream Health">
+          <i class="ti ${icon} text-xs mr-1.5"></i>
+          <span class="text-xs font-medium">${label}</span>
+        </span>
+      `;
+    }
+
     function getActionButtonHTML(status, streamId, view = 'desktop') {
       const btnClass = view === 'mobile'
         ? 'action-btn px-2.5 py-1 text-white text-[10px] font-medium rounded transition-colors'
@@ -2084,7 +2142,10 @@
         </div>
       </div>
       <div class="border-t border-gray-700 px-3 py-1.5 flex items-center justify-between">
-        <div>${statusBadge}</div>
+        <div class="flex flex-col gap-1">
+          ${statusBadge}
+          <div class="signal-container" data-stream-id="${stream.id}"></div>
+        </div>
         <div class="flex items-center gap-1.5">
           ${getActionButtonHTML(stream.status, stream.id, 'mobile')}
           <button class="p-1 hover:bg-dark-700 rounded transition-colors ${stream.status === 'live' || stream.status === 'scheduled' ? 'opacity-50 cursor-not-allowed' : ''}" onclick="${stream.status === 'live' || stream.status === 'scheduled' ? '' : `editStream('${stream.id}')`}" ${stream.status === 'live' || stream.status === 'scheduled' ? 'disabled' : ''}><i class="ti ti-edit text-gray-400 hover:text-white text-sm"></i></button>
@@ -2226,6 +2287,11 @@
           ${statusBadge}
         </div>
       </td>
+      <td class="px-6 py-4 whitespace-nowrap">
+        <div class="signal-container" data-stream-id="${stream.id}">
+          <span class="text-gray-500 text-xs">...</span>
+        </div>
+      </td>
       <td class="px-6 py-4 whitespace-nowrap text-right">
         <div class="flex items-center justify-end space-x-2">
           ${getActionButtonHTML(stream.status, stream.id, 'desktop')}
@@ -2354,7 +2420,41 @@
       });
       startCountdowns();
       startLiveTimers();
+      setInterval(pollStreamHealth, 30000); // Poll health every 30 seconds
+      pollStreamHealth();
     });
+
+    async function pollStreamHealth() {
+      const activeLiveStreams = Array.from(document.querySelectorAll('[data-stream-id]')).map(el => el.dataset.streamId);
+      const uniqueStreamIds = [...new Set(activeLiveStreams)];
+      
+      for (const streamId of uniqueStreamIds) {
+        try {
+          // Only check streams that appear to be live based on UI or if we want to check all
+          const row = document.querySelector(`tr[data-stream-id="${streamId}"]`);
+          const card = document.querySelector(`.md\\:hidden [data-stream-id="${streamId}"]`);
+          
+          // Only check if it's potentially a YouTube API stream (we can refine this)
+          fetch(`/api/youtube/stream-health/${streamId}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.success && data.health) {
+                const badgeHTML = getSignalBadgeHTML(data.health, streamId);
+                const containers = document.querySelectorAll(`.signal-container[data-stream-id="${streamId}"]`);
+                containers.forEach(container => {
+                  container.innerHTML = badgeHTML;
+                });
+              } else if (data.success && !data.health) {
+                const containers = document.querySelectorAll(`.signal-container[data-stream-id="${streamId}"]`);
+                containers.forEach(container => {
+                  container.innerHTML = '<span class="text-gray-500 text-xs">—</span>';
+                });
+              }
+            })
+            .catch(err => console.error('Health fetch failed:', err));
+        } catch (e) {}
+      }
+    }
     function startStream(streamId) {
       if (!streamId) return;
       

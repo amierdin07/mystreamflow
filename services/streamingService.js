@@ -1164,10 +1164,14 @@ async function syncStreamStatuses() {
   } catch (error) { }
 }
 
+const poorSignalNotified = new Map();
+
 async function healthCheckStreams() {
   try {
     const now = Date.now();
     const staleThreshold = 5 * 60 * 1000;
+    const notificationService = require('./notificationService');
+    const youtubeService = require('./youtubeService');
 
     for (const [streamId, streamData] of activeStreams) {
       if (streamData.process && streamData.process.exitCode !== null) {
@@ -1188,10 +1192,40 @@ async function healthCheckStreams() {
         continue;
       }
 
+      const stream = await Stream.findById(streamId);
+      if (stream && stream.is_youtube_api && stream.youtube_stream_id) {
+        try {
+          const health = await youtubeService.getStreamHealth(
+            stream.user_id,
+            stream.youtube_channel_id,
+            stream.youtube_stream_id
+          );
+
+          if (health && health.status) {
+            const status = health.status.toLowerCase();
+            if (status === 'poor' || status === 'bad') {
+              const lastNotified = poorSignalNotified.get(streamId);
+              // Notify only once every 30 minutes to avoid spam
+              if (!lastNotified || (now - lastNotified) > (30 * 60 * 1000)) {
+                await notificationService.sendPoorSignalNotification(
+                  stream.user_id,
+                  stream.title,
+                  status
+                );
+                poorSignalNotified.set(streamId, now);
+              }
+            } else if (status === 'good' || status === 'excellent') {
+              poorSignalNotified.delete(streamId);
+            }
+          }
+        } catch (healthError) {
+          console.error(`[StreamingService] Failed health check for stream ${streamId}:`, healthError.message);
+        }
+      }
+
       if (streamData.lastActivity && (now - streamData.lastActivity) > staleThreshold) {
         addStreamLog(streamId, 'Stream appears stale, restarting...');
 
-        const stream = await Stream.findById(streamId);
         if (stream && stream.status === 'live') {
           if (stream.end_time) {
             const endTime = new Date(stream.end_time);

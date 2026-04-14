@@ -201,6 +201,16 @@ class User {
         fields.push('disk_limit = ?');
         values.push(updateData.disk_limit);
       }
+
+      if (updateData.telegram_bot_token !== undefined) {
+        fields.push('telegram_bot_token = ?');
+        values.push(updateData.telegram_bot_token);
+      }
+
+      if (updateData.telegram_chat_id !== undefined) {
+        fields.push('telegram_chat_id = ?');
+        values.push(updateData.telegram_chat_id);
+      }
       
       if (fields.length === 0) {
         return resolve({ id: userId, message: 'No fields to update' });
