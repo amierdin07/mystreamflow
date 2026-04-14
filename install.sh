@@ -1,72 +1,63 @@
 #!/bin/bash
 set -e
-echo "================================"
-echo "   StreamFlow Quick Installer  "
-echo "================================"
-echo
-read -p "Mulai instalasi? (y/n): " -n 1 -r
-echo
-[[ ! $REPLY =~ ^[Yy]$ ]] && echo "Instalasi dibatalkan." && exit 1
-echo "🔄 Updating sistem..."
+
+# ================================================================
+#  StreamFlow Auto Installer for amierdin07/mystreamflow
+# ================================================================
+
+echo "🚀 Memulai Instalasi StreamFlow..."
+sleep 2
+
+# 1. Update & Install Dependency Dasar
+echo "🔄 Updating sistem dan menginstall dependency..."
 sudo apt update && sudo apt upgrade -y
-echo "📦 Installing nvm (Node Version Manager)..."
-curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-echo "📦 Installing Node.js LTS terbaru..."
-nvm install --lts
-nvm use --lts
-nvm alias default 'lts/*'
-echo "✅ Node.js $(node -v) berhasil diinstall"
-if command -v ffmpeg &> /dev/null; then
-    echo "✅ FFmpeg sudah terinstall, skip..."
-else
-    echo "🎬 Installing FFmpeg..."
-    sudo apt install ffmpeg -y
+sudo apt install git ffmpeg nginx certbot python3-certbot-nginx -y
+
+# 2. Install Node.js v22 (LTS Terbaru)
+echo "📦 Menginstall Node.js v22..."
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# 3. Clone Repository Amierdin07
+echo "📥 Mengkloning repository mystreamflow..."
+if [ -d "mystreamflow" ]; then
+    echo "⚠️ Folder mystreamflow sudah ada, menghapus folder lama..."
+    rm -rf mystreamflow
 fi
-if command -v git &> /dev/null; then
-    echo "✅ Git sudah terinstall, skip..."
-else
-    echo "🔧 Installing Git..."
-    sudo apt install git -y
-fi
-echo "📥 Clone repository..."
-# GANTI URL DI BAWAH INI DENGAN URL GITHUB ANDA
-git clone https://github.com/USERNAME_ANDA/REPO_ANDA
-cd streamflow
-echo "⚙️ Installing dependencies..."
+git clone https://github.com/amierdin07/mystreamflow.git
+cd mystreamflow
+
+# 4. Install Module & Setup
+echo "⚙️ Menginstall Node modules (ini mungkin agak lama)..."
 npm install
-npm run generate-secret
-echo "🕐 Setup timezone ke Asia/Jakarta..."
+node generate-secret.js
+
+# 5. Setup Zona Waktu
+echo "🕐 Mengatur zona waktu ke WIB (Jakarta)..."
 sudo timedatectl set-timezone Asia/Jakarta
-echo "🔧 Setup firewall..."
-sudo ufw allow ssh
-sudo ufw allow 7575
-sudo ufw --force enable
-if command -v pm2 &> /dev/null; then
-    echo "✅ PM2 sudah terinstall, skip..."
-else
-    echo "🚀 Installing PM2..."
-    npm install -g pm2
+
+# 6. Install & Setup PM2
+if ! command -v pm2 &> /dev/null; then
+    echo "🚀 Menginstall PM2..."
+    sudo npm install -g pm2
 fi
-export PATH="$NVM_DIR/versions/node/$(nvm current)/bin:$PATH"
-echo "▶️ Starting StreamFlow..."
+
+echo "▶️ Menjalankan aplikasi dengan PM2..."
+pm2 delete streamflow 2>/dev/null || true
 pm2 start app.js --name streamflow
 pm2 save
 pm2 startup | tail -1 | bash || true
-echo
-echo "================================"
+
+# 7. Selesai
+clear
+echo "================================================================"
 echo "✅ INSTALASI SELESAI!"
-echo "================================"
-SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || echo "IP_SERVER")
-echo
-echo "🌐 URL Akses: http://$SERVER_IP:7575"
-echo "📦 Node.js: $(node -v)"
-echo "📦 npm: $(npm -v)"
-echo
-echo "📋 Langkah selanjutnya:"
-echo "1. Buka URL di browser"
-echo "2. Buat username & password"
-echo "3. Setelah membuat akun, lakukan Sign Out kemudian login kembali untuk sinkronisasi database"
-echo "================================"
+echo "================================================================"
+IP_VPS=$(curl -s ifconfig.me)
+echo "Aplikasi berjalan di: http://$IP_VPS:7575"
+echo ""
+echo "Langkah berikutnya:"
+echo "1. Buka link di atas di browser."
+echo "2. Setup akun Admin."
+echo "3. Masukkan Client ID & Secret YouTube di menu Settings."
+echo "================================================================"
