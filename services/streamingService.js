@@ -765,7 +765,7 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
 
     if (stream.is_youtube_api) {
       const youtubeService = require('./youtubeService');
-      const effectiveBaseUrl = baseUrl || process.env.BASE_URL || 'http://localhost:7575';
+      const effectiveBaseUrl = (baseUrl && !baseUrl.includes('localhost')) ? baseUrl : (process.env.BASE_URL || 'http://localhost:7575');
 
       addStreamLog(streamId, 'Creating YouTube broadcast...');
 

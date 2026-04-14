@@ -44,7 +44,7 @@ async function checkScheduledStreams() {
         continue;
       }
 
-      const baseUrl = process.env.BASE_URL || 'http://localhost:7575';
+      const baseUrl = process.env.BASE_URL && !process.env.BASE_URL.includes('localhost') ? process.env.BASE_URL : 'http://localhost:7575';
       const result = await streamingService.startStream(stream.id, false, baseUrl);
 
       if (!result.success) {

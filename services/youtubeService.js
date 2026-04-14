@@ -352,7 +352,8 @@ async function getYoutubeInstance(userId, channelId) {
   const accessToken = decrypt(selectedChannel.access_token);
   const refreshToken = decrypt(selectedChannel.refresh_token);
   
-  const oauth2Client = getYouTubeOAuth2Client(user.youtube_client_id, clientSecret, 'http://localhost');
+  const baseUrl = process.env.BASE_URL || 'http://localhost:7575';
+  const oauth2Client = getYouTubeOAuth2Client(user.youtube_client_id, clientSecret, baseUrl);
   oauth2Client.setCredentials({
     access_token: accessToken,
     refresh_token: refreshToken

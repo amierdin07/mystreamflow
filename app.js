@@ -165,6 +165,18 @@ app.use(async (req, res, next) => {
   res.locals.appVersion = packageJson.version;
   next();
 });
+
+// Helper to get the correct base URL considering proxy headers
+const getAppBaseUrl = (req) => {
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  
+  if (process.env.BASE_URL && !process.env.BASE_URL.includes('localhost')) {
+    return process.env.BASE_URL.replace(/\/$/, '');
+  }
+  
+  return `${protocol}://${host}`;
+};
 app.use(function (req, res, next) {
   if (!req.session.csrfSecret) {
     req.session.csrfSecret = uuidv4();
@@ -2772,12 +2784,7 @@ app.get('/auth/youtube', isAuthenticated, async (req, res) => {
       return res.redirect('/settings?error=Failed to decrypt credentials&activeTab=integration');
     }
     
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const baseUrl = process.env.BASE_URL && !process.env.BASE_URL.includes('localhost') 
-      ? process.env.BASE_URL.replace(/\/$/, '') 
-      : `${protocol}://${host}`;
-    
+    const baseUrl = getAppBaseUrl(req);
     const redirectUri = `${baseUrl}/auth/youtube/callback`;
     console.log('[DEBUG] YouTube OAuth Redirect URI:', redirectUri);
     
@@ -2827,12 +2834,7 @@ app.get('/auth/youtube/callback', isAuthenticated, async (req, res) => {
       return res.redirect('/settings?error=Failed to decrypt credentials&activeTab=integration');
     }
     
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const baseUrl = process.env.BASE_URL && !process.env.BASE_URL.includes('localhost') 
-      ? process.env.BASE_URL.replace(/\/$/, '') 
-      : `${protocol}://${host}`;
-      
+    const baseUrl = getAppBaseUrl(req);
     const redirectUri = `${baseUrl}/auth/youtube/callback`;
     console.log('[DEBUG] YouTube Callback Redirect URI:', redirectUri);
     
@@ -3827,12 +3829,7 @@ app.get('/api/streams/:id', isAuthenticated, async (req, res) => {
           const accessToken = decrypt(user.youtube_access_token);
           const refreshToken = decrypt(user.youtube_refresh_token);
           
-          const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-          const host = req.headers['x-forwarded-host'] || req.get('host');
-          const baseUrl = process.env.BASE_URL && !process.env.BASE_URL.includes('localhost') 
-            ? process.env.BASE_URL.replace(/\/$/, '') 
-            : `${protocol}://${host}`;
-            
+          const baseUrl = getAppBaseUrl(req);
           const redirectUri = `${baseUrl}/auth/youtube/callback`;
           console.log('[DEBUG] YouTube Metadata Redirect URI:', redirectUri);
           
@@ -3944,12 +3941,7 @@ app.put('/api/streams/:id', isAuthenticated, uploadThumbnail.single('thumbnail')
               const accessToken = decrypt(selectedChannel.access_token);
               const refreshToken = decrypt(selectedChannel.refresh_token);
               
-              const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-              const host = req.headers['x-forwarded-host'] || req.get('host');
-              const baseUrl = process.env.BASE_URL && !process.env.BASE_URL.includes('localhost') 
-                ? process.env.BASE_URL.replace(/\/$/, '') 
-                : `${protocol}://${host}`;
-                
+              const baseUrl = getAppBaseUrl(req);
               const redirectUri = `${baseUrl}/auth/youtube/callback`;
               console.log('[DEBUG] YouTube Update Redirect URI:', redirectUri);
               
