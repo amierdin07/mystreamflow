@@ -441,9 +441,9 @@ async function getStreamHealth(userId, channelId, youtubeStreamId) {
     });
 
     if (res.data.items && res.data.items.length > 0) {
-      return res.data.items[0].status.streamHealthStatus;
+      return res.data.items[0].status.streamHealthStatus || { status: 'nodata' };
     }
-    return null;
+    return { status: 'nodata' };
   } catch (e) {
     console.error('[YouTubeService] Error getting stream health:', e.message);
     return null;

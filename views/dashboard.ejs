@@ -1942,7 +1942,7 @@
     }
 
     function getSignalBadgeHTML(healthStatus, streamId) {
-      if (!healthStatus) return '<span class="text-gray-500 text-xs">—</span>';
+      if (!healthStatus) return '<span class="text-gray-500 text-[10px] animate-pulse">Waiting for signal...</span>';
       
       const status = healthStatus.status ? healthStatus.status.toLowerCase() : 'nodata';
       let color = 'text-gray-400';
@@ -2447,7 +2447,7 @@
               } else if (data.success && !data.health) {
                 const containers = document.querySelectorAll(`.signal-container[data-stream-id="${streamId}"]`);
                 containers.forEach(container => {
-                  container.innerHTML = '<span class="text-gray-500 text-xs">—</span>';
+                  container.innerHTML = '<span class="text-gray-500 text-[10px] animate-pulse">Connecting...</span>';
                 });
               }
             })

@@ -2527,7 +2527,11 @@ app.get('/api/youtube/stream-health/:streamId', isAuthenticated, async (req, res
     if (stream.user_id !== req.session.userId) {
       return res.status(403).json({ success: false, error: 'Not authorized' });
     }
-    if (!stream.is_youtube_api || !stream.youtube_stream_id) {
+    if (!stream.is_youtube_api && !stream.youtube_broadcast_id) {
+      return res.json({ success: true, health: null });
+    }
+
+    if (!stream.youtube_stream_id) {
       return res.json({ success: true, health: null });
     }
 
