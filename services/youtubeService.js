@@ -1,0 +1,441 @@
+const { google } = require('googleapis');
+const { encrypt, decrypt } = require('../utils/encryption');
+const User = require('../models/User');
+const Stream = require('../models/Stream');
+const YoutubeChannel = require('../models/YoutubeChannel');
+const fs = require('fs');
+const path = require('path');
+
+const loggedAlreadyHasBroadcast = new Set();
+
+function getYouTubeOAuth2Client(clientId, clientSecret, redirectUri) {
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+}
+
+function omitUndefined(value) {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entryValue]) => entryValue !== undefined)
+  );
+}
+
+function handleYoutubeError(error, context = '') {
+  const message = error.message || '';
+  const errors = error.errors || [];
+  
+  const isQuotaError = message.toLowerCase().includes('quota') || 
+                      errors.some(e => e.reason === 'quotaExceeded' || e.reason === 'rateLimitExceeded');
+  const isAuthError = message.toLowerCase().includes('auth') || 
+                     message.toLowerCase().includes('token') ||
+                     message.toLowerCase().includes('invalid_grant') ||
+                     errors.some(e => e.reason === 'authError' || e.reason === 'unauthorized');
+
+  if (isQuotaError) {
+    return new Error(`YouTube API Quota Habis (Limit Tercapai). Silakan tunggu reset otomatis (tengah malam waktu Pasifik) atau gunakan API Key lain. ${context}`);
+  }
+  
+  if (isAuthError) {
+    return new Error(`YouTube Token Kadaluwarsa atau Dicabut. Silakan putuskan (Disconnect) dan hubungkan kembali (Add Channel) di menu Integration. ${context}`);
+  }
+
+  return error;
+}
+
+async function syncBroadcastMonetization(youtube, broadcastId, enabled) {
+  const broadcastResponse = await youtube.liveBroadcasts.list({
+    part: 'id,snippet,contentDetails,status,monetizationDetails',
+    id: broadcastId
+  });
+
+  const currentBroadcast = broadcastResponse.data.items?.[0];
+  if (!currentBroadcast) {
+    throw new Error(`Broadcast ${broadcastId} not found`);
+  }
+
+  const currentSnippet = currentBroadcast.snippet || {};
+  const currentContentDetails = currentBroadcast.contentDetails || {};
+  const currentStatus = currentBroadcast.status || {};
+  const currentMonitorStream = currentContentDetails.monitorStream || {};
+  const monitorStream = omitUndefined({
+    enableMonitorStream: currentMonitorStream.enableMonitorStream,
+    broadcastStreamDelayMs:
+      currentMonitorStream.enableMonitorStream !== undefined
+        ? currentMonitorStream.broadcastStreamDelayMs ?? 0
+        : undefined
+  });
+
+  const requestBody = {
+    id: broadcastId,
+    snippet: omitUndefined({
+      title: currentSnippet.title,
+      description: currentSnippet.description || '',
+      scheduledStartTime: currentSnippet.scheduledStartTime,
+      scheduledEndTime: currentSnippet.scheduledEndTime
+    }),
+    contentDetails: omitUndefined({
+      boundStreamId: currentContentDetails.boundStreamId,
+      enableAutoStart: currentContentDetails.enableAutoStart,
+      enableAutoStop: currentContentDetails.enableAutoStop,
+      enableClosedCaptions: currentContentDetails.enableClosedCaptions,
+      enableContentEncryption: currentContentDetails.enableContentEncryption,
+      enableDvr: currentContentDetails.enableDvr,
+      enableEmbed: currentContentDetails.enableEmbed,
+      latencyPreference: currentContentDetails.latencyPreference,
+      projection: currentContentDetails.projection,
+      recordFromStart: currentContentDetails.recordFromStart,
+      startWithSlate: currentContentDetails.startWithSlate,
+      monitorStream: Object.keys(monitorStream).length > 0 ? monitorStream : undefined
+    }),
+    status: omitUndefined({
+      privacyStatus: currentStatus.privacyStatus,
+      selfDeclaredMadeForKids: currentStatus.selfDeclaredMadeForKids
+    }),
+    monetizationDetails: enabled
+      ? {
+          adsMonetizationStatus: 'ON',
+          cuepointSchedule: {
+            enabled: true,
+            ytOptimizedCuepointConfig: 'MEDIUM'
+          }
+        }
+      : {
+          adsMonetizationStatus: 'OFF'
+        }
+  };
+
+  await youtube.liveBroadcasts.update({
+    part: 'id,snippet,contentDetails,status,monetizationDetails',
+    requestBody
+  });
+}
+
+async function createYouTubeBroadcast(streamId, baseUrl) {
+  const stream = await Stream.findById(streamId);
+  if (!stream) {
+    throw new Error('Stream not found');
+  }
+
+  if (!stream.is_youtube_api) {
+    return { success: true, message: 'Not a YouTube API stream' };
+  }
+
+    // If broadcast exists, we still want to refresh metadata below
+    const existingBroadcastId = stream.youtube_broadcast_id;
+    const existingStreamId = stream.youtube_stream_id;
+    const existingRtmpUrl = stream.rtmp_url;
+    const existingStreamKey = stream.stream_key;
+    
+    if (existingBroadcastId && existingRtmpUrl && existingStreamKey) {
+        if (!loggedAlreadyHasBroadcast.has(streamId)) {
+            console.log(`[YouTubeService] Stream ${streamId} has existing broadcast, refreshing metadata...`);
+            loggedAlreadyHasBroadcast.add(streamId);
+        }
+    }
+  
+  const user = await User.findById(stream.user_id);
+  if (!user || !user.youtube_client_id || !user.youtube_client_secret) {
+    throw new Error('YouTube API credentials not configured');
+  }
+
+  const selectedChannel = await YoutubeChannel.findById(stream.youtube_channel_id);
+  if (!selectedChannel || !selectedChannel.access_token || !selectedChannel.refresh_token) {
+    throw new Error('YouTube channel not found or not connected');
+  }
+
+  const clientSecret = decrypt(user.youtube_client_secret);
+  const accessToken = decrypt(selectedChannel.access_token);
+  const refreshToken = decrypt(selectedChannel.refresh_token);
+
+  if (!clientSecret || !accessToken) {
+    throw new Error('Failed to decrypt YouTube credentials');
+  }
+
+  const redirectUri = `${baseUrl}/auth/youtube/callback`;
+  const oauth2Client = getYouTubeOAuth2Client(user.youtube_client_id, clientSecret, redirectUri);
+  oauth2Client.setCredentials({
+    access_token: accessToken,
+    refresh_token: refreshToken
+  });
+
+  oauth2Client.on('tokens', async (tokens) => {
+    try {
+      if (tokens.access_token) {
+        await YoutubeChannel.update(selectedChannel.id, {
+          access_token: encrypt(tokens.access_token)
+        });
+      }
+      if (tokens.refresh_token) {
+        await YoutubeChannel.update(selectedChannel.id, {
+          refresh_token: encrypt(tokens.refresh_token)
+        });
+      }
+    } catch (e) {
+      console.error('[YouTubeService] Error saving automatic token refresh:', e.message);
+    }
+  });
+
+  const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
+
+  const tagsArray = stream.youtube_tags ? stream.youtube_tags.split(',').map(t => t.trim()).filter(t => t) : [];
+
+  let broadcast;
+  let broadcastId = stream.youtube_broadcast_id;
+
+  if (!broadcastId) {
+    const broadcastSnippet = {
+        title: stream.title,
+        description: stream.youtube_description || '',
+        scheduledStartTime: new Date().toISOString()
+    };
+
+    console.log(`[YouTubeService] Creating YouTube broadcast for stream ${streamId}`);
+
+    const broadcastData = {
+        snippet: broadcastSnippet,
+        contentDetails: {
+            enableAutoStart: true,
+            enableAutoStop: true,
+            monitorStream: {
+                enableMonitorStream: false
+            }
+        },
+        status: {
+            privacyStatus: stream.youtube_privacy || 'unlisted',
+            selfDeclaredMadeForKids: false
+        }
+    };
+
+    const broadcastResponse = await youtube.liveBroadcasts.insert({
+        part: 'snippet,contentDetails,status',
+        requestBody: broadcastData
+    });
+
+    broadcast = broadcastResponse.data;
+    broadcastId = broadcast.id;
+    console.log(`[YouTubeService] Created broadcast: ${broadcastId}`);
+  } else {
+    console.log(`[YouTubeService] Using existing broadcast: ${broadcastId}`);
+    // broadcast may be undefined here; use broadcastId for all subsequent calls
+  }
+
+  if (stream.youtube_monetization) {
+    try {
+      await syncBroadcastMonetization(youtube, broadcastId, true);
+      console.log(`[YouTubeService] Enabled monetization for broadcast ${broadcastId}`);
+    } catch (monetizationError) {
+      console.warn(`[YouTubeService] Failed to enable monetization for broadcast ${broadcastId}. Continuing without monetization. Error: ${monetizationError.message}`);
+      await Stream.update(streamId, { youtube_monetization: false });
+    }
+  }
+
+  if (tagsArray.length > 0 || stream.youtube_category) {
+    try {
+      const videoResponse = await youtube.videos.list({
+        part: 'snippet',
+        id: broadcastId
+      });
+
+      if (videoResponse.data.items && videoResponse.data.items.length > 0) {
+        const currentSnippet = videoResponse.data.items[0].snippet;
+        await youtube.videos.update({
+          part: 'snippet',
+          requestBody: {
+            id: broadcastId,
+            snippet: {
+              title: stream.title,
+              description: stream.youtube_description || '',
+              categoryId: stream.youtube_category || '22',
+              tags: tagsArray.length > 0 ? tagsArray : currentSnippet.tags,
+              defaultLanguage: currentSnippet.defaultLanguage,
+              defaultAudioLanguage: currentSnippet.defaultAudioLanguage
+            }
+          }
+        });
+      }
+    } catch (updateError) {
+      console.log('[YouTubeService] Note: Could not update video metadata:', updateError.message);
+    }
+  }
+
+  if (stream.youtube_thumbnail) {
+    try {
+      const projectRoot = path.resolve(__dirname, '..');
+      const thumbnailPath = path.join(projectRoot, 'public', stream.youtube_thumbnail);
+      if (fs.existsSync(thumbnailPath)) {
+        const thumbnailStream = fs.createReadStream(thumbnailPath);
+        await youtube.thumbnails.set({
+          videoId: broadcastId,
+          media: {
+            mimeType: 'image/jpeg',
+            body: thumbnailStream
+          }
+        });
+        console.log(`[YouTubeService] Uploaded thumbnail for broadcast ${broadcastId}`);
+      }
+    } catch (thumbError) {
+      console.log('[YouTubeService] Note: Could not upload thumbnail:', thumbError.message);
+    }
+  }
+
+  let rtmpUrl = stream.rtmp_url;
+  let streamKey = stream.stream_key;
+  let youtubeStreamId = stream.youtube_stream_id;
+
+  if (!youtubeStreamId || !rtmpUrl || !streamKey) {
+    const streamResponse = await youtube.liveStreams.insert({
+        part: 'snippet,cdn,contentDetails,status',
+        requestBody: {
+            snippet: {
+                title: `${stream.title} - Stream`
+            },
+            cdn: {
+                frameRate: '30fps',
+                ingestionType: 'rtmp',
+                resolution: '1080p'
+            },
+            contentDetails: {
+                isReusable: false
+            }
+        }
+    });
+
+    const liveStream = streamResponse.data;
+    youtubeStreamId = liveStream.id;
+    rtmpUrl = liveStream.cdn.ingestionInfo.ingestionAddress;
+    streamKey = liveStream.cdn.ingestionInfo.streamName;
+    console.log(`[YouTubeService] Created live stream: ${youtubeStreamId}`);
+
+    try {
+        await youtube.liveBroadcasts.bind({
+            part: 'id,contentDetails',
+            id: broadcastId,
+            streamId: youtubeStreamId
+        });
+    } catch (bindError) {
+        if (bindError.message && (bindError.message.toLowerCase().includes('binding') || bindError.message.toLowerCase().includes('allow'))) {
+            console.warn(`[YouTubeService] Binding failed for stream ${streamId}, clearing IDs for retry: ${bindError.message}`);
+            await Stream.update(streamId, {
+                youtube_broadcast_id: '',
+                youtube_stream_id: '',
+                rtmp_url: '',
+                stream_key: ''
+            });
+            throw new Error(`YouTube binding error: ${bindError.message}. Handled, will retry fresh.`);
+        }
+        throw bindError;
+    }
+
+    await Stream.update(streamId, {
+        youtube_broadcast_id: broadcastId,
+        youtube_stream_id: youtubeStreamId,
+        rtmp_url: rtmpUrl,
+        stream_key: streamKey
+    });
+  }
+
+  console.log(`[YouTubeService] YouTube broadcast handled successfully for stream ${streamId}`);
+
+  return {
+    success: true,
+    broadcastId: broadcastId,
+    streamId: youtubeStreamId,
+    rtmpUrl: rtmpUrl,
+    streamKey: streamKey
+  };
+}
+
+async function getYoutubeInstance(userId, channelId) {
+  const user = await User.findById(userId);
+  const selectedChannel = await YoutubeChannel.findById(channelId);
+  if (!user || !selectedChannel || !selectedChannel.access_token) return null;
+  
+  const clientSecret = decrypt(user.youtube_client_secret);
+  const accessToken = decrypt(selectedChannel.access_token);
+  const refreshToken = decrypt(selectedChannel.refresh_token);
+  
+  const oauth2Client = getYouTubeOAuth2Client(user.youtube_client_id, clientSecret, 'http://localhost');
+  oauth2Client.setCredentials({
+    access_token: accessToken,
+    refresh_token: refreshToken
+  });
+  
+  return google.youtube({ version: 'v3', auth: oauth2Client });
+}
+
+async function getChannelStats(userId, channelId) {
+  try {
+    const youtube = await getYoutubeInstance(userId, channelId);
+    if (!youtube) return null;
+    const res = await youtube.channels.list({ part: 'statistics,snippet', mine: true });
+    if (res.data.items && res.data.items.length > 0) {
+      return res.data.items[0];
+    }
+    return null;
+  } catch (e) {
+    console.log('[YouTubeService] Error getting channel stats:', e.message);
+    return null;
+  }
+}
+
+async function getLiveStreamMetrics(userId, channelId, broadcastId) {
+  try {
+    const youtube = await getYoutubeInstance(userId, channelId);
+    if (!youtube) return null;
+    const res = await youtube.videos.list({ part: 'liveStreamingDetails', id: broadcastId });
+    if (res.data.items && res.data.items.length > 0) {
+      return res.data.items[0].liveStreamingDetails;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function deleteYouTubeBroadcast(streamId) {
+  try {
+    loggedAlreadyHasBroadcast.delete(streamId);
+    
+    const stream = await Stream.findById(streamId);
+    if (!stream || !stream.is_youtube_api || !stream.youtube_broadcast_id) {
+      return { success: true, message: 'No YouTube broadcast to clean up' };
+    }
+
+    try {
+      const youtube = await getYoutubeInstance(stream.user_id, stream.youtube_channel_id);
+      if (youtube) {
+        await youtube.liveBroadcasts.transition({
+          part: 'id,status',
+          broadcastStatus: 'complete',
+          id: stream.youtube_broadcast_id
+        });
+        console.log(`[YouTubeService] Successfully forced broadcast to complete: ${stream.youtube_broadcast_id}`);
+      }
+    } catch (e) {
+      console.log(`[YouTubeService] Note: Could not transition broadcast to complete (${e.message})`);
+    }
+
+    await Stream.update(streamId, {
+      youtube_broadcast_id: '',
+      youtube_stream_id: '',
+      rtmp_url: '',
+      stream_key: ''
+    });
+
+    console.log(`[YouTubeService] Cleared YouTube credentials for stream ${streamId}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error('[YouTubeService] Error clearing YouTube broadcast data:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+module.exports = {
+  createYouTubeBroadcast,
+  deleteYouTubeBroadcast,
+  getYouTubeOAuth2Client,
+  syncBroadcastMonetization,
+  getChannelStats,
+  getLiveStreamMetrics,
+  handleYoutubeError,
+  getYoutubeInstance
+};

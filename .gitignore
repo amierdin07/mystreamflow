@@ -1,0 +1,11 @@
+node_modules
+public/uploads/
+logs/
+
+# ignore real env from repo
+.env
+package-lock.json
+db/streamflow.db
+database.sqlite
+*.zip
+.DS_Store

@@ -1,0 +1,161 @@
+<div class="h-full flex flex-col">
+  <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
+    <div>
+      <h2 class="text-2xl font-semibold mb-1">YouTube Monitor</h2>
+      <p class="text-gray-400 text-sm">Monitor channel statistics and general performance</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="refresh-all-btn" class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-secondary text-white rounded-lg transition-colors font-medium">
+        <i class="ti ti-refresh text-lg"></i>
+        <span>Refresh Stats</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="channels-container">
+    <% if (youtubeChannels && youtubeChannels.length > 0) { %>
+      <% youtubeChannels.forEach(channel => { %>
+        <div class="channel-card bg-dark-800 rounded-xl overflow-hidden hover:ring-1 hover:ring-primary/50 transition-all border border-gray-700/50 shadow-lg" data-id="<%= channel.id %>">
+          <div class="relative h-24 overflow-hidden bg-dark-700">
+            <img class="channel-banner absolute w-full h-full object-cover hidden" src="" alt="Banner">
+            <div class="absolute inset-0 bg-gradient-to-t from-dark-800 to-transparent"></div>
+          </div>
+          
+          <div class="px-5 pb-5 relative">
+            <div class="flex justify-between items-end mb-4">
+              <div class="relative -mt-10 p-1 bg-dark-800 rounded-full border border-gray-700">
+                <% if (channel.channel_thumbnail) { %>
+                  <img src="<%= channel.channel_thumbnail %>" alt="<%= channel.channel_name %>" class="w-16 h-16 rounded-full object-cover">
+                <% } else { %>
+                  <div class="w-16 h-16 bg-primary/20 text-primary rounded-full flex items-center justify-center font-bold text-xl">
+                    <%= channel.channel_name ? channel.channel_name.charAt(0) : '?' %>
+                  </div>
+                <% } %>
+              </div>
+              <div class="flex items-center pb-2">
+                <% if (channel.is_default) { %>
+                  <span class="px-2 py-1 bg-green-500/10 text-green-500 text-xs font-semibold rounded border border-green-500/20">Default</span>
+                <% } %>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <h3 class="text-lg font-bold text-white leading-tight truncate" title="<%= channel.channel_name %>">
+                <%= channel.channel_name || 'Nameless Channel' %>
+              </h3>
+            </div>
+
+            <div class="stats-loading mb-2 text-center text-sm py-8 text-gray-400">
+               <i class="ti ti-loader-2 animate-spin text-primary inline-block mr-2 text-lg"></i> Loading Channel Data...
+            </div>
+            
+            <div class="stats-data hidden grid grid-cols-3 gap-3 my-4">
+              <div class="bg-dark-900/50 p-3 rounded-lg border border-gray-700/50 flex flex-col items-center justify-center">
+                <span class="text-xs text-gray-400 mb-1 flex items-center"><i class="ti ti-users mr-1"></i> Subs</span>
+                <span class="text-white font-bold sub-count tracking-wide">...</span>
+              </div>
+              <div class="bg-dark-900/50 p-3 rounded-lg border border-gray-700/50 flex flex-col items-center justify-center">
+                <span class="text-xs text-gray-400 mb-1 flex items-center"><i class="ti ti-eye mr-1"></i> Views</span>
+                <span class="text-white font-bold view-count tracking-wide">...</span>
+              </div>
+              <div class="bg-dark-900/50 p-3 rounded-lg border border-gray-700/50 flex flex-col items-center justify-center">
+                <span class="text-xs text-gray-400 mb-1 flex items-center"><i class="ti ti-video mr-1"></i> Videos</span>
+                <span class="text-white font-bold video-count tracking-wide">...</span>
+              </div>
+            </div>
+
+            <div class="mt-4 pt-4 border-t border-gray-700/50 flex items-center justify-between">
+              <span class="text-xs text-gray-500 last-sync-time flex items-center">
+                <i class="ti ti-clock mr-1"></i> Updates manually
+              </span>
+              <button class="text-primary hover:text-white transition-colors text-sm font-medium refresh-single-btn flex items-center" data-id="<%= channel.id %>">
+                <i class="ti ti-refresh mr-1 font-bold"></i> Sync
+              </button>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    <% } else { %>
+      <div class="col-span-full py-20 flex flex-col items-center justify-center text-gray-400 bg-dark-800/50 rounded-xl border border-dashed border-gray-700">
+        <div class="w-16 h-16 bg-gray-800/80 rounded-full flex items-center justify-center mb-4">
+          <i class="ti ti-brand-youtube text-2xl text-gray-400"></i>
+        </div>
+        <p class="mb-2 text-center text-gray-300">You haven't connected any YouTube channels yet.</p>
+        <a href="/settings" class="text-primary hover:underline text-sm font-medium mt-2">Go to Settings to Connect</a>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const cards = document.querySelectorAll('.channel-card');
+    
+    function formatNumber(num) {
+        if (!num) return '0';
+        num = parseInt(num);
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 100000) return (num / 1000).toFixed(0) + 'K';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return new Intl.NumberFormat().format(num);
+    }
+
+    async function fetchStats(card, isManual = false) {
+        const id = card.getAttribute('data-id');
+        const loadingDiv = card.querySelector('.stats-loading');
+        const dataDiv = card.querySelector('.stats-data');
+        const bannerImg = card.querySelector('.channel-banner');
+        const icon = isManual ? card.querySelector('.refresh-single-btn i') : null;
+        
+        loadingDiv.classList.remove('hidden');
+        dataDiv.classList.add('hidden');
+        if (icon) icon.classList.add('animate-spin');
+
+        try {
+            const res = await fetch(`/api/youtube/stats/${id}`);
+            const json = await res.json();
+
+            if (json.success && json.stats) {
+                const s = json.stats.statistics;
+                card.querySelector('.sub-count').textContent = formatNumber(s.subscriberCount);
+                card.querySelector('.view-count').textContent = formatNumber(s.viewCount);
+                card.querySelector('.video-count').textContent = formatNumber(s.videoCount);
+                
+                if (json.stats.brandingSettings?.image?.bannerExternalUrl) {
+                  bannerImg.src = json.stats.brandingSettings.image.bannerExternalUrl + '=w1060-fcrop64=1,00005a57ffffa5a8-k-c0xffffffff-no-nd-rj';
+                  bannerImg.classList.remove('hidden');
+                }
+
+                card.querySelector('.last-sync-time').innerHTML = `<i class="ti ti-clock-check mr-1 text-green-500"></i> Synced: ${new Date().toLocaleTimeString()}`;
+            } else {
+                card.querySelector('.last-sync-time').innerHTML = `<span class="text-red-400 flex items-center"><i class="ti ti-alert-circle mr-1"></i> API Error</span>`;
+            }
+        } catch (e) {
+            card.querySelector('.last-sync-time').innerHTML = `<span class="text-red-400 flex items-center"><i class="ti ti-alert-circle mr-1"></i> Connection Failed</span>`;
+        } finally {
+            loadingDiv.classList.add('hidden');
+            dataDiv.classList.remove('hidden');
+            if (icon) icon.classList.remove('animate-spin');
+        }
+    }
+
+    document.getElementById('refresh-all-btn').addEventListener('click', (e) => {
+        const btn = e.currentTarget;
+        const icon = btn.querySelector('i');
+        icon.classList.add('animate-spin');
+        Promise.all(Array.from(cards).map(c => fetchStats(c))).finally(() => {
+            icon.classList.remove('animate-spin');
+        });
+    });
+
+    document.querySelectorAll('.refresh-single-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+             const card = e.target.closest('.channel-card');
+             fetchStats(card, true);
+        });
+    });
+
+    // Initial Load
+    cards.forEach(c => fetchStats(c));
+});
+</script>
