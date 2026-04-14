@@ -2,33 +2,37 @@
 set -e
 
 # ================================================================
-#  StreamFlow Auto Installer for amierdin07/mystreamflow
+#  StreamFlow Auto Installer (Anti-Macet Version)
 # ================================================================
 
-echo "🚀 Memulai Instalasi StreamFlow..."
+# Memastikan sistem tidak memunculkan dialog pop-up (layar ungu)
+export DEBIAN_FRONTEND=noninteractive
+
+echo "🚀 Memulai Instalasi StreamFlow (Versi Otomatis)..."
 sleep 2
 
 # 1. Update & Install Dependency Dasar
-echo "🔄 Updating sistem dan menginstall dependency..."
-sudo apt update && sudo apt upgrade -y
-sudo apt install git ffmpeg nginx certbot python3-certbot-nginx -y
+echo "🔄 Updating sistem (Tanpa pop-up)..."
+sudo apt-get update
+sudo apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade
+sudo apt-get install -y git ffmpeg nginx certbot python3-certbot-nginx
 
-# 2. Install Node.js v22 (LTS Terbaru)
+# 2. Install Node.js v22
 echo "📦 Menginstall Node.js v22..."
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install -y nodejs
+sudo apt-get install -y nodejs
 
 # 3. Clone Repository Amierdin07
 echo "📥 Mengkloning repository mystreamflow..."
 if [ -d "mystreamflow" ]; then
-    echo "⚠️ Folder mystreamflow sudah ada, menghapus folder lama..."
+    echo "⚠️ Folder mystreamflow sudah ada, menghapus folder lama agar fresh..."
     rm -rf mystreamflow
 fi
 git clone https://github.com/amierdin07/mystreamflow.git
 cd mystreamflow
 
 # 4. Install Module & Setup
-echo "⚙️ Menginstall Node modules (ini mungkin agak lama)..."
+echo "⚙️ Menginstall Node modules..."
 npm install
 node generate-secret.js
 
@@ -37,10 +41,8 @@ echo "🕐 Mengatur zona waktu ke WIB (Jakarta)..."
 sudo timedatectl set-timezone Asia/Jakarta
 
 # 6. Install & Setup PM2
-if ! command -v pm2 &> /dev/null; then
-    echo "🚀 Menginstall PM2..."
-    sudo npm install -g pm2
-fi
+echo "🚀 Menginstall PM2..."
+sudo npm install -g pm2
 
 echo "▶️ Menjalankan aplikasi dengan PM2..."
 pm2 delete streamflow 2>/dev/null || true
@@ -51,13 +53,10 @@ pm2 startup | tail -1 | bash || true
 # 7. Selesai
 clear
 echo "================================================================"
-echo "✅ INSTALASI SELESAI!"
+echo "✅ INSTALASI BERHASIL DISESUAIKAN!"
 echo "================================================================"
 IP_VPS=$(curl -s ifconfig.me)
 echo "Aplikasi berjalan di: http://$IP_VPS:7575"
 echo ""
-echo "Langkah berikutnya:"
-echo "1. Buka link di atas di browser."
-echo "2. Setup akun Admin."
-echo "3. Masukkan Client ID & Secret YouTube di menu Settings."
+echo "Sekarang kamu bisa cek dengan perintah: pm2 status"
 echo "================================================================"
