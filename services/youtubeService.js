@@ -441,7 +441,7 @@ async function getStreamHealth(userId, channelId, youtubeStreamId) {
     });
 
     if (res.data.items && res.data.items.length > 0) {
-      return res.data.items[0].status.streamHealthStatus || { status: 'nodata' };
+      return res.data.items[0].status.healthStatus || { status: 'nodata' };
     }
     return { status: 'nodata' };
   } catch (e) {
