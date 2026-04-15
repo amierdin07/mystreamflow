@@ -428,7 +428,32 @@ function createTables() {
             if (err && !err.message.includes('duplicate column name')) console.error(err.message);
             db.run(`ALTER TABLE playlists ADD COLUMN youtube_channel_id TEXT`, (err) => {
               if (err && !err.message.includes('duplicate column name')) console.error(err.message);
-              resolve();
+              db.run(`CREATE TABLE IF NOT EXISTS loop_tasks (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                video_id TEXT NOT NULL,
+                audio_ids TEXT NOT NULL,
+                youtube_channel_id TEXT NOT NULL,
+                privacy TEXT DEFAULT 'unlisted',
+                category TEXT DEFAULT '22',
+                tags TEXT,
+                status TEXT DEFAULT 'pending',
+                progress INTEGER DEFAULT 0,
+                error_message TEXT,
+                output_path TEXT,
+                youtube_video_id TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (video_id) REFERENCES videos(id)
+              )`, (err) => {
+                if (err && !err.message.includes('already exists')) {
+                  console.error('Error creating loop_tasks table:', err.message);
+                }
+                resolve();
+              });
             });
           });
         });

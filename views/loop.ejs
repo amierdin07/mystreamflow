@@ -1,0 +1,502 @@
+<% layout('layout') -%>
+
+<div class="flex flex-row items-center justify-between mb-6 gap-4">
+  <div>
+    <h2 class="text-sm font-bold uppercase tracking-wider text-gray-400">Loop & YouTube Upload</h2>
+    <p class="text-xs text-gray-500 mt-1">Combine media and upload directly to your channel.</p>
+  </div>
+  <button onclick="openCreateLoopModal()"
+    class="flex items-center gap-2 bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-all shadow-lg shadow-primary/20">
+    <i class="ti ti-plus"></i>
+    <span>New Loop Task</span>
+  </button>
+</div>
+
+<!-- Task List -->
+<div class="grid grid-cols-1 gap-4" id="tasksContainer">
+  <% if (tasks && tasks.length > 0) { %>
+    <% tasks.forEach(function(task) { %>
+      <div class="bg-gray-800/40 border border-gray-700/50 rounded-xl p-4 flex flex-col md:flex-row items-center gap-4 transition-all hover:border-primary/30" id="task-<%= task.id %>">
+        <div class="w-16 h-16 bg-dark-700 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="ti ti-repeat text-2xl text-primary"></i>
+        </div>
+        <div class="flex-1 min-w-0 w-full">
+          <div class="flex items-start justify-between mb-1">
+            <h3 class="font-semibold text-white truncate"><%= task.title %></h3>
+            <span class="status-badge px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider <%= 
+              task.status === 'completed' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 
+              task.status === 'failed' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 
+              task.status === 'rendering' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' : 
+              'bg-gray-500/10 text-gray-400 border border-gray-500/20' 
+            %>">
+              <%= task.status %>
+            </span>
+          </div>
+          <div class="flex items-center gap-3 text-xs text-gray-400 mb-3">
+            <span class="flex items-center gap-1"><i class="ti ti-calendar"></i> <%= helpers.formatDateTime(task.created_at) %></span>
+            <% if (task.youtube_video_id) { %>
+              <a href="https://youtube.com/watch?v=<%= task.youtube_video_id %>" target="_blank" class="text-primary hover:underline flex items-center gap-1">
+                <i class="ti ti-brand-youtube"></i> View on YouTube
+              </a>
+            <% } %>
+          </div>
+          
+          <% if (task.status === 'rendering' || task.status === 'uploading') { %>
+            <div class="w-full bg-dark-700 h-1.5 rounded-full overflow-hidden mb-1">
+              <div class="bg-primary h-full transition-all duration-500" style="width: <%= task.progress %>%"></div>
+            </div>
+            <div class="flex justify-between text-[10px] text-gray-500">
+              <span><%= task.status === 'rendering' ? 'Rendering Video...' : 'Uploading to YouTube...' %></span>
+              <span><%= task.progress %>%</span>
+            </div>
+          <% } else if (task.status === 'failed') { %>
+            <p class="text-[10px] text-red-400 bg-red-400/5 p-2 rounded border border-red-400/10"><%= task.error_message || 'Unknown error occurred' %></p>
+          <% } %>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button onclick="deleteTask('<%= task.id %>')" class="p-2 hover:bg-red-500/10 text-gray-400 hover:text-red-500 rounded-lg transition-colors" title="Delete Task">
+            <i class="ti ti-trash"></i>
+          </button>
+        </div>
+      </div>
+    <% }); %>
+  <% } else { %>
+    <div class="flex flex-col items-center justify-center py-12 text-center bg-gray-800/20 rounded-2xl border-2 border-dashed border-gray-700/50">
+      <div class="w-16 h-16 rounded-full bg-dark-700 flex items-center justify-center mb-4">
+        <i class="ti ti-repeat text-3xl text-gray-500"></i>
+      </div>
+      <h3 class="text-lg font-medium text-white mb-2">No loop tasks found</h3>
+      <p class="text-gray-400 text-sm mb-6 max-w-sm">Mix your gallery items and upload them directly to YouTube automatically.</p>
+      <button onclick="openCreateLoopModal()" class="flex items-center gap-2 bg-primary hover:bg-blue-600 text-white px-6 py-2.5 rounded-xl transition-all">
+        <i class="ti ti-plus"></i>
+        <span>Create Your First Loop</span>
+      </button>
+    </div>
+  <% } %>
+</div>
+
+<!-- Create Loop Modal -->
+<div id="createLoopModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-dark-800 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div class="p-6 border-b border-gray-700 flex items-center justify-between bg-dark-850">
+      <div>
+        <h3 class="text-xl font-bold text-white">New Loop & Upload</h3>
+        <p class="text-xs text-gray-400">Combine visual and audio for YouTube</p>
+      </div>
+      <button onclick="closeCreateLoopModal()" class="text-gray-400 hover:text-white p-2 hover:bg-gray-700 rounded-full transition-all">
+        <i class="ti ti-x text-xl"></i>
+      </button>
+    </div>
+    
+    <div class="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+      <form id="loopForm">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <!-- Left Column: Media Selection -->
+          <div class="space-y-6">
+            <!-- Visual Selection -->
+            <div>
+              <label class="block text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+                <i class="ti ti-video text-primary"></i> 1. Select Visual (Required)
+                <span class="text-[10px] font-normal text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded">Video or Image</span>
+              </label>
+              <div id="selectedVisualContainer" class="hidden mb-3 p-3 bg-primary/10 border border-primary/30 rounded-xl flex items-center gap-3">
+                <div id="visualPreview" class="w-16 h-10 bg-dark-900 rounded overflow-hidden"></div>
+                <div class="flex-1 min-w-0">
+                  <p id="visualTitle" class="text-xs font-medium text-white truncate"></p>
+                  <p id="visualInfo" class="text-[10px] text-gray-400"></p>
+                </div>
+                <button type="button" onclick="clearVisual()" class="text-red-400 hover:text-red-300 p-1">
+                  <i class="ti ti-trash"></i>
+                </button>
+              </div>
+              <button type="button" onclick="openMediaSelector('visual')" id="visualPlaceholder"
+                class="w-full h-24 border-2 border-dashed border-gray-700 rounded-xl flex flex-col items-center justify-center gap-2 hover:border-primary/50 hover:bg-primary/5 transition-all text-gray-500 hover:text-primary">
+                <i class="ti ti-photo-plus text-2xl"></i>
+                <span class="text-xs font-medium">Click to select video or image</span>
+              </button>
+              <input type="hidden" id="input_video_id" name="video_id" required>
+            </div>
+
+            <!-- Audio Selection -->
+            <div>
+              <label class="block text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+                <i class="ti ti-music text-primary"></i> 2. Add Audios (Required)
+                <span class="text-[10px] font-normal text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded">Multiple allowed</span>
+              </label>
+              <div id="selectedAudiosList" class="space-y-2 mb-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar"></div>
+              <button type="button" onclick="openMediaSelector('audio')" 
+                class="w-full py-3 border border-gray-700 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-700/50 transition-all text-gray-400 hover:text-white text-xs">
+                <i class="ti ti-plus"></i>
+                <span>Add Audio Track</span>
+              </button>
+              <input type="hidden" id="input_audio_ids" name="audio_ids" required>
+            </div>
+          </div>
+
+          <!-- Right Column: Metadata -->
+          <div class="space-y-6">
+            <div>
+              <label class="block text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+                <i class="ti ti-brand-youtube text-red-500"></i> 3. YouTube Settings
+              </label>
+              <div class="space-y-4 bg-dark-850 p-4 rounded-2xl border border-gray-700/50">
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1.5 ml-1">Select Channel</label>
+                  <select name="youtube_channel_id" class="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary outline-none" required>
+                    <option value="" disabled selected>Choose a channel...</option>
+                    <% if (youtubeChannels && youtubeChannels.length > 0) { %>
+                      <% youtubeChannels.forEach(function(ch) { %>
+                        <option value="<%= ch.id %>"><%= ch.channel_name %></option>
+                      <% }); %>
+                    <% } %>
+                  </select>
+                </div>
+                
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1.5 ml-1">Video Title</label>
+                  <input type="text" name="title" placeholder="A stunning lo-fi mix..." class="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary outline-none" required>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1.5 ml-1">Privacy</label>
+                    <select name="privacy" class="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary outline-none">
+                      <option value="unlisted">Unlisted</option>
+                      <option value="public">Public</option>
+                      <option value="private">Private</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1.5 ml-1">Category</label>
+                    <select name="category" class="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary outline-none">
+                      <option value="10">Music</option>
+                      <option value="22">People & Blogs</option>
+                      <option value="24">Entertainment</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1.5 ml-1">Tags (Comma separated)</label>
+                  <input type="text" name="tags" placeholder="lofi, music, relax..." class="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary outline-none">
+                </div>
+
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1.5 ml-1">Description</label>
+                  <textarea name="description" rows="3" placeholder="Tell viewers about your video..." class="w-full bg-dark-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary outline-none resize-none"></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+    
+    <div class="p-6 border-t border-gray-700 bg-dark-850 flex items-center justify-between">
+      <div class="text-xs text-gray-500">
+        <span id="finalStats">Select media to see stats</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="closeCreateLoopModal()" class="px-6 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors">Cancel</button>
+        <button id="submitLoopBtn" onclick="submitLoopForm()" class="px-8 py-2.5 bg-primary hover:bg-blue-600 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-primary/20">
+          Start Processing
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Media Selector Component (Hidden initially) -->
+<div id="mediaSelectorModal" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+  <div class="bg-dark-800 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
+    <div class="p-5 border-b border-gray-700 flex items-center justify-between">
+      <h4 id="selectorTitle" class="font-bold text-white">Select Media</h4>
+      <div class="relative w-48">
+        <input type="text" id="selectorSearch" placeholder="Search..." class="w-full bg-dark-700 border border-none rounded-lg pl-8 pr-3 py-1.5 text-xs text-white outline-none">
+        <i class="ti ti-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500"></i>
+      </div>
+    </div>
+    <div id="selectorList" class="flex-1 overflow-y-auto p-3 grid grid-cols-2 sm:grid-cols-3 gap-3 custom-scrollbar">
+      <!-- Media items will be injected here -->
+    </div>
+    <div class="p-4 border-t border-gray-700 flex justify-end">
+      <button onclick="closeMediaSelector()" class="px-4 py-1.5 bg-gray-700 text-white rounded-lg text-xs">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let selectedVisualId = null;
+let selectedAudioList = [];
+let allMedia = <%- JSON.stringify(videos || []) %>;
+let pollingInterval = null;
+
+function openCreateLoopModal() {
+  document.getElementById('createLoopModal').classList.remove('hidden');
+  document.getElementById('loopForm').reset();
+  clearVisual();
+  clearAudios();
+}
+
+function closeCreateLoopModal() {
+  document.getElementById('createLoopModal').classList.add('hidden');
+}
+
+function openMediaSelector(type) {
+  const modal = document.getElementById('mediaSelectorModal');
+  const list = document.getElementById('selectorList');
+  const title = document.getElementById('selectorTitle');
+  
+  title.textContent = type === 'visual' ? 'Select Video or Image' : 'Select Audio';
+  modal.classList.remove('hidden');
+  
+  const filtered = allMedia.filter(m => {
+    const isImage = m.filepath.match(/\.(jpg|jpeg|png|webp)$/i);
+    const isVideo = m.filepath.match(/\.(mp4|mkv|mov|avi|flv)$/i);
+    const isAudio = m.filepath.match(/\.(mp3|wav|m4a|aac|ogg)$/i);
+    
+    if (type === 'visual') return isImage || isVideo;
+    if (type === 'audio') return isAudio;
+    return false;
+  });
+
+  renderMediaList(filtered, type);
+  
+  document.getElementById('selectorSearch').oninput = (e) => {
+    const term = e.target.value.toLowerCase();
+    const searched = filtered.filter(m => m.title.toLowerCase().includes(term));
+    renderMediaList(searched, type);
+  };
+}
+
+function renderMediaList(items, type) {
+  const list = document.getElementById('selectorList');
+  if (items.length === 0) {
+    list.innerHTML = `<div class="col-span-full py-12 text-center text-gray-500 text-xs">No matching media found in gallery.</div>`;
+    return;
+  }
+  
+  list.innerHTML = items.map(m => `
+    <div onclick="selectMedia('${m.id}', '${type}')" class="group cursor-pointer bg-dark-850 border border-gray-700 rounded-xl overflow-hidden hover:border-primary/50 transition-all">
+      <div class="aspect-video bg-dark-900 relative">
+        <img src="${m.thumbnail_path || '/images/audio-thumbnail.svg'}" class="w-full h-full object-cover group-hover:scale-105 transition-transform">
+        ${m.duration ? `<span class="absolute bottom-1 right-1 bg-black/60 px-1 rounded text-[8px] font-bold text-white">${formatDurationShort(m.duration)}</span>` : ''}
+      </div>
+      <div class="p-2">
+        <p class="text-[10px] font-medium text-white truncate">${m.title}</p>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectMedia(id, type) {
+  const media = allMedia.find(m => m.id === id);
+  if (type === 'visual') {
+    selectedVisualId = id;
+    document.getElementById('input_video_id').value = id;
+    document.getElementById('selectedVisualContainer').classList.remove('hidden');
+    document.getElementById('visualPlaceholder').classList.add('hidden');
+    document.getElementById('visualTitle').textContent = media.title;
+    document.getElementById('visualInfo').textContent = media.duration ? formatDurationShort(media.duration) : 'Image File';
+    document.getElementById('visualPreview').innerHTML = `<img src="${media.thumbnail_path || '/images/default-thumbnail.jpg'}" class="w-full h-full object-cover">`;
+  } else {
+    if (!selectedAudioList.find(a => a.id === id)) {
+      selectedAudioList.push(media);
+      updateAudioDisplay();
+    }
+  }
+  closeMediaSelector();
+  updateStats();
+}
+
+function updateAudioDisplay() {
+  const list = document.getElementById('selectedAudiosList');
+  document.getElementById('input_audio_ids').value = selectedAudioList.map(a => a.id).join(',');
+  
+  list.innerHTML = selectedAudioList.map((a, i) => `
+    <div class="flex items-center gap-3 p-2 bg-dark-850 border border-gray-700 rounded-lg group">
+      <span class="text-[10px] text-gray-500 font-mono w-4">${i + 1}</span>
+      <div class="w-8 h-8 rounded bg-dark-700 flex items-center justify-center flex-shrink-0">
+        <i class="ti ti-music text-xs text-gray-400"></i>
+      </div>
+      <p class="text-xs text-white truncate flex-1">${a.title}</p>
+      <span class="text-[10px] text-gray-500">${formatDurationShort(a.duration)}</span>
+      <button type="button" onclick="removeAudio('${a.id}')" class="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+        <i class="ti ti-trash"></i>
+      </button>
+    </div>
+  `).join('');
+  updateStats();
+}
+
+function removeAudio(id) {
+  selectedAudioList = selectedAudioList.filter(a => a.id !== id);
+  updateAudioDisplay();
+}
+
+function clearVisual() {
+  selectedVisualId = null;
+  document.getElementById('input_video_id').value = '';
+  document.getElementById('selectedVisualContainer').classList.add('hidden');
+  document.getElementById('visualPlaceholder').classList.remove('hidden');
+  updateStats();
+}
+
+function clearAudios() {
+  selectedAudioList = [];
+  document.getElementById('input_audio_ids').value = '';
+  document.getElementById('selectedAudiosList').innerHTML = '';
+  updateStats();
+}
+
+function updateStats() {
+  const stats = document.getElementById('finalStats');
+  const totalAudio = selectedAudioList.reduce((acc, a) => acc + (a.duration || 0), 0);
+  
+  if (!selectedVisualId && selectedAudioList.length === 0) {
+    stats.textContent = 'Select media to see stats';
+    return;
+  }
+  
+  stats.innerHTML = `<span class="text-primary font-bold">${selectedAudioList.length} audios</span> total <span class="text-white">${formatDurationShort(totalAudio)}</span>. This will be the final video duration.`;
+}
+
+function closeMediaSelector() {
+  document.getElementById('mediaSelectorModal').classList.add('hidden');
+}
+
+function formatDurationShort(s) {
+  if (!s) return '0:00';
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = Math.floor(s % 60);
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
+async function submitLoopForm() {
+  const form = document.getElementById('loopForm');
+  const formData = new FormData(form);
+  const data = Object.fromEntries(formData.entries());
+  
+  if (!data.video_id || !data.audio_ids || !data.youtube_channel_id || !data.title) {
+    showToast('Please fill in all required fields', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('submitLoopBtn');
+  const oldText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader animate-spin"></i> Initializing...';
+
+  try {
+    const res = await fetch('/api/loop/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    
+    const result = await res.json();
+    if (result.success) {
+      showToast('Task started successfully!', 'success');
+      closeCreateLoopModal();
+      setTimeout(() => location.reload(), 800);
+    } else {
+      showToast(result.error || 'Failed to start task', 'error');
+    }
+  } catch (e) {
+    showToast('An error occurred', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = oldText;
+  }
+}
+
+async function deleteTask(id) {
+  if (!confirm('Are you sure you want to delete this task?')) return;
+  
+  try {
+    const res = await fetch(`/api/loop/${id}`, { method: 'DELETE' });
+    const result = await res.json();
+    if (result.success) {
+      document.getElementById(`task-${id}`).remove();
+      showToast('Task deleted', 'success');
+    }
+  } catch (e) {
+    showToast('Failed to delete task', 'error');
+  }
+}
+
+// Polling for progress
+function startPolling() {
+  pollingInterval = setInterval(async () => {
+    try {
+      const res = await fetch('/api/loop/status');
+      const data = await res.json();
+      if (data.success) {
+        let hasActive = false;
+        data.tasks.forEach(task => {
+          const el = document.getElementById(`task-${task.id}`);
+          if (!el) return;
+          
+          if (task.status === 'rendering' || task.status === 'uploading') {
+            hasActive = true;
+            // Update progress bar and text
+            const bar = el.querySelector('.bg-primary');
+            const percent = el.querySelector('.flex.justify-between span:last-child');
+            const statusText = el.querySelector('.flex.justify-between span:first-child');
+            const badge = el.querySelector('.status-badge');
+            
+            if (bar) bar.style.width = `${task.progress}%`;
+            if (percent) percent.textContent = `${task.progress}%`;
+            if (statusText) statusText.textContent = task.status === 'rendering' ? 'Rendering Video...' : 'Uploading to YouTube...';
+            if (badge) {
+              badge.textContent = task.status;
+              badge.className = `status-badge px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${task.status === 'rendering' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' : 'bg-primary/10 text-primary border border-primary/20'}`;
+            }
+          } else if (task.status === 'completed' || task.status === 'failed') {
+             // If task just finished, refresh to show final state (view buttons, error msg etc)
+             // We only refresh if the UI doesn't match the finished state
+             if (!el.querySelector('.ti-brand-youtube') && task.status === 'completed') {
+               location.reload();
+             }
+             if (!el.querySelector('.text-red-400') && task.status === 'failed') {
+               location.reload();
+             }
+          }
+        });
+        
+        if (!hasActive && pollingInterval) {
+          // Keep polling occasionally but maybe slower if no active tasks
+          // For now, simple polling is fine.
+        }
+      }
+    } catch (e) { console.error('Polling error:', e); }
+  }, 3000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  startPolling();
+});
+
+</script>
+
+<style>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--color-primary), 0.5);
+}
+.bg-dark-850 {
+  background-color: #1a1e2e;
+}
+</style>

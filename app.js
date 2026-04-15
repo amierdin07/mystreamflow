@@ -35,6 +35,8 @@ const ffmpeg = require('fluent-ffmpeg');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 const streamingService = require('./services/streamingService');
 const schedulerService = require('./services/schedulerService');
+const LoopTask = require('./models/LoopTask');
+const videoLoopService = require('./services/videoLoopService');
 const packageJson = require('./package.json');
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 process.on('unhandledRejection', (reason, promise) => {
@@ -797,6 +799,86 @@ app.get('/dashboard', isAuthenticated, async (req, res) => {
     res.redirect('/login');
   }
 });
+
+app.get('/loop', isAuthenticated, async (req, res) => {
+  try {
+    const user = await User.findById(req.session.userId);
+    const YoutubeChannel = require('./models/YoutubeChannel');
+    const youtubeChannels = await YoutubeChannel.findAll(req.session.userId);
+    const tasks = await LoopTask.findAll(req.session.userId);
+    const videos = await Video.findAll(req.session.userId);
+    
+    res.render('loop', {
+      title: 'Loop & Upload',
+      active: 'loop',
+      user: user,
+      youtubeChannels: youtubeChannels,
+      tasks: tasks,
+      videos: videos
+    });
+  } catch (error) {
+    console.error('Loop page error:', error);
+    res.redirect('/dashboard');
+  }
+});
+
+app.post('/api/loop/create', isAuthenticated, async (req, res) => {
+  try {
+    const { title, description, video_id, audio_ids, youtube_channel_id, privacy, category, tags } = req.body;
+    
+    if (!title || !video_id || !audio_ids || !youtube_channel_id) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    const task = await LoopTask.create({
+      user_id: req.session.userId,
+      title,
+      description,
+      video_id,
+      audio_ids,
+      youtube_channel_id,
+      privacy,
+      category,
+      tags
+    });
+
+    // Start processing in background
+    videoLoopService.startTask(task.id);
+
+    res.json({ success: true, task });
+  } catch (error) {
+    console.error('Create loop task error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/loop/status', isAuthenticated, async (req, res) => {
+  try {
+    const tasks = await LoopTask.findAll(req.session.userId);
+    res.json({ success: true, tasks });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/loop/:id', isAuthenticated, async (req, res) => {
+  try {
+    const task = await LoopTask.findById(req.params.id);
+    if (!task || task.user_id !== req.session.userId) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+
+    if (task.status === 'rendering') {
+      videoLoopService.cancelTask(task.id);
+    }
+
+    await LoopTask.delete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 function normalizeFolderId(folderId) {
   if (folderId === undefined || folderId === null || folderId === '' || folderId === 'root' || folderId === 'null') {
     return null;

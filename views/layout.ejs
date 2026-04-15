@@ -128,6 +128,11 @@
           <span class="text-xs mt-1">Gallery</span>
           <span class="sidebar-tooltip group-hover:scale-100">Video Gallery</span>
         </a>
+        <a href="/loop" class="sidebar-icon group <%= active === 'loop' ? 'bg-primary' : '' %>">
+          <i class="ti ti-repeat text-xl"></i>
+          <span class="text-xs mt-1">Loop</span>
+          <span class="sidebar-tooltip group-hover:scale-100">Video Loop & Upload</span>
+        </a>
         <a href="/playlist" class="sidebar-icon group <%= active === 'playlist' ? 'bg-primary' : '' %>">
           <i class="ti ti-playlist text-xl"></i>
           <span class="text-xs mt-1">Playlist</span>
@@ -259,6 +264,10 @@
       <a href="/gallery" class="bottom-nav-item <%= active === 'gallery' ? 'bottom-nav-active' : '' %>">
         <i class="ti ti-video"></i>
         <span>Gallery</span>
+      </a>
+      <a href="/loop" class="bottom-nav-item <%= active === 'loop' ? 'bottom-nav-active' : '' %>">
+        <i class="ti ti-repeat"></i>
+        <span>Loop</span>
       </a>
       <a href="/playlist" class="bottom-nav-item <%= active === 'playlist' ? 'bottom-nav-active' : '' %>">
         <i class="ti ti-playlist"></i>

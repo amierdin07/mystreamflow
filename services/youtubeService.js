@@ -450,6 +450,50 @@ async function getStreamHealth(userId, channelId, youtubeStreamId) {
   }
 }
 
+async function uploadVideoToYoutube(userId, channelId, filePath, metadata) {
+  try {
+    const youtube = await getYoutubeInstance(userId, channelId);
+    if (!youtube) throw new Error('Could not get YouTube instance');
+
+    const fileSize = fs.statSync(filePath).size;
+    
+    console.log(`[YouTubeService] Starting upload for ${filePath} (${fileSize} bytes)`);
+
+    const res = await youtube.videos.insert({
+      part: 'snippet,status',
+      requestBody: {
+        snippet: {
+          title: metadata.title,
+          description: metadata.description || '',
+          tags: metadata.tags ? metadata.tags.split(',').map(t => t.trim()) : [],
+          categoryId: metadata.category || '22',
+        },
+        status: {
+          privacyStatus: metadata.privacy || 'unlisted',
+          selfDeclaredMadeForKids: false,
+        },
+      },
+      media: {
+        body: fs.createReadStream(filePath),
+      },
+    }, {
+      onUploadProgress: evt => {
+        if (metadata.onProgress) {
+          const progress = Math.round((evt.bytesRead / fileSize) * 100);
+          metadata.onProgress(progress);
+        }
+      }
+    });
+
+    console.log(`[YouTubeService] Upload successful! Video ID: ${res.data.id}`);
+    return { success: true, videoId: res.data.id };
+  } catch (error) {
+    const betterError = handleYoutubeError(error, `(Upload: ${metadata.title})`);
+    console.error('[YouTubeService] Error uploading video:', betterError.message);
+    throw betterError;
+  }
+}
+
 module.exports = {
   createYouTubeBroadcast,
   deleteYouTubeBroadcast,
@@ -459,5 +503,6 @@ module.exports = {
   getLiveStreamMetrics,
   getStreamHealth,
   handleYoutubeError,
-  getYoutubeInstance
+  getYoutubeInstance,
+  uploadVideoToYoutube
 };
