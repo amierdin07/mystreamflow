@@ -259,6 +259,12 @@ function openMediaSelector(type) {
   modal.classList.remove('hidden');
   document.getElementById('selectorSearch').value = '';
   
+  if (type === 'audio') {
+    list.className = 'flex-1 overflow-y-auto p-3 flex flex-col gap-2 custom-scrollbar';
+  } else {
+    list.className = 'flex-1 overflow-y-auto p-3 grid grid-cols-2 sm:grid-cols-3 gap-3 custom-scrollbar';
+  }
+  
   const filtered = allMedia.filter(m => {
     const isImage = m.filepath.match(/\.(jpg|jpeg|png|webp)$/i);
     const isVideo = m.filepath.match(/\.(mp4|mkv|mov|avi|flv)$/i);
@@ -288,18 +294,32 @@ function renderMediaList(items, type) {
   list.innerHTML = items.map(m => {
     const isSelected = type === 'audio' && selectedAudioList.find(a => a.id === m.id);
     const title = m.title || m.filepath?.split('/').pop() || m.id || 'Untitled';
-    return `
-    <div onclick="selectMedia('${m.id}', '${type}')" class="group cursor-pointer bg-dark-850 border ${isSelected ? 'border-primary ring-2 ring-primary/50' : 'border-gray-700'} rounded-xl overflow-hidden hover:border-primary/50 transition-all relative">
-      <div class="aspect-video bg-dark-900 relative">
-        <img src="${m.thumbnail_path || '/images/audio-thumbnail.svg'}" class="w-full h-full object-cover group-hover:scale-105 transition-transform">
-        ${m.duration ? `<span class="absolute bottom-1 right-1 bg-black/60 px-1 rounded text-[8px] font-bold text-white">${formatDurationShort(m.duration)}</span>` : ''}
-        ${isSelected ? `<div class="absolute inset-0 bg-primary/20 flex items-center justify-center"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-lg"><i class="ti ti-check text-white text-lg"></i></div></div>` : ''}
+    
+    if (type === 'visual') {
+      return `
+      <div onclick="selectMedia('${m.id}', '${type}')" class="group cursor-pointer bg-dark-850 border ${isSelected ? 'border-primary ring-2 ring-primary/50' : 'border-gray-700'} rounded-xl overflow-hidden hover:border-primary/50 transition-all relative">
+        <div class="aspect-video bg-dark-900 relative">
+          <img src="${m.thumbnail_path || '/images/default-thumbnail.jpg'}" class="w-full h-full object-cover group-hover:scale-105 transition-transform">
+          ${m.duration ? `<span class="absolute bottom-1 right-1 bg-black/60 px-1 rounded text-[8px] font-bold text-white">${formatDurationShort(m.duration)}</span>` : ''}
+          ${isSelected ? `<div class="absolute inset-0 bg-primary/20 flex items-center justify-center"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-lg"><i class="ti ti-check text-white text-lg"></i></div></div>` : ''}
+        </div>
+        <div class="p-2">
+          <p class="text-[10px] font-medium text-white truncate">${title}</p>
+        </div>
       </div>
-      <div class="p-2">
-        <p class="text-[10px] font-medium text-white truncate">${title}</p>
+      `;
+    } else {
+      return `
+      <div onclick="selectMedia('${m.id}', '${type}')" class="flex items-center gap-3 p-3 bg-dark-850 border ${isSelected ? 'border-primary' : 'border-gray-700'} rounded-lg group cursor-pointer hover:border-primary/50 transition-colors">
+        <div class="w-8 h-8 rounded ${isSelected ? 'bg-primary text-white' : 'bg-dark-700 text-gray-400'} flex items-center justify-center flex-shrink-0 transition-colors">
+          <i class="ti ${isSelected ? 'ti-check' : 'ti-music'} text-sm"></i>
+        </div>
+        <p class="text-xs ${isSelected ? 'text-primary font-medium' : 'text-white'} truncate flex-1">${title}</p>
+        <span class="text-[10px] text-gray-500">${formatDurationShort(m.duration)}</span>
       </div>
-    </div>
-  `}).join('');
+      `;
+    }
+  }).join('');
 }
 
 function selectMedia(id, type) {
