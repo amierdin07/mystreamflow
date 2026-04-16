@@ -2221,7 +2221,7 @@ app.post('/api/audio/upload', isAuthenticated, (req, res, next) => {
     const fullFilePath = result.filepath;
     const audioInfo = await audioConverter.getAudioInfo(fullFilePath);
     const stats = fs.statSync(fullFilePath);
-    const thumbnailPath = '/images/audio-thumbnail.png';
+    const thumbnailPath = '/images/audio-thumbnail.svg';
     const videoData = {
       title,
       filepath: filePath,
