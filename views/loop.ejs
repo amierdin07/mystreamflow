@@ -220,7 +220,7 @@
       <!-- Media items will be injected here -->
     </div>
     <div class="p-4 border-t border-gray-700 flex justify-end">
-      <button onclick="closeMediaSelector()" class="px-4 py-1.5 bg-gray-700 text-white rounded-lg text-xs">Close</button>
+      <button id="mediaSelectorCloseBtn" onclick="closeMediaSelector()" class="px-4 py-1.5 bg-gray-700 text-white rounded-lg text-xs hover:bg-gray-600 transition-colors">Close</button>
     </div>
   </div>
 </div>
@@ -246,9 +246,18 @@ function openMediaSelector(type) {
   const modal = document.getElementById('mediaSelectorModal');
   const list = document.getElementById('selectorList');
   const title = document.getElementById('selectorTitle');
+  const closeBtn = document.getElementById('mediaSelectorCloseBtn');
   
   title.textContent = type === 'visual' ? 'Select Video or Image' : 'Select Audio';
+  closeBtn.textContent = type === 'visual' ? 'Cancel' : 'Done & Close';
+  if (type === 'visual') {
+    closeBtn.className = 'px-4 py-1.5 bg-gray-700 text-white rounded-lg text-xs hover:bg-gray-600 transition-colors';
+  } else {
+    closeBtn.className = 'px-6 py-2 bg-primary text-white font-bold rounded-lg text-xs hover:bg-blue-600 transition-colors shadow-lg shadow-primary/20';
+  }
+  
   modal.classList.remove('hidden');
+  document.getElementById('selectorSearch').value = '';
   
   const filtered = allMedia.filter(m => {
     const isImage = m.filepath.match(/\.(jpg|jpeg|png|webp)$/i);
@@ -264,7 +273,7 @@ function openMediaSelector(type) {
   
   document.getElementById('selectorSearch').oninput = (e) => {
     const term = e.target.value.toLowerCase();
-    const searched = filtered.filter(m => m.title.toLowerCase().includes(term));
+    const searched = filtered.filter(m => (m.title || m.original_filename || m.filename || '').toLowerCase().includes(term));
     renderMediaList(searched, type);
   };
 }
@@ -276,17 +285,21 @@ function renderMediaList(items, type) {
     return;
   }
   
-  list.innerHTML = items.map(m => `
-    <div onclick="selectMedia('${m.id}', '${type}')" class="group cursor-pointer bg-dark-850 border border-gray-700 rounded-xl overflow-hidden hover:border-primary/50 transition-all">
+  list.innerHTML = items.map(m => {
+    const isSelected = type === 'audio' && selectedAudioList.find(a => a.id === m.id);
+    const title = m.title || m.original_filename || m.filename || 'Untitled';
+    return `
+    <div onclick="selectMedia('${m.id}', '${type}')" class="group cursor-pointer bg-dark-850 border ${isSelected ? 'border-primary ring-2 ring-primary/50' : 'border-gray-700'} rounded-xl overflow-hidden hover:border-primary/50 transition-all relative">
       <div class="aspect-video bg-dark-900 relative">
         <img src="${m.thumbnail_path || '/images/audio-thumbnail.svg'}" class="w-full h-full object-cover group-hover:scale-105 transition-transform">
         ${m.duration ? `<span class="absolute bottom-1 right-1 bg-black/60 px-1 rounded text-[8px] font-bold text-white">${formatDurationShort(m.duration)}</span>` : ''}
+        ${isSelected ? `<div class="absolute inset-0 bg-primary/20 flex items-center justify-center"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-lg"><i class="ti ti-check text-white text-lg"></i></div></div>` : ''}
       </div>
       <div class="p-2">
-        <p class="text-[10px] font-medium text-white truncate">${m.title}</p>
+        <p class="text-[10px] font-medium text-white truncate">${title}</p>
       </div>
     </div>
-  `).join('');
+  `}).join('');
 }
 
 function selectMedia(id, type) {
@@ -296,16 +309,20 @@ function selectMedia(id, type) {
     document.getElementById('input_video_id').value = id;
     document.getElementById('selectedVisualContainer').classList.remove('hidden');
     document.getElementById('visualPlaceholder').classList.add('hidden');
-    document.getElementById('visualTitle').textContent = media.title;
+    document.getElementById('visualTitle').textContent = media.title || media.original_filename || media.filename || 'Untitled';
     document.getElementById('visualInfo').textContent = media.duration ? formatDurationShort(media.duration) : 'Image File';
     document.getElementById('visualPreview').innerHTML = `<img src="${media.thumbnail_path || '/images/default-thumbnail.jpg'}" class="w-full h-full object-cover">`;
+    closeMediaSelector();
   } else {
-    if (!selectedAudioList.find(a => a.id === id)) {
+    const existingIndex = selectedAudioList.findIndex(a => a.id === id);
+    if (existingIndex !== -1) {
+      selectedAudioList.splice(existingIndex, 1);
+    } else {
       selectedAudioList.push(media);
-      updateAudioDisplay();
     }
+    updateAudioDisplay();
+    document.getElementById('selectorSearch').dispatchEvent(new Event('input'));
   }
-  closeMediaSelector();
   updateStats();
 }
 
@@ -319,7 +336,7 @@ function updateAudioDisplay() {
       <div class="w-8 h-8 rounded bg-dark-700 flex items-center justify-center flex-shrink-0">
         <i class="ti ti-music text-xs text-gray-400"></i>
       </div>
-      <p class="text-xs text-white truncate flex-1">${a.title}</p>
+      <p class="text-xs text-white truncate flex-1">${a.title || a.original_filename || a.filename || 'Untitled'}</p>
       <span class="text-[10px] text-gray-500">${formatDurationShort(a.duration)}</span>
       <button type="button" onclick="removeAudio('${a.id}')" class="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
         <i class="ti ti-trash"></i>
@@ -479,7 +496,36 @@ document.addEventListener('DOMContentLoaded', () => {
   startPolling();
 });
 
+function showToast(message, type = 'success') {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  const toastIcon = document.getElementById('toast-icon');
+  const toastMessage = document.getElementById('toast-message');
+  
+  if (type === 'success') {
+    toastIcon.className = 'ti ti-check text-green-400 text-xl mr-2';
+    toast.className = 'fixed top-16 right-4 bg-dark-800 text-white px-4 py-3 rounded-lg shadow-lg z-[100] flex items-center border-l-4 border-green-400';
+  } else if (type === 'error') {
+    toastIcon.className = 'ti ti-x text-red-400 text-xl mr-2';
+    toast.className = 'fixed top-16 right-4 bg-dark-800 text-white px-4 py-3 rounded-lg shadow-lg z-[100] flex items-center border-l-4 border-red-400';
+  } else {
+    toastIcon.className = 'ti ti-info-circle text-blue-400 text-xl mr-2';
+    toast.className = 'fixed top-16 right-4 bg-dark-800 text-white px-4 py-3 rounded-lg shadow-lg z-[100] flex items-center border-l-4 border-blue-400';
+  }
+  
+  toastMessage.textContent = message;
+  toast.classList.remove('hidden');
+  
+  setTimeout(() => {
+    toast.classList.add('hidden');
+  }, 3000);
+}
 </script>
+
+<div id="toast" class="fixed top-16 right-4 bg-dark-800 text-white px-4 py-3 rounded-lg shadow-lg z-[100] hidden flex items-center">
+  <i id="toast-icon" class="mr-2"></i>
+  <span id="toast-message"></span>
+</div>
 
 <style>
 .custom-scrollbar::-webkit-scrollbar {

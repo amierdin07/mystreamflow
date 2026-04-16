@@ -27,7 +27,7 @@ const generateThumbnail = (videoPath, thumbnailName) => {
         count: 1,
         folder: paths.thumbnails,
         filename: thumbnailName,
-        size: '320x180'
+        size: '1280x720'
       })
       .on('end', () => {
         resolve(thumbnailPath);
@@ -44,7 +44,7 @@ const generateImageThumbnail = (imagePath, thumbnailName) => {
     const thumbnailPath = path.join(paths.thumbnails, thumbnailName);
     ffmpeg(imagePath)
       .outputOptions([
-        '-vf', 'scale=320:180:force_original_aspect_ratio=decrease,pad=320:180:(ow-iw)/2:(oh-ih)/2'
+        '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2'
       ])
       .output(thumbnailPath)
       .on('end', () => {
