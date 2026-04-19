@@ -3768,11 +3768,12 @@ app.post('/api/streams', isAuthenticated, [
     const serverTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     
     function parseLocalDateTime(dateTimeString) {
+      if (!dateTimeString || typeof dateTimeString !== 'string' || !dateTimeString.includes('T')) return new Date();
       const [datePart, timePart] = dateTimeString.split('T');
-      const [year, month, day] = datePart.split('-').map(Number);
-      const [hours, minutes] = timePart.split(':').map(Number);
+      const [year, month, day] = (datePart || '').split('-').map(Number);
+      const [hours, minutes] = (timePart || '').split(':').map(Number);
       
-      return new Date(year, month - 1, day, hours, minutes);
+      return new Date(year, month - 1, day, hours || 0, minutes || 0);
     }
     
     if (req.body.scheduleStartTime) {
@@ -4007,10 +4008,11 @@ app.put('/api/streams/:id', isAuthenticated, uploadThumbnail.single('thumbnail')
     const updateData = {};
     
     function parseScheduleDateTime(dateTimeString) {
+      if (!dateTimeString || typeof dateTimeString !== 'string' || !dateTimeString.includes('T')) return new Date();
       const [datePart, timePart] = dateTimeString.split('T');
-      const [year, month, day] = datePart.split('-').map(Number);
-      const [hours, minutes] = timePart.split(':').map(Number);
-      return new Date(year, month - 1, day, hours, minutes);
+      const [year, month, day] = (datePart || '').split('-').map(Number);
+      const [hours, minutes] = (timePart || '').split(':').map(Number);
+      return new Date(year, month - 1, day, hours || 0, minutes || 0);
     }
     
     if (req.body.streamMode === 'youtube') {
@@ -4229,11 +4231,12 @@ app.put('/api/streams/:id', isAuthenticated, uploadThumbnail.single('thumbnail')
     const serverTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     
     function parseLocalDateTime(dateTimeString) {
+      if (!dateTimeString || typeof dateTimeString !== 'string' || !dateTimeString.includes('T')) return new Date();
       const [datePart, timePart] = dateTimeString.split('T');
-      const [year, month, day] = datePart.split('-').map(Number);
-      const [hours, minutes] = timePart.split(':').map(Number);
+      const [year, month, day] = (datePart || '').split('-').map(Number);
+      const [hours, minutes] = (timePart || '').split(':').map(Number);
       
-      return new Date(year, month - 1, day, hours, minutes);
+      return new Date(year, month - 1, day, hours || 0, minutes || 0);
     }
     
     if (req.body.scheduleStartTime) {
