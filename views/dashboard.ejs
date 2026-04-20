@@ -530,6 +530,7 @@
                     </div>
                   </div>
                   <input type="hidden" id="ytSelectedVideoId" name="ytVideoId" value="">
+                  <input type="hidden" id="ytSelectedVideoResolution" value="">
 
                   <div>
                     <label class="text-sm font-medium text-white block mb-2">Stream Title</label>
@@ -632,8 +633,9 @@
                       <div>
                         <label class="text-xs text-gray-400 block mb-1">Resolution</label>
                         <select id="ytResolution" name="ytResolution" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
+                          <option value="original" selected>Original (Auto Detect)</option>
                           <option value="720p">720p HD</option>
-                          <option value="1080p" selected>1080p Full HD</option>
+                          <option value="1080p">1080p Full HD</option>
                           <option value="1440p">1440p QHD</option>
                           <option value="2160p">2160p 4K</option>
                         </select>
@@ -1069,6 +1071,7 @@
                     </div>
                   </div>
                   <input type="hidden" id="editYtSelectedVideoId" name="ytVideoId" value="">
+                  <input type="hidden" id="editYtSelectedVideoResolution" value="">
 
                   <div>
                     <label class="text-sm font-medium text-white block mb-2">Stream Title</label>
@@ -1149,8 +1152,9 @@
                       <div>
                         <label class="text-xs text-gray-400 block mb-1">Resolution</label>
                         <select id="editYtResolution" name="ytResolution" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
+                          <option value="original" selected>Original (Auto Detect)</option>
                           <option value="720p">720p HD</option>
-                          <option value="1080p" selected>1080p Full HD</option>
+                          <option value="1080p">1080p Full HD</option>
                           <option value="1440p">1440p QHD</option>
                           <option value="2160p">2160p 4K</option>
                         </select>
@@ -1779,7 +1783,9 @@
           tags: document.getElementById('ytTags').value,
           loopVideo: true,
           ytChannelId: document.getElementById('ytSelectedChannelId')?.value || '',
-          resolution: document.getElementById('ytResolution').value,
+          resolution: document.getElementById('ytResolution').value === 'original' 
+            ? document.getElementById('ytSelectedVideoResolution').value 
+            : document.getElementById('ytResolution').value,
           bitrate: document.getElementById('ytBitrate').value,
           fps: document.getElementById('ytFps').value
         };
@@ -2899,6 +2905,7 @@
 
     function selectYoutubeVideo(video) {
       document.getElementById('ytSelectedVideoId').value = video.id;
+      document.getElementById('ytSelectedVideoResolution').value = video.resolution || '1280x720';
       if (video.type === 'playlist') {
         let displayText = `[Playlist] ${video.title}`;
         document.getElementById('ytSelectedVideo').textContent = displayText;
@@ -3323,6 +3330,7 @@
     
     function selectEditYoutubeVideo(video) {
       document.getElementById('editYtSelectedVideoId').value = video.id;
+      document.getElementById('editYtSelectedVideoResolution').value = video.resolution || '1280x720';
       if (video.type === 'playlist') {
         let displayText = `[Playlist] ${video.title}`;
         document.getElementById('editYtSelectedVideo').textContent = displayText;
@@ -4011,7 +4019,9 @@
               tags: document.getElementById('editYtTags').value,
               loopVideo: true,
               ytChannelId: document.getElementById('editYtSelectedChannelId')?.value || '',
-              resolution: document.getElementById('editYtResolution').value,
+              resolution: document.getElementById('editYtResolution').value === 'original'
+                ? document.getElementById('editYtSelectedVideoResolution').value
+                : document.getElementById('editYtResolution').value,
               bitrate: document.getElementById('editYtBitrate').value,
               fps: document.getElementById('editYtFps').value
             };
