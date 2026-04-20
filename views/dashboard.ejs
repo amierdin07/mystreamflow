@@ -640,27 +640,30 @@
                           <option value="2160p">2160p 4K</option>
                         </select>
                       </div>
-                      <div>
-                        <label class="text-xs text-gray-400 block mb-1">FPS</label>
-                        <select id="ytFps" name="ytFps" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
-                          <option value="30" selected>30 FPS</option>
-                          <option value="60">60 FPS</option>
-                        </select>
+                    <div id="ytAdditionalQualitySettings" class="hidden space-y-4">
+                      <div class="grid grid-cols-2 gap-4">
+                        <div>
+                          <label class="text-xs text-gray-400 block mb-1">FPS</label>
+                          <select id="ytFps" name="ytFps" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
+                            <option value="30" selected>30 FPS</option>
+                            <option value="60">60 FPS</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label class="text-xs text-gray-400 block mb-1">Bitrate (kbps)</label>
+                          <select id="ytBitrate" name="ytBitrate" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
+                            <option value="2500">2500 kbps</option>
+                            <option value="4000" selected>4000 kbps</option>
+                            <option value="6000">6000 kbps</option>
+                            <option value="10000">10000 kbps</option>
+                            <option value="15000">15000 kbps</option>
+                            <option value="20000">20000 kbps</option>
+                            <option value="25000">25000 kbps</option>
+                            <option value="30000">30000 kbps</option>
+                            <option value="35000">35000 kbps</option>
+                          </select>
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <label class="text-xs text-gray-400 block mb-1">Bitrate (kbps)</label>
-                      <select id="ytBitrate" name="ytBitrate" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
-                        <option value="2500">2500 kbps</option>
-                        <option value="4000" selected>4000 kbps</option>
-                        <option value="6000">6000 kbps</option>
-                        <option value="10000">10000 kbps</option>
-                        <option value="15000">15000 kbps</option>
-                        <option value="20000">20000 kbps</option>
-                        <option value="25000">25000 kbps</option>
-                        <option value="30000">30000 kbps</option>
-                        <option value="35000">35000 kbps</option>
-                      </select>
                     </div>
                   </div>
 
@@ -1159,27 +1162,30 @@
                           <option value="2160p">2160p 4K</option>
                         </select>
                       </div>
-                      <div>
-                        <label class="text-xs text-gray-400 block mb-1">FPS</label>
-                        <select id="editYtFps" name="ytFps" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
-                          <option value="30" selected>30 FPS</option>
-                          <option value="60">60 FPS</option>
-                        </select>
+                    <div id="editYtAdditionalQualitySettings" class="hidden space-y-4">
+                      <div class="grid grid-cols-2 gap-4">
+                        <div>
+                          <label class="text-xs text-gray-400 block mb-1">FPS</label>
+                          <select id="editYtFps" name="ytFps" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
+                            <option value="30" selected>30 FPS</option>
+                            <option value="60">60 FPS</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label class="text-xs text-gray-400 block mb-1">Bitrate (kbps)</label>
+                          <select id="editYtBitrate" name="ytBitrate" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
+                            <option value="2500">2500 kbps</option>
+                            <option value="4000" selected>4000 kbps</option>
+                            <option value="6000">6000 kbps</option>
+                            <option value="10000">10000 kbps</option>
+                            <option value="15000">15000 kbps</option>
+                            <option value="20000">20000 kbps</option>
+                            <option value="25000">25000 kbps</option>
+                            <option value="30000">30000 kbps</option>
+                            <option value="35000">35000 kbps</option>
+                          </select>
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <label class="text-xs text-gray-400 block mb-1">Bitrate (kbps)</label>
-                      <select id="editYtBitrate" name="ytBitrate" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
-                        <option value="2500">2500 kbps</option>
-                        <option value="4000" selected>4000 kbps</option>
-                        <option value="6000">6000 kbps</option>
-                        <option value="10000">10000 kbps</option>
-                        <option value="15000">15000 kbps</option>
-                        <option value="20000">20000 kbps</option>
-                        <option value="25000">25000 kbps</option>
-                        <option value="30000">30000 kbps</option>
-                        <option value="35000">35000 kbps</option>
-                      </select>
                     </div>
                   </div>
 
@@ -3549,8 +3555,16 @@
           }
         }
 
-        // Populate YouTube Quality Settings
-        if (stream.resolution) document.getElementById('editYtResolution').value = stream.resolution;
+        if (stream.resolution) {
+          const resValue = ['720p', '1080p', '1440p', '2160p'].includes(stream.resolution) 
+            ? stream.resolution 
+            : 'original';
+          document.getElementById('editYtResolution').value = resValue;
+          
+          const settings = document.getElementById('editYtAdditionalQualitySettings');
+          if (resValue === 'original') settings.classList.add('hidden');
+          else settings.classList.remove('hidden');
+        }
         if (stream.bitrate) document.getElementById('editYtBitrate').value = stream.bitrate;
         if (stream.fps) document.getElementById('editYtFps').value = stream.fps;
         
@@ -4195,6 +4209,25 @@
         editResSelect.addEventListener('change', function() {
           if (this.value === '2160') editResWarning.classList.remove('hidden');
           else editResWarning.classList.add('hidden');
+        });
+      }
+
+      // YouTube API Quality Toggle
+      const ytResSelect = document.getElementById('ytResolution');
+      const ytQualitySettings = document.getElementById('ytAdditionalQualitySettings');
+      if (ytResSelect && ytQualitySettings) {
+        ytResSelect.addEventListener('change', function() {
+          if (this.value === 'original') ytQualitySettings.classList.add('hidden');
+          else ytQualitySettings.classList.remove('hidden');
+        });
+      }
+
+      const editYtResSelect = document.getElementById('editYtResolution');
+      const editYtQualitySettings = document.getElementById('editYtAdditionalQualitySettings');
+      if (editYtResSelect && editYtQualitySettings) {
+        editYtResSelect.addEventListener('change', function() {
+          if (this.value === 'original') editYtQualitySettings.classList.add('hidden');
+          else editYtQualitySettings.classList.remove('hidden');
         });
       }
     });
