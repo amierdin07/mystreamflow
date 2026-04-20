@@ -1415,6 +1415,7 @@
     const initialStreamsData = <%- typeof initialStreams !== 'undefined' ? initialStreams : '[]' %>;
     const initialPaginationData = <%- typeof initialPagination !== 'undefined' ? initialPagination : '{"page":1,"limit":10,"totalCount":0,"totalPages":0}' %>;
     let initialDataUsed = false;
+    window.streamHealthData = {};
 
     function showToast(type, message) {
       const toast = document.getElementById('toast');
@@ -2050,6 +2051,9 @@
       if (!healthStatus) return '<span class="text-gray-500 text-[10px] animate-pulse">Waiting for signal...</span>';
       
       const status = healthStatus.status ? healthStatus.status.toLowerCase() : 'nodata';
+      const issues = healthStatus.configurationIssues || [];
+      const hasIssues = issues.length > 0;
+      
       let color = 'text-gray-400';
       let bg = 'bg-gray-400/10';
       let label = 'N/A';
@@ -2059,10 +2063,10 @@
         case 'excellent':
         case 'good':
         case 'ok':
-          color = 'text-green-400';
-          bg = 'bg-green-400/10';
-          label = 'Excellent';
-          icon = 'ti-antenna-bars-5';
+          color = hasIssues ? 'text-yellow-400' : 'text-green-400';
+          bg = hasIssues ? 'bg-yellow-400/10' : 'bg-green-400/10';
+          label = hasIssues ? 'Issues' : 'Excellent';
+          icon = hasIssues ? 'ti-antenna-bars-5' : 'ti-antenna-bars-5';
           break;
         case 'fair':
           color = 'text-yellow-400';
@@ -2092,9 +2096,13 @@
       }
 
       return `
-        <span class="flex items-center ${bg} ${color} rounded-full px-2.5 py-1 signal-badge" data-stream-id="${streamId}" title="YouTube Stream Health">
+        <span class="flex items-center ${bg} ${color} rounded-full px-2.5 py-1 signal-badge cursor-pointer hover:brightness-125 transition-all" 
+              data-stream-id="${streamId}" 
+              onclick="showStreamHealthDetails('${streamId}')"
+              title="${hasIssues ? 'YouTube detected issues. Click for details.' : 'YouTube Stream Health'}">
           <i class="ti ${icon} text-xs mr-1.5"></i>
           <span class="text-xs font-medium">${label}</span>
+          ${hasIssues ? '<i class="ti ti-alert-circle text-[10px] ml-1 animate-pulse"></i>' : ''}
         </span>
       `;
     }
@@ -2531,15 +2539,11 @@
       
       for (const streamId of uniqueStreamIds) {
         try {
-          // Only check streams that appear to be live based on UI or if we want to check all
-          const row = document.querySelector(`tr[data-stream-id="${streamId}"]`);
-          const card = document.querySelector(`.md\\:hidden [data-stream-id="${streamId}"]`);
-          
-          // Only check if it's potentially a YouTube API stream (we can refine this)
           fetch(`/api/youtube/stream-health/${streamId}`)
             .then(res => res.json())
             .then(data => {
               if (data.success && data.health) {
+                window.streamHealthData[streamId] = data.health;
                 const badgeHTML = getSignalBadgeHTML(data.health, streamId);
                 const containers = document.querySelectorAll(`.signal-container[data-stream-id="${streamId}"]`);
                 containers.forEach(container => {
@@ -2555,6 +2559,57 @@
             .catch(err => console.error('Health fetch failed:', err));
         } catch (e) {}
       }
+    }
+
+    async function showStreamHealthDetails(streamId) {
+      const health = window.streamHealthData[streamId];
+      if (!health) {
+        showToast('info', 'Data kesehatan stream belum tersedia. Tunggu sebentar...');
+        return;
+      }
+
+      const issues = health.configurationIssues || [];
+      const status = health.status || 'No Data';
+      
+      let message = `<div class="space-y-4">
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-gray-400">Status YouTube:</span>
+          <span class="px-2 py-0.5 rounded-full text-xs font-bold uppercase ${status.toLowerCase() === 'excellent' || status.toLowerCase() === 'good' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}">${status}</span>
+        </div>`;
+
+      if (issues.length > 0) {
+        message += `<div class="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+          <p class="text-sm font-semibold text-red-400 mb-2"><i class="ti ti-alert-triangle mr-1"></i> Masalah Terdeteksi:</p>
+          <ul class="space-y-3">`;
+        
+        issues.forEach(issue => {
+          message += `<li class="text-xs">
+            <div class="font-bold text-gray-200 uppercase">${issue.type || 'Warning'}</div>
+            <div class="text-gray-400 mt-1">${issue.reason || 'Masalah tidak diketahui'}</div>
+            ${issue.description ? `<div class="text-gray-500 italic mt-1">${issue.description}</div>` : ''}
+          </li>`;
+        });
+        
+        message += `</ul></div>`;
+      } else {
+        message += `<div class="mt-4 p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center">
+          <i class="ti ti-circle-check text-green-400 text-3xl mb-2"></i>
+          <p class="text-sm text-green-400 font-medium">Koneksi Stream Stabil</p>
+          <p class="text-xs text-gray-400 mt-1">YouTube tidak melaporkan adanya masalah teknis pada stream ini.</p>
+        </div>`;
+      }
+
+      message += `</div>`;
+
+      createModalDialog({
+        type: issues.length > 0 ? 'warning' : 'success',
+        icon: issues.length > 0 ? 'ti-alert-triangle' : 'ti-circle-check',
+        title: 'YouTube Stream Health',
+        message: message,
+        confirmText: 'Tutup',
+        cancelText: '',
+        confirmClass: issues.length > 0 ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600'
+      });
     }
     function startStream(streamId) {
       if (!streamId) return;
