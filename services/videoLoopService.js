@@ -93,6 +93,8 @@ class VideoLoopService {
           '-preset', 'ultrafast',
           '-tune', 'stillimage',
           '-pix_fmt', 'yuv420p',
+          '-g', '60',
+          '-keyint_min', '30',
           '-c:a', 'aac',
           '-b:a', '192k',
           '-shortest',

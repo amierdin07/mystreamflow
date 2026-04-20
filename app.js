@@ -2156,7 +2156,15 @@ app.get('/api/videos', isAuthenticated, async (req, res) => {
       if (filepath.endsWith('.m4a') || filepath.endsWith('.aac') || filepath.endsWith('.mp3')) return false;
       return true;
     });
-    const playlists = await Playlist.findAll(req.session.userId);
+    const playlistsData = await Playlist.findAll(req.session.userId);
+    const playlists = await Promise.all(playlistsData.map(async (p) => {
+      const playlistWithVideos = await Playlist.findByIdWithVideos(p.id);
+      let firstVideoResolution = null;
+      if (playlistWithVideos && playlistWithVideos.videos && playlistWithVideos.videos.length > 0) {
+        firstVideoResolution = playlistWithVideos.videos[0].resolution;
+      }
+      return { ...p, resolution: firstVideoResolution };
+    }));
     res.json({ success: true, videos, playlists });
   } catch (error) {
     console.error('Error fetching videos:', error);

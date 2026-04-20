@@ -2856,7 +2856,7 @@
               data.playlists.forEach(playlist => {
                 const item = document.createElement('div');
                 item.className = 'flex items-center gap-3 p-2 rounded-lg hover:bg-dark-600 cursor-pointer transition-colors';
-                item.onclick = () => selectYoutubeVideo({ id: playlist.id, title: playlist.name, type: 'playlist', videoCount: playlist.video_count, audioCount: playlist.audio_count, is_shuffle: playlist.is_shuffle });
+                item.onclick = () => selectYoutubeVideo({ id: playlist.id, title: playlist.name, type: 'playlist', videoCount: playlist.video_count, audioCount: playlist.audio_count, is_shuffle: playlist.is_shuffle, resolution: playlist.resolution });
                 let countText = `${playlist.video_count || 0} videos`;
                 if (playlist.audio_count && playlist.audio_count > 0) {
                   countText += ` • ${playlist.audio_count} audio`;
@@ -2911,7 +2911,9 @@
 
     function selectYoutubeVideo(video) {
       document.getElementById('ytSelectedVideoId').value = video.id;
-      document.getElementById('ytSelectedVideoResolution').value = video.resolution || '1280x720';
+      // If video.resolution exists (e.g. "1920x1080"), use it. Otherwise fallback.
+      const resolution = video.resolution || '1280x720';
+      document.getElementById('ytSelectedVideoResolution').value = resolution;
       if (video.type === 'playlist') {
         let displayText = `[Playlist] ${video.title}`;
         document.getElementById('ytSelectedVideo').textContent = displayText;
@@ -3270,7 +3272,7 @@
         playlists.forEach(playlist => {
           const item = document.createElement('div');
           item.className = 'flex items-center gap-3 p-2 rounded-lg hover:bg-dark-600 cursor-pointer transition-colors';
-          item.onclick = () => selectEditYoutubeVideo({ id: playlist.id, title: playlist.name, type: 'playlist', videoCount: playlist.video_count, audioCount: playlist.audio_count, is_shuffle: playlist.is_shuffle });
+          item.onclick = () => selectEditYoutubeVideo({ id: playlist.id, title: playlist.name, type: 'playlist', videoCount: playlist.video_count, audioCount: playlist.audio_count, is_shuffle: playlist.is_shuffle, resolution: playlist.resolution });
           let countText = `${playlist.video_count || 0} videos`;
           if (playlist.audio_count && playlist.audio_count > 0) {
             countText += ` • ${playlist.audio_count} audio`;
@@ -3336,7 +3338,8 @@
     
     function selectEditYoutubeVideo(video) {
       document.getElementById('editYtSelectedVideoId').value = video.id;
-      document.getElementById('editYtSelectedVideoResolution').value = video.resolution || '1280x720';
+      const resolution = video.resolution || '1280x720';
+      document.getElementById('editYtSelectedVideoResolution').value = resolution;
       if (video.type === 'playlist') {
         let displayText = `[Playlist] ${video.title}`;
         document.getElementById('editYtSelectedVideo').textContent = displayText;
@@ -3484,6 +3487,7 @@
 
         if (stream.video_id) {
           document.getElementById('editYtSelectedVideoId').value = stream.video_id;
+          document.getElementById('editYtSelectedVideoResolution').value = stream.resolution || '1280x720';
           const ytDisplayName = stream.video_type === 'playlist' 
             ? `[Playlist] ${stream.playlist_name || stream.video_title}` 
             : (stream.video_title || 'Selected Video');
