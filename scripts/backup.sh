@@ -23,7 +23,7 @@ pm2 stop $APP_NAME
 
 # 3. Proses Zipping
 echo "🤐 Mengompres data (database, .env, uploads)..."
-zip -r $BACKUP_NAME database.sqlite .env public/uploads
+zip -r $BACKUP_NAME db .env public/uploads
 
 # 4. Jalankan kembali aplikasi
 echo "▶️ Menjalankan kembali aplikasi $APP_NAME..."
