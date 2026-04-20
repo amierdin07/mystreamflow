@@ -147,6 +147,15 @@ function createUnsupportedCopyModeError(message) {
   return error;
 }
 
+function getH264Level(resolution) {
+  if (!resolution) return '4.1';
+  const [width, height] = resolution.split('x').map(Number);
+  if (width > 1920 || height > 1080) {
+    return '5.1'; // Supports up to 4K @ 30fps
+  }
+  return '4.1';
+}
+
 function getRelevantStartupLog(line) {
   const trimmed = (line || '').trim();
   if (!trimmed || isProgressLogLine(trimmed)) {
@@ -482,7 +491,7 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
       '-preset', 'veryfast',
       '-tune', 'zerolatency',
       '-profile:v', 'high',
-      '-level', '4.1',
+      '-level', getH264Level(resolution),
       '-b:v', `${bitrate}k`,
       '-maxrate', `${Math.round(bitrate * 1.1)}k`,
       '-bufsize', `${bitrate * 2}k`,
@@ -572,7 +581,7 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
     '-preset', 'veryfast',
     '-tune', 'zerolatency',
     '-profile:v', 'high',
-    '-level', '4.1',
+    '-level', getH264Level(resolution),
     '-b:v', `${bitrate}k`,
     '-maxrate', `${Math.round(bitrate * 1.1)}k`,
     '-bufsize', `${bitrate * 2}k`,
@@ -663,7 +672,7 @@ async function buildFFmpegArgs(stream) {
     '-preset', 'veryfast',
     '-tune', 'zerolatency',
     '-profile:v', 'high',
-    '-level', '4.1',
+    '-level', getH264Level(resolution),
     '-b:v', `${bitrate}k`,
     '-maxrate', `${Math.round(bitrate * 1.1)}k`,
     '-bufsize', `${bitrate * 2}k`,

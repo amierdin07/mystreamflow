@@ -18,6 +18,34 @@ function omitUndefined(value) {
   );
 }
 
+function mapResolutionToYouTube(resolution) {
+  if (!resolution) return '1080p';
+  
+  // Clean up resolution string if it contains extra info like "1920x1080 Full HD"
+  const cleanRes = resolution.split(' ')[0];
+  
+  const mapping = {
+    '426x240': '240p',
+    '640x360': '360p',
+    '854x480': '480p',
+    '1280x720': '720p',
+    '1920x1080': '1080p',
+    '2560x1440': '1440p',
+    '3840x2160': '2160p',
+    '720x1280': '720p',  // Portrait
+    '1080x1920': '1080p', // Portrait
+    '1440x2560': '1440p', // Portrait
+    '2160x3840': '2160p'  // Portrait
+  };
+
+  // Check if it's already in YouTube format (e.g. "2160p")
+  if (Object.values(mapping).includes(cleanRes)) {
+    return cleanRes;
+  }
+
+  return mapping[cleanRes] || '1080p';
+}
+
 function handleYoutubeError(error, context = '') {
   const message = error.message || '';
   const errors = error.errors || [];
@@ -290,7 +318,7 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
             cdn: {
                 frameRate: '30fps',
                 ingestionType: 'rtmp',
-                resolution: '1080p'
+                resolution: mapResolutionToYouTube(stream.resolution)
             },
             contentDetails: {
                 isReusable: false
@@ -504,5 +532,6 @@ module.exports = {
   getStreamHealth,
   handleYoutubeError,
   getYoutubeInstance,
-  uploadVideoToYoutube
+  uploadVideoToYoutube,
+  mapResolutionToYouTube
 };

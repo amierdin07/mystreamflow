@@ -4,7 +4,7 @@ const User = require('../models/User');
 const path = require('path');
 const fs = require('fs');
 const youtubeService = require('./youtubeService');
-const { syncBroadcastMonetization } = youtubeService;
+const { syncBroadcastMonetization, mapResolutionToYouTube } = youtubeService;
 const streamingService = require('./streamingService');
 const { google } = require('googleapis');
 const { decrypt } = require('../utils/encryption');
@@ -388,7 +388,7 @@ async function startRotationStream(rotation, item) {
           cdn: {
             frameRate: '30fps',
             ingestionType: 'rtmp',
-            resolution: '1080p'
+            resolution: mapResolutionToYouTube(item.resolution || rotation.resolution || '1080p')
           }
         }
       });

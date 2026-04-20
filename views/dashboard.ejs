@@ -450,6 +450,9 @@
                           <option value="12000">12000 kbps</option>
                           <option value="15000">15000 kbps</option>
                           <option value="20000">20000 kbps</option>
+                          <option value="25000">25000 kbps</option>
+                          <option value="30000">30000 kbps</option>
+                          <option value="35000">35000 kbps</option>
                         </select>
                       </div>
                       <div>
@@ -475,6 +478,12 @@
                         <div class="text-xs text-gray-500 mt-1">
                           <span id="currentResolution">1280x720</span>
                         </div>
+                      </div>
+                      <div id="resolutionWarning" class="hidden mt-4 p-3 bg-yellow-900/30 border border-yellow-700/50 rounded-lg flex items-start gap-3">
+                        <i class="ti ti-alert-triangle text-yellow-500 mt-0.5"></i>
+                        <p class="text-xs text-yellow-200/80 leading-relaxed">
+                          <strong>Peringatan 4K:</strong> Resolusi 4K membutuhkan resource CPU/GPU yang sangat tinggi dan upload speed minimal 25-50 Mbps yang stabil. Pastikan server Anda memiliki spesifikasi yang mumpuni.
+                        </p>
                       </div>
                       <div>
                         <label class="text-xs text-gray-400 block mb-1">Orientation</label>
@@ -615,6 +624,42 @@
                       <% } %>
                     </div>
                     <input type="hidden" id="ytSelectedChannelId" name="ytChannelId" value="<%= typeof youtubeChannels !== 'undefined' && youtubeChannels.length > 0 ? (youtubeChannels.find(c => c.is_default) || youtubeChannels[0]).id : '' %>">
+                  </div>
+
+                  <div class="p-4 bg-dark-900/50 rounded-xl border border-gray-700/50 space-y-4">
+                    <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Quality Settings</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                      <div>
+                        <label class="text-xs text-gray-400 block mb-1">Resolution</label>
+                        <select id="ytResolution" name="ytResolution" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
+                          <option value="720p">720p HD</option>
+                          <option value="1080p" selected>1080p Full HD</option>
+                          <option value="1440p">1440p QHD</option>
+                          <option value="2160p">2160p 4K</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="text-xs text-gray-400 block mb-1">FPS</label>
+                        <select id="ytFps" name="ytFps" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
+                          <option value="30" selected>30 FPS</option>
+                          <option value="60">60 FPS</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label class="text-xs text-gray-400 block mb-1">Bitrate (kbps)</label>
+                      <select id="ytBitrate" name="ytBitrate" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
+                        <option value="2500">2500 kbps</option>
+                        <option value="4000" selected>4000 kbps</option>
+                        <option value="6000">6000 kbps</option>
+                        <option value="10000">10000 kbps</option>
+                        <option value="15000">15000 kbps</option>
+                        <option value="20000">20000 kbps</option>
+                        <option value="25000">25000 kbps</option>
+                        <option value="30000">30000 kbps</option>
+                        <option value="35000">35000 kbps</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div>
@@ -944,6 +989,9 @@
                           <option value="12000">12000 kbps</option>
                           <option value="15000">15000 kbps</option>
                           <option value="20000">20000 kbps</option>
+                          <option value="25000">25000 kbps</option>
+                          <option value="30000">30000 kbps</option>
+                          <option value="35000">35000 kbps</option>
                         </select>
                       </div>
                       <div>
@@ -969,6 +1017,12 @@
                         <div class="text-xs text-gray-500 mt-1">
                           <span id="editCurrentResolution">1280x720</span>
                         </div>
+                      </div>
+                      <div id="editResolutionWarning" class="hidden mt-4 p-3 bg-yellow-900/30 border border-yellow-700/50 rounded-lg flex items-start gap-3">
+                        <i class="ti ti-alert-triangle text-yellow-500 mt-0.5"></i>
+                        <p class="text-xs text-yellow-200/80 leading-relaxed">
+                          <strong>Peringatan 4K:</strong> Resolusi 4K membutuhkan resource CPU/GPU yang sangat tinggi dan upload speed minimal 25-50 Mbps yang stabil. Pastikan server Anda memiliki spesifikasi yang mumpuni.
+                        </p>
                       </div>
                       <div>
                         <label class="text-xs text-gray-400 block mb-1">Orientation</label>
@@ -1087,6 +1141,42 @@
 
                     </div>
                     <input type="hidden" id="editYtSelectedChannelId" name="ytChannelId" value="<%= typeof youtubeChannels !== 'undefined' && youtubeChannels.length > 0 ? (youtubeChannels.find(c => c.is_default) || youtubeChannels[0]).id : '' %>">
+                  </div>
+
+                  <div class="p-4 bg-dark-900/50 rounded-xl border border-gray-700/50 space-y-4">
+                    <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Quality Settings</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                      <div>
+                        <label class="text-xs text-gray-400 block mb-1">Resolution</label>
+                        <select id="editYtResolution" name="ytResolution" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
+                          <option value="720p">720p HD</option>
+                          <option value="1080p" selected>1080p Full HD</option>
+                          <option value="1440p">1440p QHD</option>
+                          <option value="2160p">2160p 4K</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="text-xs text-gray-400 block mb-1">FPS</label>
+                        <select id="editYtFps" name="ytFps" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
+                          <option value="30" selected>30 FPS</option>
+                          <option value="60">60 FPS</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label class="text-xs text-gray-400 block mb-1">Bitrate (kbps)</label>
+                      <select id="editYtBitrate" name="ytBitrate" class="w-full h-[38px] px-3 bg-dark-700 border border-gray-600 rounded-lg text-sm focus:border-primary">
+                        <option value="2500">2500 kbps</option>
+                        <option value="4000" selected>4000 kbps</option>
+                        <option value="6000">6000 kbps</option>
+                        <option value="10000">10000 kbps</option>
+                        <option value="15000">15000 kbps</option>
+                        <option value="20000">20000 kbps</option>
+                        <option value="25000">25000 kbps</option>
+                        <option value="30000">30000 kbps</option>
+                        <option value="35000">35000 kbps</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div>
@@ -1688,7 +1778,10 @@
           category: document.getElementById('ytCategory').value,
           tags: document.getElementById('ytTags').value,
           loopVideo: true,
-          ytChannelId: document.getElementById('ytSelectedChannelId')?.value || ''
+          ytChannelId: document.getElementById('ytSelectedChannelId')?.value || '',
+          resolution: document.getElementById('ytResolution').value,
+          bitrate: document.getElementById('ytBitrate').value,
+          fps: document.getElementById('ytFps').value
         };
         
         // Save defaults to localStorage
@@ -3447,6 +3540,11 @@
             selectedOption.classList.add('bg-gray-700/50', 'selected-channel');
           }
         }
+
+        // Populate YouTube Quality Settings
+        if (stream.resolution) document.getElementById('editYtResolution').value = stream.resolution;
+        if (stream.bitrate) document.getElementById('editYtBitrate').value = stream.bitrate;
+        if (stream.fps) document.getElementById('editYtFps').value = stream.fps;
         
         const editStreamTitle = document.getElementById('editStreamTitle');
         const editRtmpUrl = document.getElementById('editRtmpUrl');
@@ -3912,7 +4010,10 @@
               category: document.getElementById('editYtCategory').value,
               tags: document.getElementById('editYtTags').value,
               loopVideo: true,
-              ytChannelId: document.getElementById('editYtSelectedChannelId')?.value || ''
+              ytChannelId: document.getElementById('editYtSelectedChannelId')?.value || '',
+              resolution: document.getElementById('editYtResolution').value,
+              bitrate: document.getElementById('editYtBitrate').value,
+              fps: document.getElementById('editYtFps').value
             };
 
             ytFormDataObj.ytMonetization = document.getElementById('editYtEnableMonetization').checked;
@@ -4067,6 +4168,25 @@
     document.addEventListener('DOMContentLoaded', function () {
       setupAdvancedSettings('advancedSettingsToggle', 'advancedSettingsContent', 'advancedSettingsCheckbox');
       setupAdvancedSettings('editAdvancedSettingsToggle', 'editAdvancedSettingsContent', 'editAdvancedSettingsCheckbox');
+
+      // 4K Warning Handlers
+      const resSelect = document.getElementById('resolutionSelect');
+      const resWarning = document.getElementById('resolutionWarning');
+      if (resSelect && resWarning) {
+        resSelect.addEventListener('change', function() {
+          if (this.value === '2160') resWarning.classList.remove('hidden');
+          else resWarning.classList.add('hidden');
+        });
+      }
+
+      const editResSelect = document.getElementById('editResolutionSelect');
+      const editResWarning = document.getElementById('editResolutionWarning');
+      if (editResSelect && editResWarning) {
+        editResSelect.addEventListener('change', function() {
+          if (this.value === '2160') editResWarning.classList.remove('hidden');
+          else editResWarning.classList.add('hidden');
+        });
+      }
     });
     function setupAdvancedSettings(toggleId, contentId, checkboxId) {
       const toggle = document.getElementById(toggleId);

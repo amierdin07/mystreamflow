@@ -3823,7 +3823,7 @@ app.post('/api/streams/youtube', isAuthenticated, uploadThumbnail.single('thumbn
         error: 'YouTube API credentials not configured.' 
       });
     }
-    const { videoId, title, description, privacy, category, tags, loopVideo, scheduleStartTime, scheduleEndTime, repeat, ytChannelId, ytMonetization } = req.body;
+    const { videoId, title, description, privacy, category, tags, loopVideo, scheduleStartTime, scheduleEndTime, repeat, ytChannelId, ytMonetization, resolution, bitrate, fps } = req.body;
     
     let selectedChannel;
     if (ytChannelId) {
@@ -3891,9 +3891,9 @@ app.post('/api/streams/youtube', isAuthenticated, uploadThumbnail.single('thumbn
       stream_key: '',
       platform: 'YouTube',
       platform_icon: 'ti-brand-youtube',
-      bitrate: 4000,
-      resolution: '1920x1080',
-      fps: 30,
+      bitrate: parseInt(bitrate) || 4000,
+      resolution: resolution || '1920x1080',
+      fps: parseInt(fps) || 30,
       orientation: 'horizontal',
       loop_video: loopVideo === 'true' || loopVideo === true,
       use_advanced_settings: false,
