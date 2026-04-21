@@ -454,7 +454,8 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
   const hasAudio = playlist.audios && playlist.audios.length > 0;
 
   if (!hasAudio) {
-    if (!stream.use_advanced_settings) {
+    const isYT = isYouTubeDestination(stream);
+    if (!stream.use_advanced_settings && !isYT) {
       return [
         '-nostdin',
         '-loglevel', 'warning',
@@ -476,6 +477,7 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
     const resolution = stream.resolution || '1280x720';
     const bitrate = stream.bitrate || 2500;
     const fps = stream.fps || 30;
+    const preset = stream.use_advanced_settings ? 'veryfast' : 'ultrafast';
 
     return [
       '-nostdin',
@@ -488,7 +490,7 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
       '-safe', '0',
       '-i', concatFile,
       '-c:v', 'libx264',
-      '-preset', 'veryfast',
+      '-preset', preset,
       '-tune', 'zerolatency',
       '-profile:v', 'high',
       '-level', getH264Level(resolution),
@@ -532,7 +534,8 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
   }
   fs.writeFileSync(audioConcatFile, audioContent);
 
-  if (!stream.use_advanced_settings) {
+  const isYT = isYouTubeDestination(stream);
+  if (!stream.use_advanced_settings && !isYT) {
     return [
       '-nostdin',
       '-loglevel', 'warning',
@@ -560,6 +563,7 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
   const resolution = stream.resolution || '1280x720';
   const bitrate = stream.bitrate || 2500;
   const fps = stream.fps || 30;
+  const preset = stream.use_advanced_settings ? 'veryfast' : 'ultrafast';
 
   return [
     '-nostdin',
@@ -578,7 +582,7 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
     '-map', '0:v:0',
     '-map', '1:a:0',
     '-c:v', 'libx264',
-    '-preset', 'veryfast',
+    '-preset', preset,
     '-tune', 'zerolatency',
     '-profile:v', 'high',
     '-level', getH264Level(resolution),
@@ -625,7 +629,8 @@ async function buildFFmpegArgs(stream) {
   const rtmpUrl = `${stream.rtmp_url.replace(/\/$/, '')}/${stream.stream_key}`;
   const loopValue = stream.loop_video ? '-1' : '0';
 
-  if (!stream.use_advanced_settings) {
+  const isYT = isYouTubeDestination(stream);
+  if (!stream.use_advanced_settings && !isYT) {
     const probeData = await runFFprobe(videoPath);
     const hasAudio = !!getPrimaryStream(probeData, 'audio');
 
@@ -658,6 +663,10 @@ async function buildFFmpegArgs(stream) {
   const resolution = stream.resolution || '1280x720';
   const bitrate = stream.bitrate || 2500;
   const fps = stream.fps || 30;
+  const preset = stream.use_advanced_settings ? 'veryfast' : 'ultrafast';
+  
+  const probeData = await runFFprobe(videoPath);
+  const hasAudio = !!getPrimaryStream(probeData, 'audio');
 
   return [
     '-nostdin',
@@ -669,7 +678,7 @@ async function buildFFmpegArgs(stream) {
     '-stream_loop', loopValue,
     '-i', videoPath,
     '-c:v', 'libx264',
-    '-preset', 'veryfast',
+    '-preset', preset,
     '-tune', 'zerolatency',
     '-profile:v', 'high',
     '-level', getH264Level(resolution),
@@ -682,14 +691,18 @@ async function buildFFmpegArgs(stream) {
     '-sc_threshold', '0',
     '-s', resolution,
     '-r', String(fps),
-    '-c:a', 'aac',
-    '-b:a', '128k',
-    '-ar', '44100',
-    '-ac', '2',
+    hasAudio ? '-c:a' : '-an',
+    hasAudio ? 'aac' : null,
+    hasAudio ? '-b:a' : null,
+    hasAudio ? '128k' : null,
+    hasAudio ? '-ar' : null,
+    hasAudio ? '44100' : null,
+    hasAudio ? '-ac' : null,
+    hasAudio ? '2' : null,
     '-f', 'flv',
     '-flvflags', 'no_duration_filesize',
     rtmpUrl
-  ];
+  ].filter(arg => arg !== null);
 }
 
 
