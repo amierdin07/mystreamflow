@@ -352,12 +352,31 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
         throw bindError;
     }
 
-    await Stream.update(streamId, {
-        youtube_broadcast_id: broadcastId,
-        youtube_stream_id: youtubeStreamId,
-        rtmp_url: rtmpUrl,
         stream_key: streamKey
-    });
+      });
+    }
+  }
+
+  // Handle Playlist Assignment
+  if (stream.youtube_playlist_id) {
+    try {
+      console.log(`[YouTubeService] Adding broadcast ${broadcastId} to playlist ${stream.youtube_playlist_id}`);
+      await youtube.playlistItems.insert({
+        part: 'snippet',
+        requestBody: {
+          snippet: {
+            playlistId: stream.youtube_playlist_id,
+            resourceId: {
+              kind: 'youtube#video',
+              videoId: broadcastId
+            }
+          }
+        }
+      });
+      console.log(`[YouTubeService] Successfully added to playlist`);
+    } catch (playlistError) {
+      console.warn(`[YouTubeService] Failed to add broadcast to playlist: ${playlistError.message}`);
+    }
   }
 
   console.log(`[YouTubeService] YouTube broadcast handled successfully for stream ${streamId}`);
@@ -522,6 +541,42 @@ async function uploadVideoToYoutube(userId, channelId, filePath, metadata) {
   }
 }
 
+async function getPlaylists(userId, channelId) {
+  try {
+    const youtube = await getYoutubeInstance(userId, channelId);
+    if (!youtube) return [];
+    
+    let playlists = [];
+    let pageToken = null;
+    
+    do {
+      const res = await youtube.playlists.list({
+        part: 'snippet,contentDetails',
+        mine: true,
+        maxResults: 50,
+        pageToken: pageToken
+      });
+      
+      if (res.data.items) {
+        playlists = playlists.concat(res.data.items.map(p => ({
+          id: p.id,
+          title: p.snippet.title,
+          description: p.snippet.description,
+          thumbnail: p.snippet.thumbnails?.default?.url || p.snippet.thumbnails?.medium?.url,
+          itemCount: p.contentDetails.itemCount
+        })));
+      }
+      
+      pageToken = res.data.nextPageToken;
+    } while (pageToken);
+    
+    return playlists;
+  } catch (e) {
+    console.error('[YouTubeService] Error fetching playlists:', e.message);
+    return [];
+  }
+}
+
 module.exports = {
   createYouTubeBroadcast,
   deleteYouTubeBroadcast,
@@ -533,5 +588,6 @@ module.exports = {
   handleYoutubeError,
   getYoutubeInstance,
   uploadVideoToYoutube,
-  mapResolutionToYouTube
+  mapResolutionToYouTube,
+  getPlaylists
 };

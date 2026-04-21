@@ -627,6 +627,19 @@
                     <input type="hidden" id="ytSelectedChannelId" name="ytChannelId" value="<%= typeof youtubeChannels !== 'undefined' && youtubeChannels.length > 0 ? (youtubeChannels.find(c => c.is_default) || youtubeChannels[0]).id : '' %>">
                   </div>
 
+                  <div class="space-y-2">
+                    <label class="block text-sm font-medium text-gray-400">YouTube Playlist (Optional)</label>
+                    <div class="relative">
+                      <select id="ytPlaylist" name="youtube_playlist_id"
+                        class="w-full bg-dark-700 border border-gray-600 text-white px-4 py-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary appearance-none transition-all duration-200">
+                        <option value="">No Playlist (Direct to Channel)</option>
+                      </select>
+                      <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <i class="ti ti-chevron-down text-gray-400"></i>
+                      </div>
+                    </div>
+                  </div>
+
                   <div class="p-4 bg-dark-900/50 rounded-xl border border-gray-700/50 space-y-4">
                     <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Quality Settings</h4>
                     <div class="grid grid-cols-2 gap-4">
@@ -1147,6 +1160,19 @@
 
                     </div>
                     <input type="hidden" id="editYtSelectedChannelId" name="ytChannelId" value="<%= typeof youtubeChannels !== 'undefined' && youtubeChannels.length > 0 ? (youtubeChannels.find(c => c.is_default) || youtubeChannels[0]).id : '' %>">
+                  </div>
+
+                  <div class="space-y-2">
+                    <label class="block text-sm font-medium text-gray-400">YouTube Playlist (Optional)</label>
+                    <div class="relative">
+                      <select id="editYtPlaylist" name="youtube_playlist_id"
+                        class="w-full bg-dark-700 border border-gray-600 text-white px-4 py-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary appearance-none transition-all duration-200">
+                        <option value="">No Playlist (Direct to Channel)</option>
+                      </select>
+                      <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <i class="ti ti-chevron-down text-gray-400"></i>
+                      </div>
+                    </div>
                   </div>
 
                   <div class="p-4 bg-dark-900/50 rounded-xl border border-gray-700/50 space-y-4">
@@ -1794,7 +1820,8 @@
             ? document.getElementById('ytSelectedVideoResolution').value 
             : document.getElementById('ytResolution').value,
           bitrate: document.getElementById('ytBitrate').value,
-          fps: document.getElementById('ytFps').value
+          fps: document.getElementById('ytFps').value,
+          youtube_playlist_id: document.getElementById('ytPlaylist').value
         };
         
         // Save defaults to localStorage
@@ -2887,6 +2914,11 @@
     function loadYoutubeVideos() {
       if (ytVideosLoaded) return;
       
+      const channelId = document.getElementById('ytSelectedChannelId')?.value;
+      if (channelId) {
+        fetchYtPlaylists(channelId, 'ytPlaylist');
+      }
+
       fetch('/api/videos')
         .then(response => response.json())
         .then(data => {
@@ -3596,6 +3628,7 @@
 
         if (stream.youtube_channel_id) {
           document.getElementById('editYtSelectedChannelId').value = stream.youtube_channel_id;
+          fetchYtPlaylists(stream.youtube_channel_id, 'editYtPlaylist', stream.youtube_playlist_id);
           if (stream.youtube_channel_name) {
             document.getElementById('editYtChannelNameDisplay').textContent = stream.youtube_channel_name;
           }
@@ -4096,7 +4129,8 @@
                 ? document.getElementById('editYtSelectedVideoResolution').value
                 : document.getElementById('editYtResolution').value,
               bitrate: document.getElementById('editYtBitrate').value,
-              fps: document.getElementById('editYtFps').value
+              fps: document.getElementById('editYtFps').value,
+              youtube_playlist_id: document.getElementById('editYtPlaylist').value
             };
 
             ytFormDataObj.ytMonetization = document.getElementById('editYtEnableMonetization').checked;
@@ -4286,9 +4320,58 @@
       if (editYtResSelect && editYtQualitySettings) {
         editYtResSelect.addEventListener('change', function() {
           if (this.value === 'original') editYtQualitySettings.classList.add('hidden');
-          else editYtQualitySettings.classList.remove('hidden');
+          else {
+            editYtQualitySettings.classList.remove('hidden');
+            // Smart Bitrate for Edit
+            const bitrateInput = document.getElementById('editYtBitrate');
+            if (this.value === '1920x1080') bitrateInput.value = '8000';
+            else if (this.value === '1280x720') bitrateInput.value = '4500';
+            else if (this.value === '2560x1440') bitrateInput.value = '15000';
+          }
         });
       }
+
+      // Smart Bitrate for New YouTube Stream
+      const ytResSelectMain = document.getElementById('ytResolution');
+      if (ytResSelectMain) {
+        ytResSelectMain.addEventListener('change', function() {
+          const bitrateInput = document.getElementById('ytBitrate');
+          if (this.value === '1920x1080') bitrateInput.value = '8000';
+          else if (this.value === '1280x720') bitrateInput.value = '4500';
+          else if (this.value === '2560x1440') bitrateInput.value = '15000';
+        });
+      }
+    });
+
+    async function fetchYtPlaylists(channelId, selectId, selectedId = null) {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+
+      try {
+        const response = await fetch(`/api/youtube/playlists/${channelId}`);
+        const data = await response.json();
+        if (data.success) {
+          select.innerHTML = '<option value="">No Playlist (Direct to Channel)</option>';
+          data.playlists.forEach(p => {
+            const option = document.createElement('option');
+            option.value = p.id;
+            option.textContent = p.title + ` (${p.itemCount} items)`;
+            if (selectedId && selectedId === p.id) option.selected = true;
+            select.appendChild(option);
+          });
+        }
+      } catch (e) {
+        console.error('Error fetching playlists:', e);
+      }
+    }
+
+    // Update fetchYtPlaylists when channel changes
+    document.getElementById('ytChannelSelect')?.addEventListener('change', function() {
+      fetchYtPlaylists(this.value, 'ytPlaylist');
+    });
+
+    document.getElementById('editYtChannelSelect')?.addEventListener('change', function() {
+      fetchYtPlaylists(this.value, 'editYtPlaylist');
     });
     function setupAdvancedSettings(toggleId, contentId, checkboxId) {
       const toggle = document.getElementById(toggleId);

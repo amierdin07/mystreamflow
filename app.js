@@ -2639,6 +2639,17 @@ app.get('/api/youtube/stream-health/:streamId', isAuthenticated, async (req, res
   }
 });
 
+app.get('/api/youtube/playlists/:channelId', isAuthenticated, async (req, res) => {
+  try {
+    const youtubeService = require('./services/youtubeService');
+    const playlists = await youtubeService.getPlaylists(req.session.userId, req.params.channelId);
+    res.json({ success: true, playlists });
+  } catch (error) {
+    console.error('Error fetching YouTube playlists:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 const { encrypt, decrypt } = require('./utils/encryption');
 
 app.post('/api/settings/youtube-credentials', isAuthenticated, [
@@ -3771,7 +3782,8 @@ app.post('/api/streams', isAuthenticated, [
       orientation: req.body.orientation || 'horizontal',
       loop_video: req.body.loopVideo === 'true' || req.body.loopVideo === true,
       use_advanced_settings: req.body.useAdvancedSettings === 'true' || req.body.useAdvancedSettings === true,
-      user_id: req.session.userId
+      user_id: req.session.userId,
+      youtube_playlist_id: req.body.youtube_playlist_id || null
     };
     const serverTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     
@@ -3831,7 +3843,7 @@ app.post('/api/streams/youtube', isAuthenticated, uploadThumbnail.single('thumbn
         error: 'YouTube API credentials not configured.' 
       });
     }
-    const { videoId, title, description, privacy, category, tags, loopVideo, scheduleStartTime, scheduleEndTime, repeat, ytChannelId, ytMonetization, resolution, bitrate, fps } = req.body;
+    const { videoId, title, description, privacy, category, tags, loopVideo, scheduleStartTime, scheduleEndTime, repeat, ytChannelId, ytMonetization, resolution, bitrate, fps, youtube_playlist_id } = req.body;
     
     let selectedChannel;
     if (ytChannelId) {
@@ -3915,7 +3927,8 @@ app.post('/api/streams/youtube', isAuthenticated, uploadThumbnail.single('thumbn
       youtube_thumbnail: localThumbnailPath,
       youtube_channel_id: selectedChannel.id,
       is_youtube_api: true,
-      youtube_monetization: ytMonetization === 'true' || ytMonetization === true
+      youtube_monetization: ytMonetization === 'true' || ytMonetization === true,
+      youtube_playlist_id: youtube_playlist_id || null
     };
     
     if (scheduleStartTime) {
@@ -4035,6 +4048,9 @@ app.put('/api/streams/:id', isAuthenticated, uploadThumbnail.single('thumbnail')
       }
       if (req.body.ytMonetization !== undefined) {
         updateData.youtube_monetization = req.body.ytMonetization === 'true' || req.body.ytMonetization === true;
+      }
+      if (req.body.youtube_playlist_id !== undefined) {
+        updateData.youtube_playlist_id = req.body.youtube_playlist_id || null;
       }
       
       if (req.body.scheduleStartTime) {
