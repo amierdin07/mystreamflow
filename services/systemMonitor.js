@@ -2,6 +2,7 @@ const si = require('systeminformation');
 
 let previousNetworkData = null;
 let previousTimestamp = null;
+let initialNetworkTotal = null;
 
 async function getSystemStats() {
   try {
@@ -14,7 +15,7 @@ async function getSystemStats() {
     
     const cpuUsage = cpuData.currentLoad || cpuData.avg || 0;
     
-    const networkSpeed = calculateNetworkSpeed(networkData);
+    const networkInfo = calculateNetworkInfo(networkData);
     
     const formatMemory = (bytes) => {
       if (bytes >= 1073741824) {
@@ -35,7 +36,7 @@ async function getSystemStats() {
         free: formatMemory(memData.available),
         usagePercent: Math.round((memData.active / memData.total) * 100)
       },
-      network: networkSpeed,
+      network: networkInfo,
       disk: diskData,
       platform: process.platform,
       timestamp: Date.now()
@@ -45,7 +46,14 @@ async function getSystemStats() {
     return {
       cpu: { usage: 0, cores: 0 },
       memory: { total: "0 GB", used: "0 GB", free: "0 GB", usagePercent: 0 },
-      network: { download: 0, upload: 0, downloadFormatted: '0 Mbps', uploadFormatted: '0 Mbps' },
+      network: { 
+        download: 0, 
+        upload: 0, 
+        downloadFormatted: '0 Mbps', 
+        uploadFormatted: '0 Mbps',
+        totalDownloadFormatted: '0 B',
+        totalUploadFormatted: '0 B'
+      },
       disk: { total: "0 GB", used: "0 GB", free: "0 GB", usagePercent: 0, drive: "N/A" },
       platform: process.platform,
       timestamp: Date.now()
@@ -53,8 +61,22 @@ async function getSystemStats() {
   }
 }
 
-function calculateNetworkSpeed(networkData) {
+function calculateNetworkInfo(networkData) {
   const currentTimestamp = Date.now();
+  
+  const currentTotal = networkData
+    .filter(iface => !iface.iface.includes('lo') && !iface.iface.includes('Loopback'))
+    .reduce((acc, iface) => ({
+      rx_bytes: acc.rx_bytes + (iface.rx_bytes || 0),
+      tx_bytes: acc.tx_bytes + (iface.tx_bytes || 0)
+    }), { rx_bytes: 0, tx_bytes: 0 });
+
+  if (!initialNetworkTotal) {
+    initialNetworkTotal = currentTotal;
+  }
+
+  const totalDownloadBytes = Math.max(0, currentTotal.rx_bytes - initialNetworkTotal.rx_bytes);
+  const totalUploadBytes = Math.max(0, currentTotal.tx_bytes - initialNetworkTotal.tx_bytes);
   
   if (!previousNetworkData || !previousTimestamp) {
     previousNetworkData = networkData;
@@ -63,18 +85,13 @@ function calculateNetworkSpeed(networkData) {
       download: 0,
       upload: 0,
       downloadFormatted: '0 Mbps',
-      uploadFormatted: '0 Mbps'
+      uploadFormatted: '0 Mbps',
+      totalDownloadFormatted: formatBytes(totalDownloadBytes),
+      totalUploadFormatted: formatBytes(totalUploadBytes)
     };
   }
   
   const timeDiff = (currentTimestamp - previousTimestamp) / 1000;
-  
-  const currentTotal = networkData
-    .filter(iface => !iface.iface.includes('lo') && !iface.iface.includes('Loopback'))
-    .reduce((acc, iface) => ({
-      rx_bytes: acc.rx_bytes + (iface.rx_bytes || 0),
-      tx_bytes: acc.tx_bytes + (iface.tx_bytes || 0)
-    }), { rx_bytes: 0, tx_bytes: 0 });
   
   const previousTotal = previousNetworkData
     .filter(iface => !iface.iface.includes('lo') && !iface.iface.includes('Loopback'))
@@ -96,7 +113,9 @@ function calculateNetworkSpeed(networkData) {
     download: downloadMbps,
     upload: uploadMbps,
     downloadFormatted: formatSpeed(downloadMbps),
-    uploadFormatted: formatSpeed(uploadMbps)
+    uploadFormatted: formatSpeed(uploadMbps),
+    totalDownloadFormatted: formatBytes(totalDownloadBytes),
+    totalUploadFormatted: formatBytes(totalUploadBytes)
   };
 }
 
@@ -108,6 +127,14 @@ function formatSpeed(speedMbps) {
   } else {
     return (speedMbps * 1000).toFixed(0) + ' Kbps';
   }
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 async function getDiskUsage() {

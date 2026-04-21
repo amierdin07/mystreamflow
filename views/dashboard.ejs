@@ -102,6 +102,13 @@
           <span class="text-sm text-gray-400">↓ Download</span>
           <span id="download-speed" class="text-lg font-bold text-green-400">0 Mbps</span>
         </div>
+        <div class="flex justify-between items-center pt-2 border-t border-gray-700/50 mt-2">
+          <span class="text-xs text-gray-500">Usage</span>
+          <div class="text-xs space-x-2">
+            <span id="total-upload" class="text-blue-400/70" title="Total Upload">↑ 0 B</span>
+            <span id="total-download" class="text-green-400/70" title="Total Download">↓ 0 B</span>
+          </div>
+        </div>
       </div>
       <div id="disk-content-desktop" class="mt-2" style="display: none;">
         <p class="text-3xl font-bold">
@@ -127,6 +134,13 @@
         <div class="flex justify-between items-center">
           <span class="text-sm text-gray-400">↓ Download</span>
           <span id="download-speed-wide" class="text-lg font-bold text-green-400">0 Mbps</span>
+        </div>
+        <div class="flex justify-between items-center pt-2 border-t border-gray-700/50 mt-2">
+          <span class="text-xs text-gray-500">Usage</span>
+          <div class="text-xs space-x-2">
+            <span id="total-upload-wide" class="text-blue-400/70" title="Total Upload">↑ 0 B</span>
+            <span id="total-download-wide" class="text-green-400/70" title="Total Download">↓ 0 B</span>
+          </div>
         </div>
       </div>
     </div>
@@ -1728,6 +1742,16 @@
             const downloadWide = document.getElementById('download-speed-wide');
             if (uploadWide) uploadWide.textContent = data.network.uploadFormatted;
             if (downloadWide) downloadWide.textContent = data.network.downloadFormatted;
+            
+            const totalUpload = document.getElementById('total-upload');
+            const totalDownload = document.getElementById('total-download');
+            if (totalUpload) totalUpload.textContent = '↑ ' + data.network.totalUploadFormatted;
+            if (totalDownload) totalDownload.textContent = '↓ ' + data.network.totalDownloadFormatted;
+            
+            const totalUploadWide = document.getElementById('total-upload-wide');
+            const totalDownloadWide = document.getElementById('total-download-wide');
+            if (totalUploadWide) totalUploadWide.textContent = '↑ ' + data.network.totalUploadFormatted;
+            if (totalDownloadWide) totalDownloadWide.textContent = '↓ ' + data.network.totalDownloadFormatted;
           }         
           if (data.disk) {
             const diskUsagePercent = data.disk.usagePercent;
