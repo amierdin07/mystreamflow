@@ -352,9 +352,12 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
         throw bindError;
     }
 
-        stream_key: streamKey
-      });
-    }
+    await Stream.update(streamId, {
+      youtube_broadcast_id: broadcastId,
+      youtube_stream_id: youtubeStreamId,
+      rtmp_url: rtmpUrl,
+      stream_key: streamKey
+    });
   }
 
   // Handle Playlist Assignment
