@@ -2071,26 +2071,34 @@
       }
     }
 
-    function getStatusBadgeHTML(status, duration = '') {
+    function getStatusBadgeHTML(status, duration = '', scheduleTime = null) {
       switch (status) {
         case 'live':
           return `
-          <span class="flex items-center bg-red-400/10 text-red-400 rounded-full px-2.5 py-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse mr-1.5"></span>
-            <span class="text-xs font-medium">Live${duration ? ' • ' + duration : ''}</span>
-          </span>
+          <div class="flex flex-col gap-1">
+            <span class="flex items-center bg-red-400/10 text-red-400 rounded-full px-2.5 py-1 w-fit">
+              <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse mr-1.5"></span>
+              <span class="text-xs font-medium">Live${duration ? ' • ' + duration : ''}</span>
+            </span>
+          </div>
         `;
         case 'scheduled':
           return `
-          <span class="flex items-center bg-yellow-500/10 text-yellow-500 rounded-full px-2.5 py-1">
-            <i class="ti ti-calendar-event text-xs mr-1.5"></i>
-            <span class="text-xs font-medium">Scheduled</span>
-          </span>
+          <div class="flex flex-col gap-1">
+            <span class="flex items-center bg-yellow-500/10 text-yellow-500 rounded-full px-2.5 py-1 w-fit">
+              <i class="ti ti-calendar-event text-xs mr-1.5"></i>
+              <span class="text-xs font-medium">Scheduled</span>
+            </span>
+            ${scheduleTime ? `
+            <span class="text-[10px] font-medium text-yellow-500/80 ml-1 scheduled-countdown animate-pulse" data-schedule-time="${scheduleTime}">
+              Loading countdown...
+            </span>` : ''}
+          </div>
         `;
         case 'offline':
         default:
           return `
-          <span class="flex items-center bg-gray-700 text-gray-400 rounded-full px-2.5 py-1">
+          <span class="flex items-center bg-gray-700 text-gray-400 rounded-full px-2.5 py-1 w-fit">
             <i class="ti ti-circle-dot text-xs mr-1.5"></i>
             <span class="text-xs font-medium">Offline</span>
           </span>
@@ -2272,10 +2280,8 @@
       if (stream.status === 'live') {
         const viewerBadge = stream.youtube_broadcast_id ? `<span class="flex items-center mt-1 text-green-400 text-[10px]"><i class="ti ti-eye mr-0.5"></i> <span class="concurrent-viewers" data-channel-id="${stream.youtube_channel_id}" data-broadcast-id="${stream.youtube_broadcast_id}">...</span></span>` : '';
         statusBadge = `<div><span class="flex items-center text-red-400"><span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse mr-1"></span><span class="text-[10px] font-medium">Live${durationDisplay ? ' • ' : ''}</span>${durationDisplay ? `<span class="text-[10px] font-medium tabular-nums live-duration" data-start-time="${stream.start_time}">${durationDisplay}</span>` : ''}</span>${viewerBadge}</div>`;
-      } else if (stream.status === 'scheduled') {
-        statusBadge = `<span class="flex items-center text-yellow-500"><i class="ti ti-calendar-event text-[10px] mr-1"></i><span class="text-[10px] font-medium">Scheduled</span></span>`;
       } else {
-        statusBadge = `<span class="flex items-center text-gray-400"><i class="ti ti-circle-dot text-[10px] mr-1"></i><span class="text-[10px] font-medium">Offline</span></span>`;
+        statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time);
       }
       let scheduleHTML = '';
       if (stream.status === 'scheduled' && scheduleDate) {
@@ -2374,7 +2380,7 @@
           </div>
         `;
       } else {
-        statusBadge = getStatusBadgeHTML(stream.status);
+        statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time);
       }
       row.innerHTML = `
       <td class="px-6 py-4 whitespace-nowrap">
@@ -2581,7 +2587,7 @@
       }
       fetchServerTimeSync();
       startCountdowns();
-      startLiveTimers();
+
       setInterval(pollStreamHealth, 30000); // Poll health every 30 seconds
       pollStreamHealth();
     });
@@ -2861,27 +2867,56 @@
     }
     function startCountdowns() {
       const updateTimers = () => {
-        document.querySelectorAll('[data-schedule-time]').forEach(el => {
+        // Handle Scheduled Countdowns
+        document.querySelectorAll('.scheduled-countdown').forEach(el => {
           const scheduleTime = new Date(el.dataset.scheduleTime);
           const now = new Date();
           const diff = scheduleTime - now;
+          
           if (diff <= 0) {
             el.textContent = 'Starting soon...';
+            el.classList.remove('text-yellow-500/80');
+            el.classList.add('text-green-400');
             return;
           }
+          
           const days = Math.floor(diff / (1000 * 60 * 60 * 24));
           const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
           const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
           const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+          
           let timeText = '';
           if (days > 0) timeText = `${days}d ${hours}h ${minutes}m`;
-          else if (hours > 0) timeText = `${hours}h ${minutes}m ${seconds}s`;
-          else timeText = `${minutes}m ${seconds}s`;
+          else if (hours > 0) timeText = `${hours}h:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+          else timeText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+          
           el.textContent = `Starts in: ${timeText}`;
+          
+          // Add urgency color if less than 10 minutes
+          if (diff < 10 * 60 * 1000) {
+            el.classList.remove('text-yellow-500/80');
+            el.classList.add('text-orange-400');
+          }
+        });
+
+        // Handle Live Durations
+        document.querySelectorAll('.live-duration').forEach(el => {
+          const startTime = new Date(el.dataset.startTime);
+          const now = new Date();
+          const durationMs = now - startTime;
+          
+          if (durationMs < 0) return;
+          
+          const hours = Math.floor(durationMs / (1000 * 60 * 60)).toString().padStart(2, '0');
+          const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
+          const seconds = Math.floor((durationMs % (1000 * 60)) / 1000).toString().padStart(2, '0');
+          el.textContent = `${hours}:${minutes}:${seconds}`;
         });
       };
+      
+      if (window.countdownInterval) clearInterval(window.countdownInterval);
       updateTimers();
-      setInterval(updateTimers, 1000);
+      window.countdownInterval = setInterval(updateTimers, 1000);
     }
     let editSelectedVideoData = null;
     let currentEditOrientation = 'horizontal';
@@ -4336,7 +4371,7 @@
             });
         });
       }
-      startLiveTimers();
+
       startCountdowns();
     });
     const editPlatformSelector = document.getElementById('editPlatformSelector');
@@ -4466,19 +4501,6 @@
           }
         });
       }
-    }
-    function startLiveTimers() {
-      setInterval(() => {
-        document.querySelectorAll('.live-duration').forEach(el => {
-          const startTime = new Date(el.dataset.startTime);
-          const now = new Date();
-          const durationMs = now - startTime;
-          const hours = Math.floor(durationMs / (1000 * 60 * 60)).toString().padStart(2, '0');
-          const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
-          const seconds = Math.floor((durationMs % (1000 * 60)) / 1000).toString().padStart(2, '0');
-          el.textContent = `${hours}:${minutes}:${seconds}`;
-        });
-      }, 1000);
     }
     let dashboardServerTimezoneOffset = null;
     
