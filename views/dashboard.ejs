@@ -3533,28 +3533,29 @@
     
     function editStream(streamId) {
       if (!streamId) return;
-      // alert('Step 1: Function called with ID ' + streamId);
       
       const modal = document.getElementById('editStreamModal');
       if (!modal) {
-        alert('Error: Elemen editStreamModal tidak ditemukan di halaman ini!');
+        alert('Error: Elemen editStreamModal tidak ditemukan!');
         return;
       }
       
-      // alert('Step 2: Modal found, attempting to show...');
+      // PINDAHKAN MODAL KE BODY (Agar tidak tersembunyi oleh parent)
+      document.body.appendChild(modal);
       
-      // Force show modal immediately
+      // Force show modal
       document.body.style.overflow = 'hidden';
       modal.classList.remove('hidden');
-      modal.style.display = 'block'; // Force display
-      modal.style.opacity = '1';     // Force opacity
-      modal.style.zIndex = '9999';   // Force top layer
+      modal.style.display = 'block';
+      modal.style.visibility = 'visible';
+      modal.style.opacity = '1';
+      modal.style.zIndex = '10000';
       
       requestAnimationFrame(() => {
         modal.classList.add('active');
       });
       
-      // Change title to show loading
+      // Change title
       const modalTitle = modal.querySelector('h3');
       if (modalTitle) modalTitle.innerHTML = 'Edit Stream <span class="text-xs font-normal text-primary ml-2 animate-pulse"><i class="ti ti-loader animate-spin mr-1"></i>Loading data...</span>';
 
