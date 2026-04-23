@@ -457,6 +457,7 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
   if (!hasAudio) {
     const isYT = isYouTubeDestination(stream);
     if (!stream.use_advanced_settings && !isYT) {
+      addStreamLog(stream.id, "Mode: COPY (Non-YouTube & Advanced Settings Off)");
       return [
         '-nostdin',
         '-loglevel', 'warning',
@@ -475,6 +476,7 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
       ];
     }
 
+    addStreamLog(stream.id, `Mode: ENCODE (YouTube or Advanced Settings On). FPS: ${stream.fps || 30}`);
     const resolution = stream.resolution || '1280x720';
     const bitrate = stream.bitrate || 2500;
     const fps = stream.fps || 30;
@@ -816,7 +818,7 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
 
     const ffmpegArgs = await buildFFmpegArgs(stream);
 
-    addStreamLog(streamId, `Starting FFmpeg process`);
+    addStreamLog(streamId, `Starting FFmpeg process with args: ${ffmpegArgs.join(' ')}`);
 
     const ffmpegProcess = spawn(ffmpegPath, ffmpegArgs, {
       detached: false,
