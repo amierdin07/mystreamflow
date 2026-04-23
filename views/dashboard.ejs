@@ -3533,21 +3533,30 @@
     
     function editStream(streamId) {
       if (!streamId) return;
-      alert('Edit Stream Clicked: ' + streamId);
+      // alert('Step 1: Function called with ID ' + streamId);
       
-      // Open modal immediately in loading state
       const modal = document.getElementById('editStreamModal');
-      if (modal) {
-        document.body.style.overflow = 'hidden';
-        modal.classList.remove('hidden');
-        requestAnimationFrame(() => {
-          modal.classList.add('active');
-        });
-        
-        // Change title to show loading
-        const modalTitle = modal.querySelector('h3');
-        if (modalTitle) modalTitle.innerHTML = 'Edit Stream <span class="text-xs font-normal text-primary ml-2 animate-pulse"><i class="ti ti-loader animate-spin mr-1"></i>Loading data...</span>';
+      if (!modal) {
+        alert('Error: Elemen editStreamModal tidak ditemukan di halaman ini!');
+        return;
       }
+      
+      // alert('Step 2: Modal found, attempting to show...');
+      
+      // Force show modal immediately
+      document.body.style.overflow = 'hidden';
+      modal.classList.remove('hidden');
+      modal.style.display = 'block'; // Force display
+      modal.style.opacity = '1';     // Force opacity
+      modal.style.zIndex = '9999';   // Force top layer
+      
+      requestAnimationFrame(() => {
+        modal.classList.add('active');
+      });
+      
+      // Change title to show loading
+      const modalTitle = modal.querySelector('h3');
+      if (modalTitle) modalTitle.innerHTML = 'Edit Stream <span class="text-xs font-normal text-primary ml-2 animate-pulse"><i class="ti ti-loader animate-spin mr-1"></i>Loading data...</span>';
 
       const editButtons = document.querySelectorAll(`button[onclick="editStream('${streamId}')"]`);
       const originalStates = [];
