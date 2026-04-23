@@ -1059,12 +1059,12 @@
                       <div>
                         <label class="text-xs text-gray-400 block mb-1">Orientation</label>
                         <div class="flex gap-2 h-[42px]">
-                          <button type="button" onclick="setEditVideoOrientation('horizontal')"
-                            class="flex-1 flex items-center justify-center bg-dark-700 hover:bg-dark-600 border border-gray-600 rounded-lg transition-colors active-orientation">
+                          <button type="button" id="edit-orient-horizontal" onclick="setEditVideoOrientation('horizontal')"
+                            class="flex-1 flex items-center justify-center bg-primary border border-gray-600 rounded-lg transition-colors active-orientation">
                             <i class="ti ti-rectangle text-sm mr-1"></i>
                             <span class="text-xs">Landscape</span>
                           </button>
-                          <button type="button" onclick="setEditVideoOrientation('vertical')"
+                          <button type="button" id="edit-orient-vertical" onclick="setEditVideoOrientation('vertical')"
                             class="flex-1 flex items-center justify-center bg-dark-700 hover:bg-dark-600 border border-gray-600 rounded-lg transition-colors">
                             <i class="ti ti-rectangle-vertical text-sm mr-1"></i>
                             <span class="text-xs">Portrait</span>
@@ -4070,17 +4070,23 @@
     }
     function setEditVideoOrientation(orientation) {
       currentEditOrientation = orientation;
-      const horizontalBtn = document.querySelector('[onclick="setEditVideoOrientation(\'horizontal\')"]');
-      const verticalBtn = document.querySelector('[onclick="setEditVideoOrientation(\'vertical\')"]');
-      horizontalBtn.classList.remove('edit-active-orientation', 'bg-primary');
-      horizontalBtn.classList.add('bg-dark-700');
-      verticalBtn.classList.remove('edit-active-orientation', 'bg-primary');
-      verticalBtn.classList.add('bg-dark-700');
-      if (orientation === 'horizontal') {
-        horizontalBtn.classList.add('edit-active-orientation', 'bg-primary');
+      const horizontalBtn = document.getElementById('edit-orient-horizontal');
+      const verticalBtn = document.getElementById('edit-orient-vertical');
+      
+      if (horizontalBtn) {
+        horizontalBtn.classList.remove('active-orientation', 'bg-primary');
+        horizontalBtn.classList.add('bg-dark-700');
+      }
+      if (verticalBtn) {
+        verticalBtn.classList.remove('active-orientation', 'bg-primary');
+        verticalBtn.classList.add('bg-dark-700');
+      }
+      
+      if (orientation === 'horizontal' && horizontalBtn) {
+        horizontalBtn.classList.add('active-orientation', 'bg-primary');
         horizontalBtn.classList.remove('bg-dark-700');
-      } else {
-        verticalBtn.classList.add('edit-active-orientation', 'bg-primary');
+      } else if (orientation === 'vertical' && verticalBtn) {
+        verticalBtn.classList.add('active-orientation', 'bg-primary');
         verticalBtn.classList.remove('bg-dark-700');
       }
       updateEditResolutionDisplay();
