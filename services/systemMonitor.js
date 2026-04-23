@@ -1,8 +1,48 @@
 const si = require('systeminformation');
+const fs = require('fs');
+const path = require('path');
+
+const USAGE_FILE = path.join(__dirname, '../network_usage.json');
 
 let previousNetworkData = null;
 let previousTimestamp = null;
 let initialNetworkTotal = null;
+
+// Persistent totals
+let cumulativeDownload = 0;
+let cumulativeUpload = 0;
+let lastRecordedTotal = { rx_bytes: 0, tx_bytes: 0 };
+
+// Load saved usage on startup
+function loadUsage() {
+  try {
+    if (fs.existsSync(USAGE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(USAGE_FILE, 'utf8'));
+      cumulativeDownload = data.cumulativeDownload || 0;
+      cumulativeUpload = data.cumulativeUpload || 0;
+      lastRecordedTotal = data.lastRecordedTotal || { rx_bytes: 0, tx_bytes: 0 };
+    }
+  } catch (error) {
+    console.error('Error loading network usage:', error);
+  }
+}
+
+// Save usage periodically
+function saveUsage() {
+  try {
+    const data = {
+      cumulativeDownload,
+      cumulativeUpload,
+      lastRecordedTotal,
+      updatedAt: new Date().toISOString()
+    };
+    fs.writeFileSync(USAGE_FILE, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error('Error saving network usage:', error);
+  }
+}
+
+loadUsage();
 
 async function getSystemStats() {
   try {
@@ -51,8 +91,8 @@ async function getSystemStats() {
         upload: 0, 
         downloadFormatted: '0 Mbps', 
         uploadFormatted: '0 Mbps',
-        totalDownloadFormatted: '0 B',
-        totalUploadFormatted: '0 B'
+        totalDownloadFormatted: formatBytes(cumulativeDownload),
+        totalUploadFormatted: formatBytes(cumulativeUpload)
       },
       disk: { total: "0 GB", used: "0 GB", free: "0 GB", usagePercent: 0, drive: "N/A" },
       platform: process.platform,
@@ -65,18 +105,38 @@ function calculateNetworkInfo(networkData) {
   const currentTimestamp = Date.now();
   
   const currentTotal = networkData
-    .filter(iface => !iface.iface.includes('lo') && !iface.iface.includes('Loopback'))
+    .filter(iface => !iface.iface.includes('lo') && !iface.iface.includes('Loopback') && iface.operstate === 'up')
     .reduce((acc, iface) => ({
       rx_bytes: acc.rx_bytes + (iface.rx_bytes || 0),
       tx_bytes: acc.tx_bytes + (iface.tx_bytes || 0)
     }), { rx_bytes: 0, tx_bytes: 0 });
 
+  // If this is the first run after restart
   if (!initialNetworkTotal) {
     initialNetworkTotal = currentTotal;
+    
+    // Check if system totals are less than last recorded (e.g. system reboot)
+    if (currentTotal.rx_bytes < lastRecordedTotal.rx_bytes) {
+      // System rebooted, just start from current system total
+      lastRecordedTotal = currentTotal;
+    }
   }
 
-  const totalDownloadBytes = Math.max(0, currentTotal.rx_bytes - initialNetworkTotal.rx_bytes);
-  const totalUploadBytes = Math.max(0, currentTotal.tx_bytes - initialNetworkTotal.tx_bytes);
+  // Calculate incremental change since last measurement
+  if (lastRecordedTotal.rx_bytes > 0) {
+    const deltaRx = Math.max(0, currentTotal.rx_bytes - lastRecordedTotal.rx_bytes);
+    const deltaTx = Math.max(0, currentTotal.tx_bytes - lastRecordedTotal.tx_bytes);
+    
+    // Only update if there is significant change or it's been a while
+    if (deltaRx > 0 || deltaTx > 0) {
+      cumulativeDownload += deltaRx;
+      cumulativeUpload += deltaTx;
+      lastRecordedTotal = currentTotal;
+      saveUsage(); // Save on every change
+    }
+  } else {
+    lastRecordedTotal = currentTotal;
+  }
   
   if (!previousNetworkData || !previousTimestamp) {
     previousNetworkData = networkData;
@@ -86,8 +146,8 @@ function calculateNetworkInfo(networkData) {
       upload: 0,
       downloadFormatted: '0 Mbps',
       uploadFormatted: '0 Mbps',
-      totalDownloadFormatted: formatBytes(totalDownloadBytes),
-      totalUploadFormatted: formatBytes(totalUploadBytes)
+      totalDownloadFormatted: formatBytes(cumulativeDownload),
+      totalUploadFormatted: formatBytes(cumulativeUpload)
     };
   }
   
@@ -114,8 +174,8 @@ function calculateNetworkInfo(networkData) {
     upload: uploadMbps,
     downloadFormatted: formatSpeed(downloadMbps),
     uploadFormatted: formatSpeed(uploadMbps),
-    totalDownloadFormatted: formatBytes(totalDownloadBytes),
-    totalUploadFormatted: formatBytes(totalUploadBytes)
+    totalDownloadFormatted: formatBytes(cumulativeDownload),
+    totalUploadFormatted: formatBytes(cumulativeUpload)
   };
 }
 
