@@ -104,12 +104,13 @@ function resolvePublicFilePath(relativePath) {
 }
 
 function isYouTubeDestination(stream) {
-  if (stream && stream.is_youtube_api) {
+  if (!stream) return false;
+  if (stream.is_youtube_api) {
     return true;
   }
 
   const rtmpUrl = (stream.rtmp_url || '').toLowerCase();
-  return rtmpUrl.includes('youtube.com');
+  return rtmpUrl.includes('youtube.com') || rtmpUrl.includes('googlevideo.com') || rtmpUrl.includes('rtmp.youtube');
 }
 
 function isProgressLogLine(line) {
@@ -498,9 +499,10 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
       '-maxrate', `${Math.round(bitrate * 1.1)}k`,
       '-bufsize', `${bitrate * 2}k`,
       '-pix_fmt', 'yuv420p',
-      '-g', String(parseInt(fps) * 2),
-      '-keyint_min', String(parseInt(fps)),
+      '-g', String(Math.max(parseInt(fps) * 2, 2)),
+      '-keyint_min', String(Math.max(parseInt(fps), 1)),
       '-sc_threshold', '0',
+      '-x264-params', `keyint=${Math.max(parseInt(fps) * 2, 2)}:min-keyint=${Math.max(parseInt(fps), 1)}:scenecut=0`,
       '-s', resolution,
       '-r', String(fps),
       '-c:a', 'aac',
@@ -590,9 +592,10 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
     '-maxrate', `${Math.round(bitrate * 1.1)}k`,
     '-bufsize', `${bitrate * 2}k`,
     '-pix_fmt', 'yuv420p',
-    '-g', String(parseInt(fps) * 2),
-    '-keyint_min', String(parseInt(fps)),
+    '-g', String(Math.max(parseInt(fps) * 2, 2)),
+    '-keyint_min', String(Math.max(parseInt(fps), 1)),
     '-sc_threshold', '0',
+    '-x264-params', `keyint=${Math.max(parseInt(fps) * 2, 2)}:min-keyint=${Math.max(parseInt(fps), 1)}:scenecut=0`,
     '-s', resolution,
     '-r', String(fps),
     '-c:a', 'copy',
@@ -686,9 +689,10 @@ async function buildFFmpegArgs(stream) {
     '-maxrate', `${Math.round(bitrate * 1.1)}k`,
     '-bufsize', `${bitrate * 2}k`,
     '-pix_fmt', 'yuv420p',
-    '-g', String(parseInt(fps) * 2),
-    '-keyint_min', String(parseInt(fps)),
+    '-g', String(Math.max(parseInt(fps) * 2, 2)),
+    '-keyint_min', String(Math.max(parseInt(fps), 1)),
     '-sc_threshold', '0',
+    '-x264-params', `keyint=${Math.max(parseInt(fps) * 2, 2)}:min-keyint=${Math.max(parseInt(fps), 1)}:scenecut=0`,
     '-s', resolution,
     '-r', String(fps),
     hasAudio ? '-c:a' : '-an',
