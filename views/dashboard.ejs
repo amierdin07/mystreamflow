@@ -2590,6 +2590,24 @@
 
       setInterval(pollStreamHealth, 30000); // Poll health every 30 seconds
       pollStreamHealth();
+
+      // Auto-refresh streams data every 15 seconds
+      setInterval(() => {
+        const newModal = document.getElementById('newStreamModal');
+        const editModal = document.getElementById('editStreamModal');
+        const isNewModalOpen = newModal && !newModal.classList.contains('hidden');
+        const isEditModalOpen = editModal && !editModal.classList.contains('hidden');
+        
+        // Only refresh if no modals are open
+        if (!isNewModalOpen && !isEditModalOpen) {
+          const searchInput = document.getElementById('streams-search');
+          const searchTerm = searchInput ? searchInput.value.trim() : '';
+          // We use current page and current limit if available, otherwise defaults
+          const page = typeof currentPage !== 'undefined' ? currentPage : 1;
+          const limit = typeof currentLimit !== 'undefined' ? currentLimit : 10;
+          fetchStreams(page, limit, searchTerm);
+        }
+      }, 15000);
     });
 
     async function pollStreamHealth() {
