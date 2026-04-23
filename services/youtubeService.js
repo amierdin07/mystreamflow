@@ -210,9 +210,9 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
 
   if (!broadcastId) {
     const broadcastSnippet = {
-        title: stream.title,
-        description: stream.youtube_description || '',
-        scheduledStartTime: new Date().toISOString()
+      title: stream.title,
+      description: stream.youtube_description || '',
+      scheduledStartTime: stream.schedule_time ? new Date(stream.schedule_time).toISOString() : new Date().toISOString()
     };
 
     console.log(`[YouTubeService] Creating YouTube broadcast for stream ${streamId}`);

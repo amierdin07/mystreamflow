@@ -3952,10 +3952,19 @@ app.post('/api/streams/youtube', isAuthenticated, uploadThumbnail.single('thumbn
     
     const stream = await Stream.create(streamData);
     
+    // Create broadcast immediately on YouTube if scheduled
+    if (stream.is_youtube_api && stream.status === 'scheduled') {
+      const youtubeService = require('./services/youtubeService');
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      youtubeService.createYouTubeBroadcast(stream.id, baseUrl).catch(e => {
+        console.error('[YouTubeSync] Failed to pre-create broadcast:', e.message);
+      });
+    }
+    
     res.json({ 
       success: true, 
       stream,
-      message: 'Stream created. YouTube broadcast will be created when stream starts.'
+      message: stream.status === 'scheduled' ? 'Stream scheduled and synced to YouTube.' : 'Stream created.'
     });
   } catch (error) {
     console.error('Error creating YouTube stream:', error);
@@ -4204,6 +4213,17 @@ app.put('/api/streams/:id', isAuthenticated, uploadThumbnail.single('thumbnail')
       }
       
       await Stream.update(req.params.id, updateData);
+      
+      // If YouTube and now scheduled but no broadcast yet, create it
+      const updatedStream = await Stream.findById(req.params.id);
+      if (updatedStream.is_youtube_api && updatedStream.status === 'scheduled' && !updatedStream.youtube_broadcast_id) {
+        const youtubeService = require('./services/youtubeService');
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        youtubeService.createYouTubeBroadcast(updatedStream.id, baseUrl).catch(e => {
+          console.error('[YouTubeSync] Failed to create broadcast on update:', e.message);
+        });
+      }
+      
       return res.json({ success: true, message: 'Stream updated successfully' });
     }
     
