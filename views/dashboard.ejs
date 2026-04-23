@@ -3571,6 +3571,17 @@
         });
     }
     function openEditStreamModal(stream) {
+      if (!stream) return;
+      
+      const modal = document.getElementById('editStreamModal');
+      if (modal) {
+        document.body.style.overflow = 'hidden';
+        modal.classList.remove('hidden');
+        requestAnimationFrame(() => {
+          modal.classList.add('active');
+        });
+      }
+
       originalStreamKey = stream.stream_key;
       document.getElementById('editStreamId').value = stream.id;
       
@@ -3799,17 +3810,13 @@
         advancedSettingsContent.classList.add('hidden');
         advancedSettingsCheckbox.checked = false;
       }
-      const modal = document.getElementById('editStreamModal');
-      document.body.style.overflow = 'hidden';
-      modal.classList.remove('hidden');
-      requestAnimationFrame(() => {
-        modal.classList.add('active');
-      });
       updateDurationBadge(true);
     }
     
     function formatDateTimeLocal(date) {
+      if (!date || isNaN(date.getTime())) return '';
       const serverDate = convertFromServerTime(date.toISOString());
+      if (!serverDate) return '';
       const year = serverDate.getFullYear();
       const month = String(serverDate.getMonth() + 1).padStart(2, '0');
       const day = String(serverDate.getDate()).padStart(2, '0');
