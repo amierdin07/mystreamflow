@@ -3533,7 +3533,22 @@
     
     function editStream(streamId) {
       if (!streamId) return;
+      alert('Edit Stream Clicked: ' + streamId);
       
+      // Open modal immediately in loading state
+      const modal = document.getElementById('editStreamModal');
+      if (modal) {
+        document.body.style.overflow = 'hidden';
+        modal.classList.remove('hidden');
+        requestAnimationFrame(() => {
+          modal.classList.add('active');
+        });
+        
+        // Change title to show loading
+        const modalTitle = modal.querySelector('h3');
+        if (modalTitle) modalTitle.innerHTML = 'Edit Stream <span class="text-xs font-normal text-primary ml-2 animate-pulse"><i class="ti ti-loader animate-spin mr-1"></i>Loading data...</span>';
+      }
+
       const editButtons = document.querySelectorAll(`button[onclick="editStream('${streamId}')"]`);
       const originalStates = [];
       
@@ -3552,34 +3567,43 @@
           state.element.innerHTML = state.html;
           state.element.disabled = state.disabled;
         });
+        // Restore title
+        if (modal) {
+          const modalTitle = modal.querySelector('h3');
+          if (modalTitle) modalTitle.innerHTML = 'Edit Stream';
+        }
       }
       
-      fetch(`/api/streams/${streamId}`)
+      fetch(`/api/streams/${streamId}?t=${Date.now()}`)
         .then(response => response.json())
         .then(data => {
           restoreButtons();
           if (data.success) {
-            openEditStreamModal(data.stream);
+            openEditStreamModal(data.stream, true); // true means modal is already open
           } else {
             showToast('error', data.error || 'Failed to fetch stream data');
+            closeEditStreamModal();
           }
         })
         .catch(error => {
           restoreButtons();
           console.error('Error fetching stream data:', error);
           showToast('error', 'An error occurred while fetching stream data');
+          closeEditStreamModal();
         });
     }
-    function openEditStreamModal(stream) {
+    function openEditStreamModal(stream, alreadyOpen = false) {
       if (!stream) return;
       
-      const modal = document.getElementById('editStreamModal');
-      if (modal) {
-        document.body.style.overflow = 'hidden';
-        modal.classList.remove('hidden');
-        requestAnimationFrame(() => {
-          modal.classList.add('active');
-        });
+      if (!alreadyOpen) {
+        const modal = document.getElementById('editStreamModal');
+        if (modal) {
+          document.body.style.overflow = 'hidden';
+          modal.classList.remove('hidden');
+          requestAnimationFrame(() => {
+            modal.classList.add('active');
+          });
+        }
       }
 
       originalStreamKey = stream.stream_key;
