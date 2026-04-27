@@ -40,22 +40,63 @@ class AutoliveService {
       return;
     }
 
-    const nextStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates);
+    // Calculate the most relevant start time (could be in the past if we are currently within the duration)
+    let sessionStart = new Date(series.start_time);
     const durationMs = (series.duration || 0) * 60 * 1000;
-    const nextEnd = new Date(nextStart.getTime() + durationMs);
+    
+    // Find the session start time that covers 'now'
+    if (series.repeat_mode !== 'none' && series.repeat_mode !== 'custom') {
+      // For repeating ones, we need to find the start of the CURRENT session
+      // This is a simplified approach: we look for the most recent occurrence
+      // We start from the original start_time and keep adding intervals until we just passed 'now'
+      // then take the one before that.
+      let checkStart = new Date(series.start_time);
+      while (checkStart <= now) {
+        sessionStart = new Date(checkStart);
+        // Move to next to check
+        checkStart = this.getNextStartTime(checkStart.toISOString(), series.repeat_mode);
+        if (checkStart > now) break; 
+      }
+    } else if (series.repeat_mode === 'custom' && series.custom_dates) {
+      // For custom dates, find the date that is currently "active"
+      try {
+        const dates = JSON.parse(series.custom_dates);
+        const activeDate = dates.find(d => {
+          const dStart = new Date(d);
+          const timePart = new Date(series.start_time);
+          dStart.setHours(timePart.getHours(), timePart.getMinutes(), 0, 0);
+          const dEnd = new Date(dStart.getTime() + durationMs);
+          return now >= dStart && now < dEnd;
+        });
+        if (activeDate) {
+          sessionStart = new Date(activeDate);
+          const timePart = new Date(series.start_time);
+          sessionStart.setHours(timePart.getHours(), timePart.getMinutes(), 0, 0);
+        } else {
+          // If none active, find the future one
+          sessionStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates);
+        }
+      } catch(e) {}
+    } else {
+      // One-time session
+      sessionStart = new Date(series.start_time);
+    }
 
-    // 1. YouTube Pre-Sync (2 Hours before)
+    const sessionEnd = new Date(sessionStart.getTime() + durationMs);
+
+    // 1. YouTube Pre-Sync (2 Hours before NEXT start)
+    const futureStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates);
     if (series.status === 'offline' && !series.youtube_broadcast_id) {
-      const timeToStart = nextStart - now;
+      const timeToStart = futureStart - now;
       if (timeToStart > 0 && timeToStart <= 2 * 60 * 60 * 1000) {
         console.log(`[Autolive] Pre-syncing series "${series.name}" to YouTube (2h window)`);
         await this.syncToYouTube(series);
       }
     }
 
-    // 2. Start Live
-    if (series.status === 'offline' && now >= nextStart && now < nextEnd) {
-      console.log(`[Autolive] Starting live for series "${series.name}"`);
+    // 2. Start Live (If we are within a session window)
+    if (series.status === 'offline' && now >= sessionStart && now < sessionEnd) {
+      console.log(`[Autolive] Starting live for series "${series.name}" (Within window)`);
       await this.startAutoliveStream(series);
     }
 
