@@ -1833,19 +1833,44 @@
 
       // Desktop table
       document.querySelectorAll('td.channel-column-cell').forEach(cell => {
+        const nameSpan = cell.querySelector('span.text-sm');
+        const channelLink = cell.querySelector('a');
+        const profileImg = cell.querySelector('img, .w-5.h-5');
+        
         if (isChannelHidden) {
-          cell.classList.add('hide-content');
+          if (nameSpan && !nameSpan.getAttribute('data-original-name')) {
+            nameSpan.setAttribute('data-original-name', nameSpan.textContent.trim());
+            nameSpan.textContent = '********';
+          }
+          if (profileImg) profileImg.style.display = 'none';
+          if (channelLink) channelLink.style.pointerEvents = 'none';
         } else {
-          cell.classList.remove('hide-content');
+          if (nameSpan && nameSpan.getAttribute('data-original-name')) {
+            nameSpan.textContent = nameSpan.getAttribute('data-original-name');
+            nameSpan.removeAttribute('data-original-name');
+          }
+          if (profileImg) profileImg.style.display = '';
+          if (channelLink) channelLink.style.pointerEvents = '';
         }
       });
 
       // Mobile cards
       document.querySelectorAll('.mobile-channel-info').forEach(el => {
+        const nameSpan = el.querySelector('span.text-gray-400');
+        const profileImg = el.querySelector('img, .w-3.h-3');
+        
         if (isChannelHidden) {
-          el.classList.add('hide-content');
+          if (nameSpan && !nameSpan.getAttribute('data-original-name')) {
+            nameSpan.setAttribute('data-original-name', nameSpan.textContent.trim());
+            nameSpan.textContent = '********';
+          }
+          if (profileImg) profileImg.style.display = 'none';
         } else {
-          el.classList.remove('hide-content');
+          if (nameSpan && nameSpan.getAttribute('data-original-name')) {
+            nameSpan.textContent = nameSpan.getAttribute('data-original-name');
+            nameSpan.removeAttribute('data-original-name');
+          }
+          if (profileImg) profileImg.style.display = '';
         }
       });
     }
