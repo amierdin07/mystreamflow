@@ -16,6 +16,7 @@ class Autolive {
     } = seriesData;
 
     return new Promise((resolve, reject) => {
+      db.run(
         `INSERT INTO autolive_series (id, user_id, name, video_id, start_time, repeat_mode, duration, is_active, youtube_channel_id, internal_playlist_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [id, user_id, name, video_id, start_time, repeat_mode, duration, is_active, youtube_channel_id, seriesData.internal_playlist_id || null],
