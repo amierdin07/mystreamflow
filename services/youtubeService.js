@@ -544,6 +544,64 @@ async function uploadVideoToYoutube(userId, channelId, filePath, metadata) {
   }
 }
 
+async function updateLiveMetadata(userId, channelId, broadcastId, metadata) {
+  try {
+    const youtube = await getYoutubeInstance(userId, channelId);
+    if (!youtube) throw new Error('Could not get YouTube instance');
+
+    console.log(`[YouTubeService] Updating live metadata for broadcast ${broadcastId}`);
+
+    // 1. Update Title and Description
+    // Note: We need to get current categoryId if not provided because it's required for snippet update
+    let categoryId = metadata.category || '22';
+    try {
+      const videoRes = await youtube.videos.list({ part: 'snippet', id: broadcastId });
+      if (videoRes.data.items && videoRes.data.items.length > 0) {
+        categoryId = videoRes.data.items[0].snippet.categoryId;
+      }
+    } catch (e) {
+      console.warn('[YouTubeService] Could not fetch current category, using default');
+    }
+
+    await youtube.videos.update({
+      part: 'snippet',
+      requestBody: {
+        id: broadcastId,
+        snippet: {
+          title: metadata.title,
+          description: metadata.description || '',
+          categoryId: categoryId
+        }
+      }
+    });
+
+    // 2. Update Thumbnail if provided
+    if (metadata.thumbnail_path) {
+      const projectRoot = path.resolve(__dirname, '..');
+      const relPath = metadata.thumbnail_path.startsWith('/') ? metadata.thumbnail_path.substring(1) : metadata.thumbnail_path;
+      const fullThumbnailPath = path.join(projectRoot, 'public', relPath);
+      
+      if (fs.existsSync(fullThumbnailPath)) {
+        const thumbnailStream = fs.createReadStream(fullThumbnailPath);
+        await youtube.thumbnails.set({
+          videoId: broadcastId,
+          media: {
+            mimeType: 'image/jpeg',
+            body: thumbnailStream
+          }
+        });
+        console.log(`[YouTubeService] Mid-stream thumbnail updated for ${broadcastId}`);
+      }
+    }
+
+    return { success: true };
+  } catch (error) {
+    const betterError = handleYoutubeError(error, `(Metadata Update: ${broadcastId})`);
+    console.error('[YouTubeService] Error updating live metadata:', betterError.message);
+    throw betterError;
+  }
+}
+
 async function getPlaylists(userId, channelId) {
   try {
     const youtube = await getYoutubeInstance(userId, channelId);
@@ -592,5 +650,6 @@ module.exports = {
   getYoutubeInstance,
   uploadVideoToYoutube,
   mapResolutionToYouTube,
+  updateLiveMetadata,
   getPlaylists
 };

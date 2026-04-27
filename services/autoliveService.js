@@ -1,0 +1,231 @@
+const Autolive = require('../models/Autolive');
+const Stream = require('../models/Stream');
+const youtubeService = require('./youtubeService');
+const streamingService = require('./streamingService');
+const { db } = require('../db/database');
+const path = require('path');
+const fs = require('fs');
+
+let checkInterval = null;
+
+class AutoliveService {
+  static init() {
+    if (checkInterval) clearInterval(checkInterval);
+    checkInterval = setInterval(() => this.checkAutoliveSeries(), 60000);
+    console.log('Autolive Service initialized');
+    this.checkAutoliveSeries(); // Run once immediately
+  }
+
+  static async checkAutoliveSeries() {
+    try {
+      const activeSeries = await Autolive.findActiveSeries();
+      const now = new Date();
+
+      for (const series of activeSeries) {
+        await this.processSeries(series, now);
+      }
+    } catch (error) {
+      console.error('Error in Autolive check:', error);
+    }
+  }
+
+  static async processSeries(series, now) {
+    const nextStart = this.getNextStartTime(series.start_time, series.repeat_mode);
+    const durationMs = (series.duration || 0) * 60 * 1000;
+    const nextEnd = new Date(nextStart.getTime() + durationMs);
+
+    // 1. YouTube Pre-Sync (2 Hours before)
+    if (series.status === 'offline' && !series.youtube_broadcast_id) {
+      const timeToStart = nextStart - now;
+      if (timeToStart > 0 && timeToStart <= 2 * 60 * 60 * 1000) {
+        console.log(`[Autolive] Pre-syncing series "${series.name}" to YouTube (2h window)`);
+        await this.syncToYouTube(series);
+      }
+    }
+
+    // 2. Start Live
+    if (series.status === 'offline' && now >= nextStart && now < nextEnd) {
+      console.log(`[Autolive] Starting live for series "${series.name}"`);
+      await this.startAutoliveStream(series);
+    }
+
+    // 3. Stop Live
+    if (series.status === 'live' && now >= nextEnd) {
+      console.log(`[Autolive] Stopping live for series "${series.name}" (Duration reached)`);
+      await this.stopAutoliveStream(series);
+    }
+
+    // 4. Mid-Stream Auto-Swap (24 Hours+)
+    if (series.status === 'live') {
+      const lastUpdate = series.last_metadata_update ? new Date(series.last_metadata_update) : new Date(series.start_time);
+      const timeSinceUpdate = now - lastUpdate;
+      if (timeSinceUpdate >= 24 * 60 * 60 * 1000) {
+        console.log(`[Autolive] Mid-stream auto-swap for series "${series.name}" (24h reached)`);
+        await this.swapMetadataMidStream(series);
+      }
+    }
+  }
+
+  static getNextStartTime(startTimeStr, repeatMode) {
+    if (!startTimeStr) return new Date(8640000000000000); // Far future
+    let nextStart = new Date(startTimeStr);
+    const now = new Date();
+
+    if (nextStart > now) return nextStart;
+
+    // If it's a one-time thing and already passed
+    if (repeatMode === 'none' || !repeatMode) return nextStart;
+
+    while (nextStart <= now) {
+      switch (repeatMode) {
+        case 'daily': nextStart.setDate(nextStart.getDate() + 1); break;
+        case 'weekly': nextStart.setDate(nextStart.getDate() + 7); break;
+        case 'every_2_days': nextStart.setDate(nextStart.getDate() + 2); break;
+        case 'every_3_days': nextStart.setDate(nextStart.getDate() + 3); break;
+        case 'monthly': nextStart.setMonth(nextStart.getMonth() + 1); break;
+        default: return nextStart;
+      }
+    }
+    return nextStart;
+  }
+
+  static async syncToYouTube(series) {
+    try {
+      const items = await Autolive.getItemsBySeriesId(series.id);
+      if (items.length === 0) return;
+
+      const currentItem = items[series.current_item_index % items.length];
+      
+      // Create a dummy stream object for YouTube service
+      const dummyStreamId = `autolive_${series.id}`;
+      const dummyStream = {
+        id: dummyStreamId,
+        user_id: series.user_id,
+        title: currentItem.title,
+        youtube_description: currentItem.description || '',
+        youtube_tags: currentItem.tags || '',
+        youtube_category: '22',
+        youtube_privacy: 'public',
+        youtube_channel_id: series.youtube_channel_id,
+        youtube_thumbnail: currentItem.thumbnail_path,
+        schedule_time: this.getNextStartTime(series.start_time, series.repeat_mode).toISOString()
+      };
+
+      // We need to temporarily save this dummy stream to the DB so youtubeService can find it
+      // OR we modify youtubeService to accept an object. 
+      // Let's use a more robust way: create/update a dedicated stream record for this series.
+      let streamRecord = await this.getOrCreateStreamRecord(series);
+      
+      // Update stream record with current item metadata
+      await Stream.update(streamRecord.id, {
+        title: currentItem.title,
+        youtube_description: currentItem.description || '',
+        youtube_tags: currentItem.tags || '',
+        youtube_thumbnail: currentItem.thumbnail_path,
+        schedule_time: dummyStream.schedule_time
+      });
+
+      const baseUrl = process.env.BASE_URL || 'http://localhost:7575';
+      const result = await youtubeService.createYouTubeBroadcast(streamRecord.id, baseUrl);
+      
+      if (result) {
+        const updatedStream = await Stream.findById(streamRecord.id);
+        await Autolive.update(series.id, {
+          youtube_broadcast_id: updatedStream.youtube_broadcast_id,
+          youtube_stream_id: updatedStream.youtube_stream_id,
+          rtmp_url: updatedStream.rtmp_url,
+          stream_key: updatedStream.stream_key
+        });
+      }
+    } catch (error) {
+      console.error(`[Autolive] Sync failed for "${series.name}":`, error);
+    }
+  }
+
+  static async getOrCreateStreamRecord(series) {
+    const streamId = `autolive_${series.id}`;
+    let stream = await Stream.findById(streamId);
+    if (!stream) {
+      await db.run(
+        `INSERT INTO streams (id, user_id, title, video_id, rtmp_url, stream_key, platform, status, is_youtube_api, youtube_channel_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [streamId, series.user_id, series.name, series.video_id, '', '', 'YouTube', 'scheduled', 1, series.youtube_channel_id]
+      );
+      stream = await Stream.findById(streamId);
+    }
+    return stream;
+  }
+
+  static async startAutoliveStream(series) {
+    try {
+      const streamId = `autolive_${series.id}`;
+      const baseUrl = process.env.BASE_URL || 'http://localhost:7575';
+      
+      const result = await streamingService.startStream(streamId, false, baseUrl);
+      if (result.success) {
+        await Autolive.update(series.id, { 
+          status: 'live',
+          last_metadata_update: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      console.error(`[Autolive] Start failed for "${series.name}":`, error);
+    }
+  }
+
+  static async stopAutoliveStream(series) {
+    try {
+      const streamId = `autolive_${series.id}`;
+      await streamingService.stopStream(streamId);
+      
+      await Autolive.update(series.id, { 
+        status: 'offline',
+        youtube_broadcast_id: null,
+        youtube_stream_id: null,
+        current_item_index: series.current_item_index + 1
+      });
+    } catch (error) {
+      console.error(`[Autolive] Stop failed for "${series.name}":`, error);
+    }
+  }
+
+  static async swapMetadataMidStream(series) {
+    try {
+      const items = await Autolive.getItemsBySeriesId(series.id);
+      if (items.length <= 1) return;
+
+      const nextIndex = (series.current_item_index + 1) % items.length;
+      const nextItem = items[nextIndex];
+      const streamId = `autolive_${series.id}`;
+      const stream = await Stream.findById(streamId);
+
+      if (!stream.youtube_broadcast_id) return;
+
+      console.log(`[Autolive] Swapping to next metadata: ${nextItem.title}`);
+      
+      // Update YouTube via Service
+      const user = await require('../models/User').findById(series.user_id);
+      const YoutubeChannel = require('../models/YoutubeChannel');
+      const channel = await YoutubeChannel.findById(series.youtube_channel_id);
+      
+      if (user && channel) {
+        // Use the existing logic from app.js or youtubeService to update metadata
+        // For simplicity, we'll implement a call to a new helper in youtubeService
+        await youtubeService.updateLiveMetadata(series.user_id, series.youtube_channel_id, stream.youtube_broadcast_id, {
+          title: nextItem.title,
+          description: nextItem.description || '',
+          thumbnail_path: nextItem.thumbnail_path
+        });
+
+        await Autolive.update(series.id, {
+          current_item_index: nextIndex,
+          last_metadata_update: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      console.error(`[Autolive] Mid-stream swap failed for "${series.name}":`, error);
+    }
+  }
+}
+
+module.exports = AutoliveService;

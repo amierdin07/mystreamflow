@@ -434,7 +434,42 @@ function createTables() {
             if (err && !err.message.includes('duplicate column name')) console.error(err.message);
             db.run(`ALTER TABLE playlists ADD COLUMN youtube_channel_id TEXT`, (err) => {
               if (err && !err.message.includes('duplicate column name')) console.error(err.message);
-              db.run(`CREATE TABLE IF NOT EXISTS loop_tasks (
+      db.run(`CREATE TABLE IF NOT EXISTS autolive_series (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        video_id TEXT NOT NULL,
+        start_time TEXT,
+        repeat_mode TEXT DEFAULT 'none',
+        duration INTEGER,
+        is_active INTEGER DEFAULT 1,
+        current_item_index INTEGER DEFAULT 0,
+        youtube_channel_id TEXT,
+        youtube_broadcast_id TEXT,
+        youtube_stream_id TEXT,
+        rtmp_url TEXT,
+        stream_key TEXT,
+        last_metadata_update TEXT,
+        status TEXT DEFAULT 'offline',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (video_id) REFERENCES videos(id)
+      )`);
+
+      db.run(`CREATE TABLE IF NOT EXISTS autolive_items (
+        id TEXT PRIMARY KEY,
+        series_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        tags TEXT,
+        thumbnail_path TEXT,
+        original_thumbnail_path TEXT,
+        order_index INTEGER NOT NULL,
+        FOREIGN KEY (series_id) REFERENCES autolive_series(id) ON DELETE CASCADE
+      )`);
+
+      db.run(`CREATE TABLE IF NOT EXISTS loop_tasks (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
                 title TEXT NOT NULL,

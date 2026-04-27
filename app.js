@@ -5145,6 +5145,195 @@ app.post('/api/rotations/:id/stop', isAuthenticated, async (req, res) => {
   }
 });
 
+app.get('/autolive', isAuthenticated, async (req, res) => {
+  try {
+    const user = await User.findById(req.session.userId);
+    const allVideos = await Video.findAll(req.session.userId);
+    const videos = allVideos.filter(video => {
+      const filepath = (video.filepath || '').toLowerCase();
+      if (filepath.includes('/audio/')) return false;
+      if (filepath.endsWith('.m4a') || filepath.endsWith('.aac') || filepath.endsWith('.mp3')) return false;
+      return true;
+    });
+    
+    const Autolive = require('./models/Autolive');
+    const series = await Autolive.findAll(req.session.userId);
+    const YoutubeChannel = require('./models/YoutubeChannel');
+    const youtubeChannels = await YoutubeChannel.findAll(req.session.userId);
+    
+    res.render('autolive', {
+      title: 'Autolive Series',
+      active: 'autolive',
+      user: user,
+      videos: videos,
+      series: series,
+      youtubeConnected: youtubeChannels.length > 0,
+      youtubeChannels: youtubeChannels
+    });
+  } catch (error) {
+    console.error('Autolive page error:', error);
+    res.redirect('/dashboard');
+  }
+});
+
+app.get('/api/autolive', isAuthenticated, async (req, res) => {
+  try {
+    const Autolive = require('./models/Autolive');
+    const series = await Autolive.findAll(req.session.userId);
+    res.json({ success: true, series });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/autolive/:id', isAuthenticated, async (req, res) => {
+  try {
+    const Autolive = require('./models/Autolive');
+    const series = await Autolive.findByIdWithItems(req.params.id);
+    if (!series) return res.status(404).json({ success: false, error: 'Series not found' });
+    res.json({ success: true, series });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, res) => {
+  try {
+    const Autolive = require('./models/Autolive');
+    const { name, video_id, start_time, repeat_mode, duration, items, youtube_channel_id } = req.body;
+    
+    const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
+    
+    const series = await Autolive.create({
+      user_id: req.session.userId,
+      name,
+      video_id,
+      start_time,
+      repeat_mode,
+      duration: parseInt(duration),
+      youtube_channel_id
+    });
+    
+    const uploadedFiles = req.files || [];
+    const uploadedFileMap = new Map(uploadedFiles.map(file => [file.fieldname, file]));
+    
+    for (let i = 0; i < parsedItems.length; i++) {
+      const item = parsedItems[i];
+      const thumbnailFile = uploadedFileMap.get(`thumbnail_${item.thumbnail_upload_index}`);
+      
+      let thumbnailPath = null;
+      let originalThumbnailPath = null;
+      if (thumbnailFile) {
+        const originalFilename = thumbnailFile.filename;
+        const thumbFilename = `thumb-${path.parse(originalFilename).name}.jpg`;
+        originalThumbnailPath = originalFilename;
+        try {
+          await generateImageThumbnail(thumbnailFile.path, thumbFilename);
+          thumbnailPath = `/uploads/thumbnails/${thumbFilename}`;
+        } catch (e) {
+          thumbnailPath = `/uploads/thumbnails/${originalFilename}`;
+        }
+      }
+      
+      await Autolive.addItem({
+        series_id: series.id,
+        title: item.title,
+        description: item.description,
+        tags: item.tags,
+        thumbnail_path: thumbnailPath,
+        original_thumbnail_path: originalThumbnailPath,
+        order_index: i
+      });
+    }
+    
+    res.json({ success: true, series });
+  } catch (error) {
+    console.error('Error creating autolive:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req, res) => {
+  try {
+    const Autolive = require('./models/Autolive');
+    const { name, video_id, start_time, repeat_mode, duration, items, youtube_channel_id } = req.body;
+    
+    await Autolive.update(req.params.id, {
+      name,
+      video_id,
+      start_time,
+      repeat_mode,
+      duration: parseInt(duration),
+      youtube_channel_id
+    });
+    
+    if (items) {
+      const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
+      await Autolive.deleteItemsBySeriesId(req.params.id);
+      
+      const uploadedFiles = req.files || [];
+      const uploadedFileMap = new Map(uploadedFiles.map(file => [file.fieldname, file]));
+      
+      for (let i = 0; i < parsedItems.length; i++) {
+        const item = parsedItems[i];
+        let thumbnailPath = item.thumbnail_path;
+        let originalThumbnailPath = item.original_thumbnail_path;
+        
+        const thumbnailFile = uploadedFileMap.get(`thumbnail_${item.thumbnail_upload_index}`);
+        if (thumbnailFile) {
+          const originalFilename = thumbnailFile.filename;
+          const thumbFilename = `thumb-${path.parse(originalFilename).name}.jpg`;
+          originalThumbnailPath = originalFilename;
+          try {
+            await generateImageThumbnail(thumbnailFile.path, thumbFilename);
+            thumbnailPath = `/uploads/thumbnails/${thumbFilename}`;
+          } catch (e) {
+            thumbnailPath = `/uploads/thumbnails/${originalFilename}`;
+          }
+        }
+        
+        await Autolive.addItem({
+          series_id: req.params.id,
+          title: item.title,
+          description: item.description,
+          tags: item.tags,
+          thumbnail_path: thumbnailPath,
+          original_thumbnail_path: originalThumbnailPath,
+          order_index: i
+        });
+      }
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/autolive/:id', isAuthenticated, async (req, res) => {
+  try {
+    const Autolive = require('./models/Autolive');
+    await Autolive.delete(req.params.id, req.session.userId);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/autolive/:id/toggle', isAuthenticated, async (req, res) => {
+  try {
+    const Autolive = require('./models/Autolive');
+    const series = await Autolive.findById(req.params.id);
+    if (!series) return res.status(404).json({ success: false, error: 'Series not found' });
+    
+    const newActive = series.is_active === 1 ? 0 : 1;
+    await Autolive.update(req.params.id, { is_active: newActive });
+    res.json({ success: true, is_active: newActive });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 const server = app.listen(port, '0.0.0.0', async () => {
   try {
     await initializeDatabase();
@@ -5173,6 +5362,9 @@ const server = app.listen(port, '0.0.0.0', async () => {
   } catch (error) {
     console.error('Error resetting stream statuses:', error);
   }
+  const autoliveService = require('./services/autoliveService');
+  autoliveService.init();
+  
   schedulerService.init(streamingService);
   rotationService.init();
   try {

@@ -118,6 +118,11 @@
           <span class="text-xs mt-1">Rotations</span>
           <span class="sidebar-tooltip group-hover:scale-100">Stream Rotations</span>
         </a>
+        <a href="/autolive" class="sidebar-icon group <%= active === 'autolive' ? 'bg-primary' : '' %>">
+          <i class="ti ti-bolt text-xl"></i>
+          <span class="text-xs mt-1">Autolive</span>
+          <span class="sidebar-tooltip group-hover:scale-100">Automated Recurring Live</span>
+        </a>
         <a href="/monitor" class="sidebar-icon group <%= active === 'monitor' ? 'bg-primary' : '' %>">
           <i class="ti ti-activity-heartbeat text-xl"></i>
           <span class="text-xs mt-1">Monitor</span>
@@ -256,6 +261,10 @@
       <a href="/rotations" class="bottom-nav-item <%= active === 'rotations' ? 'bottom-nav-active' : '' %>">
         <i class="ti ti-rotate"></i>
         <span>Rotations</span>
+      </a>
+      <a href="/autolive" class="bottom-nav-item <%= active === 'autolive' ? 'bottom-nav-active' : '' %>">
+        <i class="ti ti-bolt"></i>
+        <span>Autolive</span>
       </a>
       <a href="/monitor" class="bottom-nav-item <%= active === 'monitor' ? 'bottom-nav-active' : '' %>">
         <i class="ti ti-activity-heartbeat"></i>
