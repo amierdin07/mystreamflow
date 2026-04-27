@@ -30,7 +30,17 @@ class AutoliveService {
   }
 
   static async processSeries(series, now) {
-    const nextStart = this.getNextStartTime(series.start_time, series.repeat_mode);
+    const items = await Autolive.getItemsBySeriesId(series.id);
+    if (items.length === 0) return;
+
+    // STOP if all items are already used
+    if (series.current_item_index >= items.length) {
+      console.log(`[Autolive] Series "${series.name}" finished all items. Stopping series.`);
+      await Autolive.update(series.id, { is_active: 0, status: 'offline' });
+      return;
+    }
+
+    const nextStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates);
     const durationMs = (series.duration || 0) * 60 * 1000;
     const nextEnd = new Date(nextStart.getTime() + durationMs);
 
@@ -66,10 +76,32 @@ class AutoliveService {
     }
   }
 
-  static getNextStartTime(startTimeStr, repeatMode) {
+  static getNextStartTime(startTimeStr, repeatMode, customDatesStr = null) {
     if (!startTimeStr) return new Date(8640000000000000); // Far future
     let nextStart = new Date(startTimeStr);
     const now = new Date();
+
+    // CUSTOM DATES LOGIC
+    if (repeatMode === 'custom' && customDatesStr) {
+      try {
+        const dates = JSON.parse(customDatesStr);
+        const futureDates = dates
+          .map(d => {
+            const datePart = new Date(d);
+            const timePart = new Date(startTimeStr);
+            datePart.setHours(timePart.getHours(), timePart.getMinutes(), 0, 0);
+            return datePart;
+          })
+          .filter(d => d > now)
+          .sort((a, b) => a - b);
+        
+        if (futureDates.length > 0) return futureDates[0];
+        // If no more future dates, return far future to effectively stop
+        return new Date(8640000000000000);
+      } catch (e) {
+        console.error('Error parsing custom dates:', e);
+      }
+    }
 
     if (nextStart > now) return nextStart;
 

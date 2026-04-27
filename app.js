@@ -5200,7 +5200,7 @@ app.get('/api/autolive/:id', isAuthenticated, async (req, res) => {
 app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, res) => {
   try {
     const Autolive = require('./models/Autolive');
-    const { name, video_id, start_time, repeat_mode, duration, items, youtube_channel_id } = req.body;
+    const { name, video_id, start_time, repeat_mode, duration, items, youtube_channel_id, custom_dates } = req.body;
     
     const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
     
@@ -5211,7 +5211,8 @@ app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, re
       start_time,
       repeat_mode,
       duration: parseInt(duration),
-      youtube_channel_id
+      youtube_channel_id,
+      custom_dates
     });
     
     const uploadedFiles = req.files || [];
@@ -5256,7 +5257,7 @@ app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, re
 app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req, res) => {
   try {
     const Autolive = require('./models/Autolive');
-    const { name, video_id, start_time, repeat_mode, duration, items, youtube_channel_id } = req.body;
+    const { name, video_id, start_time, repeat_mode, duration, items, youtube_channel_id, custom_dates } = req.body;
     
     await Autolive.update(req.params.id, {
       name,
@@ -5264,7 +5265,8 @@ app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req,
       start_time,
       repeat_mode,
       duration: parseInt(duration),
-      youtube_channel_id
+      youtube_channel_id,
+      custom_dates
     });
     
     if (items) {

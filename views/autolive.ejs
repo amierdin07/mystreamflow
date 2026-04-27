@@ -192,7 +192,21 @@
                                     <option value="saturday">Setiap Sabtu</option>
                                     <option value="sunday">Setiap Minggu (Hari)</option>
                                     <option value="monthly">Setiap Tanggal (Bulanan)</option>
+                                    <option value="custom">Pilih Tanggal Spesifik</option>
                                 </select>
+                            </div>
+
+                            <div id="customDatesContainer" class="col-span-2 hidden">
+                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Pilih Tanggal-Tanggal Live</label>
+                                <div class="flex gap-2 mb-3">
+                                    <input type="date" id="datePicker" class="flex-1 bg-dark-900 border border-gray-700 rounded-xl px-4 py-2 text-white text-sm focus:ring-2 focus:ring-primary">
+                                    <button type="button" onclick="addCustomDate()" class="bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all">
+                                        <i class="ti ti-plus"></i> Tambah
+                                    </button>
+                                </div>
+                                <div id="customDatesList" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 bg-dark-900/30 rounded-xl border border-gray-700/50">
+                                    <!-- Selected dates badge will appear here -->
+                                </div>
                             </div>
                             <div class="col-span-2">
                                 <label class="block text-sm font-medium text-gray-400 mb-1.5">Durasi Live</label>
@@ -274,6 +288,51 @@
 
 <script>
     let currentItems = [];
+    let selectedDates = [];
+
+    document.getElementById('repeatMode').addEventListener('change', function() {
+        const container = document.getElementById('customDatesContainer');
+        if (this.value === 'custom') {
+            container.classList.remove('hidden');
+        } else {
+            container.classList.add('hidden');
+        }
+    });
+
+    function addCustomDate() {
+        const picker = document.getElementById('datePicker');
+        const date = picker.value;
+        if (!date) return;
+        
+        if (selectedDates.includes(date)) return;
+        
+        selectedDates.push(date);
+        selectedDates.sort();
+        renderCustomDates();
+        picker.value = '';
+    }
+
+    function removeCustomDate(date) {
+        selectedDates = selectedDates.filter(d => d !== date);
+        renderCustomDates();
+    }
+
+    function renderCustomDates() {
+        const container = document.getElementById('customDatesList');
+        container.innerHTML = '';
+        
+        selectedDates.forEach(date => {
+            const badge = document.createElement('div');
+            badge.className = 'flex items-center gap-2 bg-primary/20 text-primary border border-primary/30 px-2 py-1 rounded-lg text-xs font-medium';
+            badge.innerHTML = `
+                <span>${date}</span>
+                <button type="button" onclick="removeCustomDate('${date}')" class="hover:text-white">
+                    <i class="ti ti-x"></i>
+                </button>
+            `;
+            container.appendChild(badge);
+        });
+    }
 
     function openCreateSeriesModal() {
         document.getElementById('modalTitle').innerText = 'Buat Autolive Baru';
@@ -482,6 +541,16 @@
             }
             
             document.getElementById('repeatMode').value = s.repeat_mode;
+            if (s.repeat_mode === 'custom') {
+                document.getElementById('customDatesContainer').classList.remove('hidden');
+                selectedDates = JSON.parse(s.custom_dates || '[]');
+                renderCustomDates();
+            } else {
+                document.getElementById('customDatesContainer').classList.add('hidden');
+                selectedDates = [];
+                document.getElementById('customDatesList').innerHTML = '';
+            }
+
             document.getElementById('durationHours').value = Math.floor(s.duration / 60);
             document.getElementById('durationMinutes').value = s.duration % 60;
             
