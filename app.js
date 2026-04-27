@@ -5173,6 +5173,9 @@ app.get('/autolive', isAuthenticated, async (req, res) => {
       helpers: app.locals.helpers
     });
   } catch (error) {
+    const fs = require('fs');
+    const logMessage = `[${new Date().toISOString()}] Autolive Error: ${error.message}\n${error.stack}\n\n`;
+    fs.appendFileSync('autolive_error.log', logMessage);
     console.error('Autolive page error:', error);
     res.redirect('/dashboard');
   }
