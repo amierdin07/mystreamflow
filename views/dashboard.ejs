@@ -182,12 +182,10 @@
               </th>
               <% if (typeof youtubeConnected !== 'undefined' && youtubeConnected) { %>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                <div class="flex items-center gap-2">
-                  <span>Channel</span>
-                  <button onclick="toggleChannelVisibility()" class="hover:text-white transition-colors" title="Toggle Channel Visibility">
-                    <i id="channel-visibility-icon" class="ti ti-eye"></i>
-                  </button>
-                </div>
+                <button onclick="toggleChannelVisibility()" class="flex items-center gap-1.5 hover:text-white transition-colors group" title="Toggle Channel Visibility">
+                  <span class="uppercase tracking-wider">Channel</span>
+                  <i id="channel-visibility-icon" class="ti ti-eye text-sm"></i>
+                </button>
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Dashboard</th>
               <% } %>
