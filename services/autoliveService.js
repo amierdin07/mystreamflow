@@ -8,6 +8,23 @@ const fs = require('fs');
 
 let checkInterval = null;
 
+// Parse a datetime string (from datetime-local input, no timezone) as SERVER LOCAL TIME
+// This avoids UTC misinterpretation on Linux VPS
+function parseLocalDateTime(dtStr) {
+  if (!dtStr) return new Date(NaN);
+  // If it already has timezone info (Z, +, -), parse as-is
+  if (/[Z+]/.test(dtStr.slice(10)) || (dtStr.length > 19 && dtStr[19] === '-')) {
+    return new Date(dtStr);
+  }
+  // Otherwise it's a local datetime string like "2026-04-27T17:14"
+  // Split and construct with Date constructor treating as local
+  const [datePart, timePart] = dtStr.split('T');
+  if (!datePart) return new Date(NaN);
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hour = 0, minute = 0, second = 0] = (timePart || '0:0:0').split(':').map(Number);
+  return new Date(year, month - 1, day, hour, minute, second);
+}
+
 class AutoliveService {
   static init() {
     if (checkInterval) clearInterval(checkInterval);
@@ -41,48 +58,41 @@ class AutoliveService {
     }
 
     // Calculate the most relevant start time (could be in the past if we are currently within the duration)
-    let sessionStart = new Date(series.start_time);
+    let sessionStart = parseLocalDateTime(series.start_time);
     const durationMs = (series.duration || 0) * 60 * 1000;
     
     // Find the session start time that covers 'now'
     if (series.repeat_mode !== 'none' && series.repeat_mode !== 'custom') {
-      // For repeating ones, we need to find the start of the CURRENT session
-      // This is a simplified approach: we look for the most recent occurrence
-      // We start from the original start_time and keep adding intervals until we just passed 'now'
-      // then take the one before that.
-      let checkStart = new Date(series.start_time);
+      let checkStart = parseLocalDateTime(series.start_time);
       while (checkStart <= now) {
         sessionStart = new Date(checkStart);
-        // Move to next to check
         checkStart = this.getNextStartTime(checkStart.toISOString(), series.repeat_mode);
         if (checkStart > now) break; 
       }
     } else if (series.repeat_mode === 'custom' && series.custom_dates) {
-      // For custom dates, find the date that is currently "active"
       try {
         const dates = JSON.parse(series.custom_dates);
         const activeDate = dates.find(d => {
-          const dStart = new Date(d);
-          const timePart = new Date(series.start_time);
-          dStart.setHours(timePart.getHours(), timePart.getMinutes(), 0, 0);
+          const dStart = parseLocalDateTime(series.start_time);
+          dStart.setFullYear(new Date(d).getFullYear(), new Date(d).getMonth(), new Date(d).getDate());
           const dEnd = new Date(dStart.getTime() + durationMs);
           return now >= dStart && now < dEnd;
         });
         if (activeDate) {
-          sessionStart = new Date(activeDate);
-          const timePart = new Date(series.start_time);
-          sessionStart.setHours(timePart.getHours(), timePart.getMinutes(), 0, 0);
+          const timePart = parseLocalDateTime(series.start_time);
+          sessionStart = parseLocalDateTime(series.start_time);
+          sessionStart.setFullYear(new Date(activeDate).getFullYear(), new Date(activeDate).getMonth(), new Date(activeDate).getDate());
         } else {
-          // If none active, find the future one
           sessionStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates);
         }
-      } catch(e) {}
+      } catch(e) { console.error('[Autolive] Error parsing custom dates:', e); }
     } else {
       // One-time session
-      sessionStart = new Date(series.start_time);
+      sessionStart = parseLocalDateTime(series.start_time);
     }
 
     const sessionEnd = new Date(sessionStart.getTime() + durationMs);
+    console.log(`[Autolive] Series "${series.name}" | now=${now.toISOString()} | sessionStart=${sessionStart.toISOString()} | sessionEnd=${sessionEnd.toISOString()} | status=${series.status}`);
 
     // 1. YouTube Pre-Sync (2 Hours before NEXT start)
     const futureStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates);
@@ -101,7 +111,7 @@ class AutoliveService {
     }
 
     // 3. Stop Live
-    if (series.status === 'live' && now >= nextEnd) {
+    if (series.status === 'live' && now >= sessionEnd) {
       console.log(`[Autolive] Stopping live for series "${series.name}" (Duration reached)`);
       await this.stopAutoliveStream(series);
     }
