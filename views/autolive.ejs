@@ -300,9 +300,11 @@
                         </div>
 
                         <div class="md:col-span-3">
-                            <label class="block text-sm font-medium text-gray-400 mb-1.5">ID Playlist (Opsional)</label>
-                            <input type="text" id="playlistId" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="Masukkan ID Playlist YouTube (Contoh: PLxxxx...)">
-                            <p class="text-[10px] text-gray-500 mt-1">Biarkan kosong jika tidak ingin masuk playlist.</p>
+                            <label class="block text-sm font-medium text-gray-400 mb-1.5">Pilih Playlist YouTube (Opsional)</label>
+                            <select id="playlistId" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all">
+                                <option value="">-- Tanpa Playlist --</option>
+                            </select>
+                            <p class="text-[10px] text-gray-500 mt-1" id="playlistHint">Pilih channel terlebih dahulu untuk memuat playlist.</p>
                         </div>
                     </div>
                 </div>
@@ -381,6 +383,48 @@
         }
     });
 
+    document.getElementById('channelId').addEventListener('change', function() {
+        loadPlaylists(this.value);
+    });
+
+    async function loadPlaylists(channelId, selectedPlaylistId = '') {
+        const select = document.getElementById('playlistId');
+        const hint = document.getElementById('playlistHint');
+        
+        if (!channelId) {
+            select.innerHTML = '<option value="">-- Tanpa Playlist --</option>';
+            hint.innerText = 'Pilih channel terlebih dahulu untuk memuat playlist.';
+            return;
+        }
+
+        hint.innerText = 'Memuat playlist...';
+        select.disabled = true;
+
+        try {
+            const response = await fetch(`/api/youtube/playlists/${channelId}`);
+            const result = await response.json();
+            
+            if (result.success) {
+                select.innerHTML = '<option value="">-- Tanpa Playlist --</option>';
+                result.playlists.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.id;
+                    option.text = p.title;
+                    if (p.id === selectedPlaylistId) option.selected = true;
+                    select.appendChild(option);
+                });
+                hint.innerText = `Berhasil memuat ${result.playlists.length} playlist.`;
+            } else {
+                hint.innerText = 'Gagal memuat playlist.';
+            }
+        } catch (e) {
+            console.error('Error fetching playlists:', e);
+            hint.innerText = 'Gagal memuat playlist.';
+        } finally {
+            select.disabled = false;
+        }
+    }
+
     function addCustomDate() {
         const picker = document.getElementById('datePicker');
         const date = picker.value;
@@ -434,7 +478,11 @@
         document.getElementById('categoryId').value = '24';
         document.getElementById('monetizationEnabled').checked = true;
         document.getElementById('madeForKids').checked = false;
-        document.getElementById('playlistId').value = '';
+        document.getElementById('playlistId').innerHTML = '<option value="">-- Tanpa Playlist --</option>';
+
+        // Load playlists for initial channel
+        const initialChannelId = document.getElementById('channelId').value;
+        if (initialChannelId) loadPlaylists(initialChannelId);
 
         currentItems = [];
         selectedDates = [];
@@ -672,7 +720,9 @@
             document.getElementById('categoryId').value = s.category_id || '24';
             document.getElementById('monetizationEnabled').checked = s.monetization_enabled === 1;
             document.getElementById('madeForKids').checked = s.made_for_kids === 1;
-            document.getElementById('playlistId').value = s.playlist_id || '';
+            
+            // Load playlists and select the correct one
+            await loadPlaylists(s.youtube_channel_id, s.playlist_id);
             
             currentItems = s.items.map(item => ({
                 title: item.title,
