@@ -133,7 +133,8 @@ class AutoliveService {
         case 'weekly': nextStart.setDate(nextStart.getDate() + 7); break;
         case 'every_2_days': nextStart.setDate(nextStart.getDate() + 2); break;
         case 'every_3_days': nextStart.setDate(nextStart.getDate() + 3); break;
-        case 'monthly': nextStart.setMonth(nextStart.getMonth() + 1); break;
+        case 'every_4_days': nextStart.setDate(nextStart.getDate() + 4); break;
+        case 'every_5_days': nextStart.setDate(nextStart.getDate() + 5); break;
         default: return nextStart;
       }
     }
