@@ -181,7 +181,14 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Stream Name
               </th>
               <% if (typeof youtubeConnected !== 'undefined' && youtubeConnected) { %>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Channel</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                <div class="flex items-center gap-2">
+                  <span>Channel</span>
+                  <button onclick="toggleChannelVisibility()" class="hover:text-white transition-colors" title="Toggle Channel Visibility">
+                    <i id="channel-visibility-icon" class="ti ti-eye"></i>
+                  </button>
+                </div>
+              </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Dashboard</th>
               <% } %>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Platform</th>
@@ -1812,8 +1819,42 @@
         .catch(error => console.error('Error fetching system stats:', error));
     }
     
+    let isChannelHidden = localStorage.getItem('hideChannelNames') === 'true';
+
+    function toggleChannelVisibility() {
+      isChannelHidden = !isChannelHidden;
+      localStorage.setItem('hideChannelNames', isChannelHidden);
+      applyChannelVisibility();
+    }
+
+    function applyChannelVisibility() {
+      const icon = document.getElementById('channel-visibility-icon');
+      if (icon) {
+        icon.className = isChannelHidden ? 'ti ti-eye-off' : 'ti ti-eye';
+      }
+
+      // Desktop table
+      document.querySelectorAll('td.channel-column-cell').forEach(cell => {
+        if (isChannelHidden) {
+          cell.classList.add('hide-content');
+        } else {
+          cell.classList.remove('hide-content');
+        }
+      });
+
+      // Mobile cards
+      document.querySelectorAll('.mobile-channel-info').forEach(el => {
+        if (isChannelHidden) {
+          el.classList.add('hide-content');
+        } else {
+          el.classList.remove('hide-content');
+        }
+      });
+    }
+    
     document.addEventListener('DOMContentLoaded', function() {
       updateToggleDisplay('both');
+      applyChannelVisibility();
     });
     
     updateSystemStats();
@@ -2315,7 +2356,7 @@
       }
       let youtubeInfoHTML = '';
       if (youtubeConnected && stream.youtube_channel_name) {
-        youtubeInfoHTML = `<div class="flex items-center gap-1">${stream.youtube_channel_thumbnail ? `<img src="${stream.youtube_channel_thumbnail}" alt="" class="w-3 h-3 rounded-full object-cover">` : `<div class="w-3 h-3 rounded-full bg-red-600 flex items-center justify-center"><i class="ti ti-brand-youtube text-white text-[6px]"></i></div>`}<span class="text-[10px] text-gray-400">${stream.youtube_channel_name}</span></div>`;
+        youtubeInfoHTML = `<div class="flex items-center gap-1 mobile-channel-info ${isChannelHidden ? 'hide-content' : ''}">${stream.youtube_channel_thumbnail ? `<img src="${stream.youtube_channel_thumbnail}" alt="" class="w-3 h-3 rounded-full object-cover">` : `<div class="w-3 h-3 rounded-full bg-red-600 flex items-center justify-center"><i class="ti ti-brand-youtube text-white text-[6px]"></i></div>`}<span class="text-[10px] text-gray-400">${stream.youtube_channel_name}</span></div>`;
       }
       card.innerHTML = `
       <div class="p-3">
@@ -2422,7 +2463,7 @@
         </div>
       </td>
       ${youtubeConnected ? `
-      <td class="px-6 py-4 whitespace-nowrap">
+      <td class="px-6 py-4 whitespace-nowrap channel-column-cell ${isChannelHidden ? 'hide-content' : ''}">
         ${stream.youtube_channel_name && stream.youtube_channel_external_id ? `
         <a href="https://www.youtube.com/channel/${stream.youtube_channel_external_id}" 
            target="_blank" 
