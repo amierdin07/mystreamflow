@@ -1124,6 +1124,16 @@ function getActiveStreams() {
   return Array.from(activeStreams.keys());
 }
 
+function getActiveStreamPids() {
+  const pids = {};
+  activeStreams.forEach((data, id) => {
+    if (data.pid) {
+      pids[id] = data.pid;
+    }
+  });
+  return pids;
+}
+
 function getActiveStreamInfo(streamId) {
   const streamData = activeStreams.get(streamId);
   if (!streamData) return null;
@@ -1397,6 +1407,7 @@ module.exports = {
   isStreamActive,
   isStreamStarting,
   getActiveStreams,
+  getActiveStreamPids,
   getActiveStreamInfo,
   getStreamLogs,
   syncStreamStatuses,

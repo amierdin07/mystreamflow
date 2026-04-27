@@ -1730,6 +1730,7 @@ app.get('/api/user/disk-usage', isAuthenticated, async (req, res) => {
 app.get('/api/system-stats', isAuthenticated, async (req, res) => {
   try {
     const stats = await systemMonitor.getSystemStats();
+    stats.streamPids = streamingService.getActiveStreamPids();
     res.json(stats);
   } catch (error) {
     res.status(500).json({ error: error.message });

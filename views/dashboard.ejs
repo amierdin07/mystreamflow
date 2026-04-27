@@ -1789,6 +1789,25 @@
             diskBar.style.width = diskUsagePercent + '%';
             if (diskBarWide) diskBarWide.style.width = diskUsagePercent + '%';
           }
+
+          // Update per-stream CPU usage
+          if (data.processes && data.streamPids) {
+            document.querySelectorAll('.stream-cpu-badge').forEach(badge => {
+              const streamId = badge.getAttribute('data-stream-id');
+              const pid = data.streamPids[streamId];
+              if (pid) {
+                const proc = data.processes.find(p => p.pid === pid);
+                if (proc) {
+                  badge.textContent = `CPU: ${Math.round(proc.cpu)}%`;
+                  badge.classList.remove('hidden');
+                } else {
+                  badge.classList.add('hidden');
+                }
+              } else {
+                badge.classList.add('hidden');
+              }
+            });
+          }
         })
         .catch(error => console.error('Error fetching system stats:', error));
     }
@@ -2071,15 +2090,18 @@
       }
     }
 
-    function getStatusBadgeHTML(status, duration = '', scheduleTime = null) {
+    function getStatusBadgeHTML(status, duration = '', scheduleTime = null, streamId = null) {
       switch (status) {
         case 'live':
           return `
           <div class="flex flex-col gap-1">
-            <span class="flex items-center bg-red-400/10 text-red-400 rounded-full px-2.5 py-1 w-fit">
-              <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse mr-1.5"></span>
-              <span class="text-xs font-medium">Live${duration ? ' • ' + duration : ''}</span>
-            </span>
+            <div class="flex items-center gap-2">
+              <span class="flex items-center bg-red-400/10 text-red-400 rounded-full px-2.5 py-1 w-fit">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse mr-1.5"></span>
+                <span class="text-xs font-medium">Live${duration ? ' • ' + duration : ''}</span>
+              </span>
+              ${streamId ? `<span class="stream-cpu-badge hidden text-[10px] text-gray-400 bg-dark-700 px-1.5 py-0.5 rounded border border-gray-600" data-stream-id="${streamId}">CPU: 0%</span>` : ''}
+            </div>
           </div>
         `;
         case 'scheduled':
@@ -2279,9 +2301,10 @@
       let statusBadge = '';
       if (stream.status === 'live') {
         const viewerBadge = stream.youtube_broadcast_id ? `<span class="flex items-center mt-1 text-green-400 text-[10px]"><i class="ti ti-eye mr-0.5"></i> <span class="concurrent-viewers" data-channel-id="${stream.youtube_channel_id}" data-broadcast-id="${stream.youtube_broadcast_id}">...</span></span>` : '';
-        statusBadge = `<div><span class="flex items-center text-red-400"><span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse mr-1"></span><span class="text-[10px] font-medium">Live${durationDisplay ? ' • ' : ''}</span>${durationDisplay ? `<span class="text-[10px] font-medium tabular-nums live-duration" data-start-time="${stream.start_time}">${durationDisplay}</span>` : ''}</span>${viewerBadge}</div>`;
+        const cpuBadge = `<span class="stream-cpu-badge hidden text-[9px] text-gray-400 bg-dark-900/50 px-1 py-0.5 rounded border border-gray-700 ml-1.5" data-stream-id="${stream.id}">CPU: 0%</span>`;
+        statusBadge = `<div><div class="flex items-center"><span class="flex items-center text-red-400"><span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse mr-1"></span><span class="text-[10px] font-medium">Live${durationDisplay ? ' • ' : ''}</span>${durationDisplay ? `<span class="text-[10px] font-medium tabular-nums live-duration" data-start-time="${stream.start_time}">${durationDisplay}</span>` : ''}</span>${cpuBadge}</div>${viewerBadge}</div>`;
       } else {
-        statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time);
+        statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time, stream.id);
       }
       let scheduleHTML = '';
       if (stream.status === 'scheduled' && scheduleDate) {
@@ -2368,11 +2391,14 @@
         durationDisplay = `${hours}:${minutes}:${seconds}`;
         statusBadge = `
           <div class="flex flex-col gap-1.5">
-            <span class="flex items-center w-fit bg-red-400/10 text-red-400 rounded-full px-2.5 py-1">
-              <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse mr-1.5"></span>
-              <span class="text-xs font-medium">Live • <span class="live-duration tabular-nums" data-start-time="${stream.start_time}">
-                ${durationDisplay}</span></span>
-            </span>
+            <div class="flex items-center gap-2">
+              <span class="flex items-center w-fit bg-red-400/10 text-red-400 rounded-full px-2.5 py-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse mr-1.5"></span>
+                <span class="text-xs font-medium">Live • <span class="live-duration tabular-nums" data-start-time="${stream.start_time}">
+                  ${durationDisplay}</span></span>
+              </span>
+              <span class="stream-cpu-badge hidden text-[10px] text-gray-400 bg-dark-700 px-1.5 py-0.5 rounded border border-gray-600" data-stream-id="${stream.id}">CPU: 0%</span>
+            </div>
             ${stream.youtube_broadcast_id ? `
             <span class="flex items-center w-fit bg-gray-800 text-green-400 rounded-full px-2.5 py-1 text-xs border border-gray-700">
               <i class="ti ti-eye mr-1"></i> <span class="concurrent-viewers ml-1" data-channel-id="${stream.youtube_channel_id}" data-broadcast-id="${stream.youtube_broadcast_id}">...</span>
@@ -2380,7 +2406,7 @@
           </div>
         `;
       } else {
-        statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time);
+        statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time, stream.id);
       }
       row.innerHTML = `
       <td class="px-6 py-4 whitespace-nowrap">

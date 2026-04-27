@@ -46,11 +46,12 @@ loadUsage();
 
 async function getSystemStats() {
   try {
-    const [cpuData, memData, networkData, diskData] = await Promise.all([
+    const [cpuData, memData, networkData, diskData, processesData] = await Promise.all([
       si.currentLoad(),
       si.mem(),
       si.networkStats(),
-      getDiskUsage()
+      getDiskUsage(),
+      si.processes()
     ]);
     
     const cpuUsage = cpuData.currentLoad || cpuData.avg || 0;
@@ -64,6 +65,15 @@ async function getSystemStats() {
         return (bytes / 1048576).toFixed(2) + " MB";
       }
     };
+
+    const ffmpegProcesses = (processesData.list || [])
+      .filter(p => p.name.toLowerCase().includes('ffmpeg'))
+      .map(p => ({
+        pid: p.pid,
+        cpu: p.cpu,
+        mem: p.mem,
+        name: p.name
+      }));
     
     return {
       cpu: {
@@ -78,6 +88,7 @@ async function getSystemStats() {
       },
       network: networkInfo,
       disk: diskData,
+      processes: ffmpegProcesses,
       platform: process.platform,
       timestamp: Date.now()
     };
