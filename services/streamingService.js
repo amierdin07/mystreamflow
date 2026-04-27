@@ -456,8 +456,8 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
 
   if (!hasAudio) {
     const isYT = isYouTubeDestination(stream);
-    if (!stream.use_advanced_settings && !isYT) {
-      addStreamLog(stream.id, "Mode: COPY (Non-YouTube & Advanced Settings Off)");
+    if (!stream.use_advanced_settings) {
+      addStreamLog(stream.id, "Mode: COPY (Advanced Settings Off)");
       return [
         '-nostdin',
         '-loglevel', 'warning',
@@ -493,6 +493,7 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
       '-safe', '0',
       '-i', concatFile,
       '-c:v', 'libx264',
+      '-threads', '2',
       '-preset', preset,
       '-tune', 'zerolatency',
       '-profile:v', 'high',
@@ -539,7 +540,7 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
   fs.writeFileSync(audioConcatFile, audioContent);
 
   const isYT = isYouTubeDestination(stream);
-  if (!stream.use_advanced_settings && !isYT) {
+  if (!stream.use_advanced_settings) {
     return [
       '-nostdin',
       '-loglevel', 'warning',
@@ -586,6 +587,7 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
     '-map', '0:v:0',
     '-map', '1:a:0',
     '-c:v', 'libx264',
+    '-threads', '2',
     '-preset', preset,
     '-tune', 'zerolatency',
     '-profile:v', 'high',
@@ -635,7 +637,7 @@ async function buildFFmpegArgs(stream) {
   const loopValue = stream.loop_video ? '-1' : '0';
 
   const isYT = isYouTubeDestination(stream);
-  if (!stream.use_advanced_settings && !isYT) {
+  if (!stream.use_advanced_settings) {
     const probeData = await runFFprobe(videoPath);
     const hasAudio = !!getPrimaryStream(probeData, 'audio');
 
@@ -683,6 +685,7 @@ async function buildFFmpegArgs(stream) {
     '-stream_loop', loopValue,
     '-i', videoPath,
     '-c:v', 'libx264',
+    '-threads', '2',
     '-preset', preset,
     '-tune', 'zerolatency',
     '-profile:v', 'high',
