@@ -194,5 +194,35 @@ body {
 }
 
 .hide-content {
+  position: relative !important;
+  color: transparent !important;
+  text-shadow: none !important;
+  pointer-events: none;
+  user-select: none;
+}
+
+.hide-content::after {
+  content: '********';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af !important; /* text-gray-400 */
+  visibility: visible !important;
+  filter: none !important;
+  letter-spacing: 2px;
+  font-family: monospace;
+}
+
+td.channel-column-cell.hide-content a {
+  display: none !important;
+}
+
+td.channel-column-cell.hide-content::after {
+  left: 1.5rem; /* Menyesuaikan padding tabel px-6 */
+}
+
+.mobile-channel-info.hide-content img,
+.mobile-channel-info.hide-content i {
   display: none !important;
 }

@@ -2587,6 +2587,7 @@
       }
       displayMobileStreams(streams);
       displayDesktopStreams(streams);
+      applyChannelVisibility();
     }
 
     function fetchStreams(page = 1, limit = 10, search = '') {
@@ -2647,6 +2648,7 @@
           updatePagination(initialPaginationData);
         }
         updateStreamCounters(initialStreamsData);
+        applyChannelVisibility();
       } else {
         fetchStreams(1, 10, '');
       }
