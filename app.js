@@ -5242,14 +5242,9 @@ app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, re
       let originalThumbnailPath = null;
       if (thumbnailFile) {
         const originalFilename = thumbnailFile.filename;
-        const thumbFilename = `thumb-${path.parse(originalFilename).name}.jpg`;
         originalThumbnailPath = originalFilename;
-        try {
-          await generateImageThumbnail(thumbnailFile.path, thumbFilename);
-          thumbnailPath = `/uploads/thumbnails/${thumbFilename}`;
-        } catch (e) {
-          thumbnailPath = `/uploads/thumbnails/${originalFilename}`;
-        }
+        // Use original file directly - no resize/compress
+        thumbnailPath = `/uploads/thumbnails/${originalFilename}`;
       }
       
       await Autolive.addItem({
@@ -5310,14 +5305,9 @@ app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req,
         const thumbnailFile = uploadedFileMap.get(`thumbnail_${item.thumbnail_upload_index}`);
         if (thumbnailFile) {
           const originalFilename = thumbnailFile.filename;
-          const thumbFilename = `thumb-${path.parse(originalFilename).name}.jpg`;
           originalThumbnailPath = originalFilename;
-          try {
-            await generateImageThumbnail(thumbnailFile.path, thumbFilename);
-            thumbnailPath = `/uploads/thumbnails/${thumbFilename}`;
-          } catch (e) {
-            thumbnailPath = `/uploads/thumbnails/${originalFilename}`;
-          }
+          // Use original file directly - no resize/compress
+          thumbnailPath = `/uploads/thumbnails/${originalFilename}`;
         }
         
         await Autolive.addItem({

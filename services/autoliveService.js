@@ -264,6 +264,27 @@ class AutoliveService {
       const streamId = `autolive_${series.id}`;
       const baseUrl = process.env.BASE_URL || 'http://localhost:7575';
       
+      // Ensure stream record exists
+      let streamRecord = await this.getOrCreateStreamRecord(series);
+
+      // Get current item metadata and update stream record BEFORE starting
+      const items = await Autolive.getItemsBySeriesId(series.id);
+      if (items.length > 0) {
+        const currentItem = items[series.current_item_index % items.length];
+        await Stream.update(streamRecord.id, {
+          title: currentItem.title,
+          youtube_description: currentItem.description || '',
+          youtube_tags: currentItem.tags || '',
+          youtube_thumbnail: currentItem.thumbnail_path || null,
+          youtube_privacy: series.privacy || 'public',
+          youtube_category: series.category_id || '10',
+          youtube_monetization: series.monetization_enabled === 1 ? 1 : 0,
+          made_for_kids: series.made_for_kids === 1 ? 1 : 0,
+          youtube_playlist_id: series.playlist_id || null
+        });
+        console.log(`[Autolive] Stream record updated with item[${series.current_item_index}]: "${currentItem.title}"`);
+      }
+
       const result = await streamingService.startStream(streamId, false, baseUrl);
       if (result.success) {
         await Autolive.update(series.id, { 
