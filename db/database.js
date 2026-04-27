@@ -419,6 +419,9 @@ function createTables() {
       db.run(`ALTER TABLE autolive_series ADD COLUMN current_item_index INTEGER DEFAULT 0`, (err) => {
         if (err && !err.message.includes('duplicate column name')) console.error(err.message);
       });
+      db.run(`ALTER TABLE autolive_series ADD COLUMN custom_dates TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
 
       db.run(`ALTER TABLE users ADD COLUMN disk_limit INTEGER DEFAULT 0`, (err) => {
         if (err && !err.message.includes('duplicate column name')) {
