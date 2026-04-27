@@ -2330,10 +2330,11 @@
       hidePagination();
     }
 
-    function createMobileStreamCard(stream) {
+    function createMobileStreamCard(stream, existingState = {}) {
       const card = document.createElement('div');
       card.className = 'bg-gray-800 rounded-lg shadow-md overflow-hidden';
       card.dataset.streamId = stream.id;
+      card.dataset.streamData = JSON.stringify(stream);
       const youtubeConnected = <%= typeof youtubeConnected !== 'undefined' && youtubeConnected ? 'true' : 'false' %>;
       let thumbnail = stream.video_type === 'playlist' ? '/images/playlist-thumbnail.svg' : (stream.video_thumbnail || '/images/default-video-thumbnail.svg');
       if (stream.youtube_thumbnail) thumbnail = stream.youtube_thumbnail;
@@ -2362,10 +2363,15 @@
         const videoBitrate = stream.video_bitrate || stream.bitrate || '2500';
         settingsDisplay = `${videoRes} • ${videoBitrate}kbps`;
       }
+      
+      const cpuText = existingState.cpuText || 'CPU: 0%';
+      const cpuHiddenClass = existingState.cpuHidden !== false ? 'hidden' : '';
+      const signalHTML = existingState.signalHTML || '<span class="text-gray-500 text-[10px] animate-pulse">Connecting...</span>';
+      
       let statusBadge = '';
       if (stream.status === 'live') {
         const viewerBadge = stream.youtube_broadcast_id ? `<span class="flex items-center mt-1 text-green-400 text-[10px]"><i class="ti ti-eye mr-0.5"></i> <span class="concurrent-viewers" data-channel-id="${stream.youtube_channel_id}" data-broadcast-id="${stream.youtube_broadcast_id}">...</span></span>` : '';
-        const cpuBadge = `<span class="stream-cpu-badge hidden text-[9px] text-gray-400 bg-dark-900/50 px-1 py-0.5 rounded border border-gray-700 ml-1.5" data-stream-id="${stream.id}">CPU: 0%</span>`;
+        const cpuBadge = `<span class="stream-cpu-badge ${cpuHiddenClass} text-[9px] text-gray-400 bg-dark-900/50 px-1 py-0.5 rounded border border-gray-700 ml-1.5" data-stream-id="${stream.id}">${cpuText}</span>`;
         statusBadge = `<div><div class="flex items-center"><span class="flex items-center text-red-400"><span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse mr-1"></span><span class="text-[10px] font-medium">Live${durationDisplay ? ' • ' : ''}</span>${durationDisplay ? `<span class="text-[10px] font-medium tabular-nums live-duration" data-start-time="${stream.start_time}">${durationDisplay}</span>` : ''}</span>${cpuBadge}</div>${viewerBadge}</div>`;
       } else {
         statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time, stream.id);
@@ -2381,47 +2387,48 @@
       if (youtubeConnected && stream.youtube_channel_name) {
         youtubeInfoHTML = `<div class="flex items-center gap-1 mobile-channel-info ${isChannelHidden ? 'hide-content' : ''}">${stream.youtube_channel_thumbnail ? `<img src="${stream.youtube_channel_thumbnail}" alt="" class="w-3 h-3 rounded-full object-cover">` : `<div class="w-3 h-3 rounded-full bg-red-600 flex items-center justify-center"><i class="ti ti-brand-youtube text-white text-[6px]"></i></div>`}<span class="text-[10px] text-gray-400">${stream.youtube_channel_name}</span></div>`;
       }
-      card.innerHTML = `
+      card.innerHTML = \`
       <div class="p-3">
         <div class="flex gap-3">
           <div class="relative flex-shrink-0 w-20 h-14 bg-dark-700 rounded overflow-hidden">
-            <img src="${thumbnail}" class="w-full h-full object-cover" alt="${stream.title}">
+            <img src="\${thumbnail}" class="w-full h-full object-cover" alt="\${stream.title}">
           </div>
         <div class="flex-1 min-w-0">
-          ${stream.video_type ? `<div class="text-sm font-semibold text-white truncate leading-tight" title="${stream.video_type === 'playlist' ? stream.playlist_name : stream.video_title}">${stream.video_type === 'playlist' ? '<i class="ti ti-list text-[11px] text-primary mr-1"></i>' + stream.playlist_name : '<i class="ti ti-video text-[11px] text-primary mr-1"></i>' + stream.video_title}</div>` : `<h4 class="text-sm font-medium text-white truncate leading-tight">${stream.title}</h4>`}
-          ${stream.video_type ? `<div class="text-[11px] text-gray-400 truncate mt-0.5 leading-tight">${stream.title}</div>` : ''}
+          \${stream.video_type ? \`<div class="text-sm font-semibold text-white truncate leading-tight" title="\${stream.video_type === 'playlist' ? stream.playlist_name : stream.video_title}">\${stream.video_type === 'playlist' ? '<i class="ti ti-list text-[11px] text-primary mr-1"></i>' + stream.playlist_name : '<i class="ti ti-video text-[11px] text-primary mr-1"></i>' + stream.video_title}</div>\` : \`<h4 class="text-sm font-medium text-white truncate leading-tight">\${stream.title}</h4>\`}
+          \${stream.video_type ? \`<div class="text-[11px] text-gray-400 truncate mt-0.5 leading-tight">\${stream.title}</div>\` : ''}
           <div class="flex items-center gap-1.5 mt-1">
             <div class="flex items-center text-[10px] text-gray-400">
-                <i class="ti ti-brand-${getPlatformIcon(stream.platform)} text-${getPlatformColor(stream.platform)} mr-0.5 text-xs"></i>
-                <span>${stream.platform || 'Custom'}</span>
+                <i class="ti ti-brand-\${getPlatformIcon(stream.platform)} text-\${getPlatformColor(stream.platform)} mr-0.5 text-xs"></i>
+                <span>\${stream.platform || 'Custom'}</span>
               </div>
               <span class="text-gray-600 text-[10px]">•</span>
-              <span class="text-[10px] text-gray-400 stream-settings-display">${settingsDisplay}</span>
+              <span class="text-[10px] text-gray-400 stream-settings-display">\${settingsDisplay}</span>
             </div>
-            ${youtubeInfoHTML ? `<div class="mt-0.5">${youtubeInfoHTML}</div>` : ''}
-            ${scheduleHTML ? `<div class="mt-0.5">${scheduleHTML}</div>` : ''}
+            \${youtubeInfoHTML ? \`<div class="mt-0.5">\${youtubeInfoHTML}</div>\` : ''}
+            \${scheduleHTML ? \`<div class="mt-0.5">\${scheduleHTML}</div>\` : ''}
           </div>
         </div>
       </div>
       <div class="border-t border-gray-700 px-3 py-1.5 flex items-center justify-between">
         <div class="flex flex-col gap-1">
-          ${statusBadge}
-          <div class="signal-container" data-stream-id="${stream.id}"></div>
+          \${statusBadge}
+          <div class="signal-container" data-stream-id="\${stream.id}">\${signalHTML}</div>
         </div>
         <div class="flex items-center gap-1.5">
-          ${getActionButtonHTML(stream.status, stream.id, 'mobile')}
-          <button class="p-1 hover:bg-dark-700 rounded transition-colors ${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" onclick="${stream.status === 'live' ? '' : `editStream('${stream.id}')`}" ${stream.status === 'live' ? 'disabled' : ''}><i class="ti ti-edit text-gray-400 hover:text-white text-sm"></i></button>
-          <button class="p-1 hover:bg-dark-700 rounded transition-colors ${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" onclick="${stream.status === 'live' ? '' : `deleteStream('${stream.id}')`}" ${stream.status === 'live' ? 'disabled' : ''}><i class="ti ti-trash text-gray-400 hover:text-red-400 text-sm"></i></button>
+          \${getActionButtonHTML(stream.status, stream.id, 'mobile')}
+          <button class="p-1 hover:bg-dark-700 rounded transition-colors \${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" onclick="\${stream.status === 'live' ? '' : \`editStream('\${stream.id}')\`}" \${stream.status === 'live' ? 'disabled' : ''}><i class="ti ti-edit text-gray-400 hover:text-white text-sm"></i></button>
+          <button class="p-1 hover:bg-dark-700 rounded transition-colors \${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" onclick="\${stream.status === 'live' ? '' : \`deleteStream('\${stream.id}')\`}" \${stream.status === 'live' ? 'disabled' : ''}><i class="ti ti-trash text-gray-400 hover:text-red-400 text-sm"></i></button>
         </div>
       </div>
-    `;
+    \`;
       return card;
     }
 
-    function createStreamTableRow(stream) {
+    function createStreamTableRow(stream, existingState = {}) {
       const row = document.createElement('tr');
       row.className = 'hover:bg-dark-700/50 transition-colors';
       row.dataset.streamId = stream.id;
+      row.dataset.streamData = JSON.stringify(stream);
       const youtubeConnected = <%= typeof youtubeConnected !== 'undefined' && youtubeConnected ? 'true' : 'false' %>;
       let thumbnail = stream.video_type === 'playlist' ? 
         '/images/playlist-thumbnail.svg' : 
@@ -2443,6 +2450,11 @@
         const videoFps = stream.video_fps || stream.fps || '30';
         settingsDisplay = `${videoRes} • ${videoBitrate} kbps • ${videoFps} FPS`;
       }
+      
+      const cpuText = existingState.cpuText || 'CPU: 0%';
+      const cpuHiddenClass = existingState.cpuHidden !== false ? 'hidden' : '';
+      const signalHTML = existingState.signalHTML || '<span class="text-gray-500 text-[10px] animate-pulse">Connecting...</span>';
+      
       let durationDisplay = '';
       let statusBadge = '';
       if (stream.status === 'live' && stream.start_time) {
@@ -2461,7 +2473,7 @@
                 <span class="text-xs font-medium">Live • <span class="live-duration tabular-nums" data-start-time="${stream.start_time}">
                   ${durationDisplay}</span></span>
               </span>
-              <span class="stream-cpu-badge hidden text-[10px] text-gray-400 bg-dark-700 px-1.5 py-0.5 rounded border border-gray-600" data-stream-id="${stream.id}">CPU: 0%</span>
+              <span class="stream-cpu-badge ${cpuHiddenClass} text-[10px] text-gray-400 bg-dark-700 px-1.5 py-0.5 rounded border border-gray-600" data-stream-id="${stream.id}">${cpuText}</span>
             </div>
             ${stream.youtube_broadcast_id ? `
             <span class="flex items-center w-fit bg-gray-800 text-green-400 rounded-full px-2.5 py-1 text-xs border border-gray-700">
@@ -2472,41 +2484,41 @@
       } else {
         statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time, stream.id);
       }
-      row.innerHTML = `
+      row.innerHTML = \`
       <td class="px-6 py-4 whitespace-nowrap">
         <div class="flex items-center">
           <div class="w-20 h-12 bg-dark-700 rounded flex-shrink-0 overflow-hidden mr-3">
-            <img src="${thumbnail}" class="w-full h-full object-cover" alt="${stream.title}">
+            <img src="\${thumbnail}" class="w-full h-full object-cover" alt="\${stream.title}">
           </div>
           <div class="min-w-0 flex-1">
-            ${stream.video_type ? `<div class="text-sm font-semibold truncate max-w-[200px]" title="${stream.video_type === 'playlist' ? stream.playlist_name : stream.video_title}">${stream.video_type === 'playlist' ? '<i class="ti ti-list text-[11px] text-primary mr-1"></i>' + stream.playlist_name : '<i class="ti ti-video text-[11px] text-primary mr-1"></i>' + stream.video_title}</div>` : `<div class="text-sm font-medium truncate max-w-[200px]" title="${stream.title}">${stream.title}</div>`}
-            ${stream.video_type ? `<div class="text-[11px] text-gray-400 truncate max-w-[200px]">${stream.title}</div>` : ''}
-            <div class="text-xs text-gray-400 stream-settings-display">${settingsDisplay}</div>
+            \${stream.video_type ? \`<div class="text-sm font-semibold truncate max-w-[200px]" title="\${stream.video_type === 'playlist' ? stream.playlist_name : stream.video_title}">\${stream.video_type === 'playlist' ? '<i class="ti ti-list text-[11px] text-primary mr-1"></i>' + stream.playlist_name : '<i class="ti ti-video text-[11px] text-primary mr-1"></i>' + stream.video_title}</div>\` : \`<div class="text-sm font-medium truncate max-w-[200px]" title="\${stream.title}">\${stream.title}</div>\`}
+            \${stream.video_type ? \`<div class="text-[11px] text-gray-400 truncate max-w-[200px]">\${stream.title}</div>\` : ''}
+            <div class="text-xs text-gray-400 stream-settings-display">\${settingsDisplay}</div>
           </div>
         </div>
       </td>
-      ${youtubeConnected ? `
-      <td class="px-6 py-4 whitespace-nowrap channel-column-cell ${isChannelHidden ? 'hide-content' : ''}">
-        ${stream.youtube_channel_name && stream.youtube_channel_external_id ? `
-        <a href="https://www.youtube.com/channel/${stream.youtube_channel_external_id}" 
+      \${youtubeConnected ? \`
+      <td class="px-6 py-4 whitespace-nowrap channel-column-cell \${isChannelHidden ? 'hide-content' : ''}">
+        \${stream.youtube_channel_name && stream.youtube_channel_external_id ? \`
+        <a href="https://www.youtube.com/channel/\${stream.youtube_channel_external_id}" 
            target="_blank" 
            rel="noopener noreferrer"
            class="inline-flex items-center gap-1.5 hover:transition-colors group"
-           title="${stream.youtube_channel_name}">
-          ${stream.youtube_channel_thumbnail ? `
-          <img src="${stream.youtube_channel_thumbnail}" alt="" class="w-5 h-5 rounded-full object-cover">
-          ` : `
+           title="\${stream.youtube_channel_name}">
+          \${stream.youtube_channel_thumbnail ? \`
+          <img src="\${stream.youtube_channel_thumbnail}" alt="" class="w-5 h-5 rounded-full object-cover">
+          \` : \`
           <div class="w-5 h-5 rounded-full bg-red-600 flex items-center justify-center">
             <i class="ti ti-brand-youtube text-white text-xs"></i>
           </div>
-          `}
-          <span class="text-sm group-hover:text-gray-300">${stream.youtube_channel_name}</span>
+          \`}
+          <span class="text-sm group-hover:text-gray-300">\${stream.youtube_channel_name}</span>
         </a>
-        ` : '<span class="text-gray-500 text-xs">—</span>'}
+        \` : '<span class="text-gray-500 text-xs">—</span>'}
       </td>
       <td class="px-6 py-4 whitespace-nowrap">
-        ${stream.youtube_broadcast_id ? `
-        <a href="https://studio.youtube.com/video/${stream.youtube_broadcast_id}/livestreaming" 
+        \${stream.youtube_broadcast_id ? \`
+        <a href="https://studio.youtube.com/video/\${stream.youtube_broadcast_id}/livestreaming" 
            target="_blank" 
            rel="noopener noreferrer"
            class="inline-flex items-center gap-1.5  hover:text-gray-300 text-sm transition-colors">
@@ -2523,85 +2535,150 @@
             <path d="M15 4h5v5" />
           </svg>
         </a>
-        ` : '<span class="text-gray-500 text-xs">—</span>'}
+        \` : '<span class="text-gray-500 text-xs">—</span>'}
       </td>
-      ` : ''}
+      \` : ''}
       <td class="px-6 py-4 whitespace-nowrap">
         <div class="flex items-center">
-          <i class="ti ti-brand-${getPlatformIcon(stream.platform)} text-${getPlatformColor(stream.platform)} mr-1.5"></i>
-          <span class="text-sm">${stream.platform || 'Custom'}</span>
+          <i class="ti ti-brand-\${getPlatformIcon(stream.platform)} text-\${getPlatformColor(stream.platform)} mr-1.5"></i>
+          <span class="text-sm">\${stream.platform || 'Custom'}</span>
         </div>
       </td>
       <td class="px-6 py-4 whitespace-nowrap">
-        ${(() => {
+        \${(() => {
           const endDate = stream.end_time ? new Date(stream.end_time) : null;
           if (scheduleDate && endDate) {
-            return `<div class="text-xs text-yellow-500 font-medium">Start: ${formatDate(scheduleDate)} ${formatTime(scheduleDate)}</div>
-                    <div class="text-xs text-green-500 font-medium">End: ${formatDate(endDate)} ${formatTime(endDate)}</div>`;
+            return \`<div class="text-xs text-yellow-500 font-medium">Start: \${formatDate(scheduleDate)} \${formatTime(scheduleDate)}</div>
+                    <div class="text-xs text-green-500 font-medium">End: \${formatDate(endDate)} \${formatTime(endDate)}</div>\`;
           } else if (scheduleDate) {
-            return `<div class="text-xs text-yellow-500 font-medium">Start: ${formatDate(scheduleDate)} ${formatTime(scheduleDate)}</div>`;
+            return \`<div class="text-xs text-yellow-500 font-medium">Start: \${formatDate(scheduleDate)} \${formatTime(scheduleDate)}</div>\`;
           } else if (endDate) {
-            return `<div class="text-xs text-green-500 font-medium">End: ${formatDate(endDate)} ${formatTime(endDate)}</div>`;
+            return \`<div class="text-xs text-green-500 font-medium">End: \${formatDate(endDate)} \${formatTime(endDate)}</div>\`;
           } else {
-            return `<div class="text-sm">--</div>`;
+            return \`<div class="text-sm">--</div>\`;
           }
         })()}
       </td>
       <td class="px-6 py-4 whitespace-nowrap min-w-[150px]">
         <div class="flex items-center">
-          ${statusBadge}
+          \${statusBadge}
         </div>
       </td>
       <td class="px-6 py-4 whitespace-nowrap">
-        <div class="signal-container" data-stream-id="${stream.id}">
-          <span class="text-gray-500 text-xs">...</span>
+        <div class="signal-container" data-stream-id="\${stream.id}">
+          \${signalHTML}
         </div>
       </td>
       <td class="px-6 py-4 whitespace-nowrap text-right">
         <div class="flex items-center justify-end space-x-2">
-          ${getActionButtonHTML(stream.status, stream.id, 'desktop')}
+          \${getActionButtonHTML(stream.status, stream.id, 'desktop')}
           <div class="ml-2 flex items-center gap-1">
-            <button class="p-1.5 hover:bg-dark-700 rounded transition-colors ${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" 
-                    onclick="${stream.status === 'live' ? '' : `editStream('${stream.id}')`}"
-                    ${stream.status === 'live' ? 'disabled' : ''}>
+            <button class="p-1.5 hover:bg-dark-700 rounded transition-colors \${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" 
+                    onclick="\${stream.status === 'live' ? '' : \`editStream('\${stream.id}')\`}"
+                    \${stream.status === 'live' ? 'disabled' : ''}>
               <i class="ti ti-edit text-gray-400 hover:text-white"></i>
             </button>
-            <button class="p-1.5 hover:bg-dark-700 rounded transition-colors ${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" 
-                    onclick="${stream.status === 'live' ? '' : `deleteStream('${stream.id}')`}"
-                    ${stream.status === 'live' ? 'disabled' : ''}>
+            <button class="p-1.5 hover:bg-dark-700 rounded transition-colors \${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" 
+                    onclick="\${stream.status === 'live' ? '' : \`deleteStream('\${stream.id}')\`}"
+                    \${stream.status === 'live' ? 'disabled' : ''}>
               <i class="ti ti-trash text-gray-400 hover:text-red-400"></i>
             </button>
           </div>
         </div>
       </td>
-    `;
+    \`;
       return row;
     }
 
     function displayMobileStreams(streams) {
       const mobileContainer = document.querySelector('.block.md\\:hidden.space-y-2');
       if (!mobileContainer) return;
-      mobileContainer.innerHTML = '';
+      
+      const currentCards = Array.from(mobileContainer.querySelectorAll('div[data-stream-id]'));
+      const newStreamIds = streams.map(s => s.id.toString());
+      
+      currentCards.forEach(card => {
+        if (!newStreamIds.includes(card.dataset.streamId)) {
+          card.remove();
+        }
+      });
+
       streams.forEach(stream => {
-        const card = createMobileStreamCard(stream);
-        mobileContainer.appendChild(card);
+        const existingCard = mobileContainer.querySelector(`div[data-stream-id="${stream.id}"]`);
+        
+        if (existingCard) {
+          const oldData = existingCard.dataset.streamData;
+          const newData = JSON.stringify(stream);
+          
+          if (oldData !== newData) {
+            const currentCpuBadge = existingCard.querySelector('.stream-cpu-badge');
+            const currentCpuText = currentCpuBadge ? currentCpuBadge.textContent : 'CPU: 0%';
+            const currentCpuHidden = currentCpuBadge ? currentCpuBadge.classList.contains('hidden') : true;
+            
+            const currentSignalHTML = window.streamHealthData && window.streamHealthData[stream.id]
+              ? getSignalBadgeHTML(window.streamHealthData[stream.id], stream.id)
+              : (existingCard.querySelector('.signal-container') ? existingCard.querySelector('.signal-container').innerHTML : '<span class="text-gray-500 text-[10px] animate-pulse">Connecting...</span>');
+
+            const newCard = createMobileStreamCard(stream, {
+              cpuText: currentCpuText,
+              cpuHidden: currentCpuHidden,
+              signalHTML: currentSignalHTML
+            });
+            existingCard.replaceWith(newCard);
+          }
+        } else {
+          const newCard = createMobileStreamCard(stream);
+          mobileContainer.appendChild(newCard);
+        }
       });
     }
 
     function displayDesktopStreams(streams) {
       const tableBody = document.querySelector('.hidden.md\\:block table tbody');
       if (!tableBody) return;
-      Array.from(tableBody.querySelectorAll('tr:not(#empty-state)')).forEach(row => {
-        row.remove();
-      });
+      
       const emptyState = document.getElementById('empty-state');
-      if (emptyState) {
-        emptyState.style.display = 'none';
-      }
-      streams.forEach(stream => {
-        const row = createStreamTableRow(stream);
-        tableBody.insertBefore(row, emptyState);
+      const currentRows = Array.from(tableBody.querySelectorAll('tr[data-stream-id]'));
+      const newStreamIds = streams.map(s => s.id.toString());
+      
+      currentRows.forEach(row => {
+        if (!newStreamIds.includes(row.dataset.streamId)) {
+          row.remove();
+        }
       });
+
+      streams.forEach(stream => {
+        const existingRow = tableBody.querySelector(`tr[data-stream-id="${stream.id}"]`);
+        
+        if (existingRow) {
+          const oldData = existingRow.dataset.streamData;
+          const newData = JSON.stringify(stream);
+          
+          if (oldData !== newData) {
+            const currentCpuBadge = existingRow.querySelector('.stream-cpu-badge');
+            const currentCpuText = currentCpuBadge ? currentCpuBadge.textContent : 'CPU: 0%';
+            const currentCpuHidden = currentCpuBadge ? currentCpuBadge.classList.contains('hidden') : true;
+            
+            const currentSignalHTML = window.streamHealthData && window.streamHealthData[stream.id]
+              ? getSignalBadgeHTML(window.streamHealthData[stream.id], stream.id)
+              : (existingRow.querySelector('.signal-container') ? existingRow.querySelector('.signal-container').innerHTML : '<span class="text-gray-500 text-[10px] animate-pulse">Connecting...</span>');
+
+            const newRow = createStreamTableRow(stream, {
+              cpuText: currentCpuText,
+              cpuHidden: currentCpuHidden,
+              signalHTML: currentSignalHTML
+            });
+            existingRow.replaceWith(newRow);
+          }
+        } else {
+          const newRow = createStreamTableRow(stream);
+          tableBody.insertBefore(newRow, emptyState);
+        }
+      });
+
+      if (emptyState) {
+        emptyState.style.display = streams.length === 0 ? 'table-row' : 'none';
+      }
     }
 
     function displayStreams(streams) {
