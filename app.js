@@ -5168,9 +5168,9 @@ app.get('/autolive', isAuthenticated, async (req, res) => {
       user: user,
       videos: videos,
       playlists: playlists,
-      series: series,
       youtubeConnected: youtubeChannels.length > 0,
-      youtubeChannels: youtubeChannels
+      youtubeChannels: youtubeChannels,
+      helpers: app.locals.helpers
     });
   } catch (error) {
     console.error('Autolive page error:', error);

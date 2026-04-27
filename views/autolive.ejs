@@ -492,6 +492,7 @@
     }
 
     function openCreateSeriesModal() {
+        document.getElementById('seriesId').value = '';
         document.getElementById('seriesName').value = '';
         document.getElementById('videoId').value = '';
         document.getElementById('internalPlaylistId').value = '';
@@ -586,6 +587,7 @@
         const btn = document.getElementById('saveBtn');
         const id = document.getElementById('seriesId').value;
         const name = document.getElementById('seriesName').value;
+        const videoId = document.getElementById('videoId').value;
         const internalPlaylistId = document.getElementById('internalPlaylistId').value;
         const startTime = document.getElementById('startTime').value;
         const repeatMode = document.getElementById('repeatMode').value;

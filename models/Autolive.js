@@ -84,7 +84,10 @@ class Autolive {
       db.all(
         `SELECT s.*, 
                 (SELECT COUNT(*) FROM autolive_items WHERE series_id = s.id) as item_count,
-                (SELECT title FROM autolive_items WHERE series_id = s.id AND order_index = s.current_item_index LIMIT 1) as current_item_title,
+                (SELECT title FROM autolive_items 
+                 WHERE series_id = s.id 
+                 AND order_index = COALESCE(s.current_item_index, 0) 
+                 LIMIT 1) as current_item_title,
                 v.title as video_title,
                 p.name as internal_playlist_name,
                 yc.channel_name as youtube_channel_name
