@@ -76,6 +76,25 @@ class AutoliveService {
     // If it's a one-time thing and already passed
     if (repeatMode === 'none' || !repeatMode) return nextStart;
 
+    const dayMap = {
+      'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+      'thursday': 4, 'friday': 5, 'saturday': 6
+    };
+
+    if (dayMap[repeatMode] !== undefined) {
+      const targetDay = dayMap[repeatMode];
+      // Ensure the first run is on the correct day
+      while (nextStart.getDay() !== targetDay) {
+        nextStart.setDate(nextStart.getDate() + 1);
+      }
+      
+      // If that calculated start is still in the past, move to next week
+      while (nextStart <= now) {
+        nextStart.setDate(nextStart.getDate() + 7);
+      }
+      return nextStart;
+    }
+
     while (nextStart <= now) {
       switch (repeatMode) {
         case 'daily': nextStart.setDate(nextStart.getDate() + 1); break;

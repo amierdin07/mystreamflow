@@ -183,14 +183,29 @@
                                 <select id="repeatMode" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all">
                                     <option value="none">Sekali Saja</option>
                                     <option value="daily">Setiap Hari</option>
-                                    <option value="weekly">Setiap Minggu</option>
-                                    <option value="every_2_days">Setiap 2 Hari</option>
+                                    <option value="weekly">Setiap Minggu (Weekly)</option>
+                                    <option value="monday">Setiap Senin</option>
+                                    <option value="tuesday">Setiap Selasa</option>
+                                    <option value="wednesday">Setiap Rabu</option>
+                                    <option value="thursday">Setiap Kamis</option>
+                                    <option value="friday">Setiap Jumat</option>
+                                    <option value="saturday">Setiap Sabtu</option>
+                                    <option value="sunday">Setiap Minggu (Hari)</option>
                                     <option value="monthly">Setiap Bulan</option>
                                 </select>
                             </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Durasi (Menit)</label>
-                                <input type="number" id="duration" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="Misal: 240" value="240">
+                            <div class="col-span-2">
+                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Durasi Live</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="relative">
+                                        <input type="number" id="durationHours" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all pr-10" placeholder="0" value="4">
+                                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">Jam</span>
+                                    </div>
+                                    <div class="relative">
+                                        <input type="number" id="durationMinutes" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all pr-12" placeholder="0" value="0">
+                                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">Menit</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -342,11 +357,19 @@
         const videoId = document.getElementById('videoId').value;
         const startTime = document.getElementById('startTime').value;
         const repeatMode = document.getElementById('repeatMode').value;
-        const duration = document.getElementById('duration').value;
         const channelId = document.getElementById('channelId').value;
+        
+        const hours = parseInt(document.getElementById('durationHours').value) || 0;
+        const mins = parseInt(document.getElementById('durationMinutes').value) || 0;
+        const duration = (hours * 60) + mins;
 
         if (!name || !videoId || !startTime) {
             alert('Mohon isi semua field wajib (Nama, Video, Waktu Mulai)');
+            return;
+        }
+
+        if (duration <= 0) {
+            alert('Durasi live tidak boleh kosong');
             return;
         }
 
@@ -459,7 +482,8 @@
             }
             
             document.getElementById('repeatMode').value = s.repeat_mode;
-            document.getElementById('duration').value = s.duration;
+            document.getElementById('durationHours').value = Math.floor(s.duration / 60);
+            document.getElementById('durationMinutes').value = s.duration % 60;
             
             currentItems = s.items.map(item => ({
                 title: item.title,
