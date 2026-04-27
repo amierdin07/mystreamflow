@@ -196,16 +196,24 @@
                                 </select>
                             </div>
 
-                            <div id="customDatesContainer" class="col-span-2 hidden">
-                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Pilih Tanggal-Tanggal Live</label>
+                            <div id="customDatesContainer" class="col-span-2 hidden bg-dark-900/50 p-4 rounded-xl border border-primary/20 mb-4">
+                                <label class="block text-sm font-medium text-primary mb-2 flex items-center gap-2">
+                                    <i class="ti ti-calendar-plus"></i>
+                                    <span>Pilih Tanggal-Tanggal Live</span>
+                                </label>
                                 <div class="flex gap-2 mb-3">
-                                    <input type="date" id="datePicker" class="flex-1 bg-dark-900 border border-gray-700 rounded-xl px-4 py-2 text-white text-sm focus:ring-2 focus:ring-primary">
-                                    <button type="button" onclick="addCustomDate()" class="bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all">
+                                    <div class="relative flex-1">
+                                        <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                                            <i class="ti ti-calendar"></i>
+                                        </div>
+                                        <input type="date" id="datePicker" onclick="this.showPicker()" class="w-full bg-dark-800 border border-gray-700 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer">
+                                    </div>
+                                    <button type="button" onclick="addCustomDate()" class="bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-primary/20">
                                         <i class="ti ti-plus"></i> Tambah
                                     </button>
                                 </div>
-                                <div id="customDatesList" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 bg-dark-900/30 rounded-xl border border-gray-700/50">
-                                    <!-- Selected dates badge will appear here -->
+                                <div id="customDatesList" class="flex flex-wrap gap-2 min-h-[40px] p-2 bg-dark-800/50 rounded-xl border border-gray-700/50">
+                                    <span class="text-xs text-gray-500 italic w-full text-center py-1" id="noDatesHint">Belum ada tanggal dipilih</span>
                                 </div>
                             </div>
                             <div class="col-span-2">
@@ -320,6 +328,11 @@
     function renderCustomDates() {
         const container = document.getElementById('customDatesList');
         container.innerHTML = '';
+        
+        if (selectedDates.length === 0) {
+            container.innerHTML = '<span class="text-xs text-gray-500 italic w-full text-center py-1" id="noDatesHint">Belum ada tanggal dipilih</span>';
+            return;
+        }
         
         selectedDates.forEach(date => {
             const badge = document.createElement('div');
