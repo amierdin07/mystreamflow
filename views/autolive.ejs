@@ -82,6 +82,16 @@
             </div>
 
             <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-400">YouTube Settings</span>
+              <div class="flex items-center gap-2">
+                <span class="text-xs <%= item.privacy === 'public' ? 'text-green-400' : 'text-gray-400' %> uppercase"><%= item.privacy %></span>
+                <% if (item.monetization_enabled) { %>
+                  <i class="ti ti-currency-dollar text-green-500" title="Monetization Enabled"></i>
+                <% } %>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between text-sm">
               <span class="text-gray-400">Jadwal</span>
               <span class="text-white font-medium flex items-center gap-1.5">
                 <i class="ti ti-calendar-event text-gray-500"></i>
@@ -238,6 +248,67 @@
 
                 <div class="h-px bg-gray-700 my-8"></div>
 
+                <!-- Section 1.5: YouTube Advanced Settings -->
+                <div class="space-y-6">
+                    <h4 class="text-lg font-bold flex items-center gap-2">
+                        <i class="ti ti-brand-youtube text-red-500"></i>
+                        <span>YouTube Advanced Settings</span>
+                    </h4>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 bg-dark-900/30 p-6 rounded-2xl border border-gray-700/50">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1.5">Privacy</label>
+                            <select id="privacy" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all">
+                                <option value="public">Public</option>
+                                <option value="unlisted">Unlisted</option>
+                                <option value="private">Private</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1.5">Kategori (Genre)</label>
+                            <select id="categoryId" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all">
+                                <option value="10">Music</option>
+                                <option value="20">Gaming</option>
+                                <option value="24" selected>Entertainment</option>
+                                <option value="22">People & Blogs</option>
+                                <option value="27">Education</option>
+                                <option value="1">Film & Animation</option>
+                                <option value="2">Autos & Vehicles</option>
+                                <option value="15">Pets & Animals</option>
+                                <option value="17">Sports</option>
+                                <option value="19">Travel & Events</option>
+                                <option value="23">Comedy</option>
+                                <option value="25">News & Politics</option>
+                                <option value="26">Howto & Style</option>
+                                <option value="28">Science & Technology</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1.5">Monetisasi & Kids</label>
+                            <div class="space-y-2 mt-2">
+                                <label class="flex items-center gap-2 cursor-pointer group">
+                                    <input type="checkbox" id="monetizationEnabled" class="w-4 h-4 rounded border-gray-700 bg-dark-900 text-primary focus:ring-primary" checked>
+                                    <span class="text-sm text-gray-300 group-hover:text-white transition-colors">Aktifkan Iklan</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer group">
+                                    <input type="checkbox" id="madeForKids" class="w-4 h-4 rounded border-gray-700 bg-dark-900 text-primary focus:ring-primary">
+                                    <span class="text-sm text-gray-300 group-hover:text-white transition-colors">Dibuat untuk Anak</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="md:col-span-3">
+                            <label class="block text-sm font-medium text-gray-400 mb-1.5">ID Playlist (Opsional)</label>
+                            <input type="text" id="playlistId" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="Masukkan ID Playlist YouTube (Contoh: PLxxxx...)">
+                            <p class="text-[10px] text-gray-500 mt-1">Biarkan kosong jika tidak ingin masuk playlist.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="h-px bg-gray-700 my-8"></div>
+
                 <!-- Section 2: Bulk Metadata -->
                 <div class="space-y-6">
                     <div class="flex items-center justify-between">
@@ -355,7 +426,18 @@
         document.getElementById('seriesId').value = '';
         document.getElementById('autoliveForm').reset();
         document.getElementById('itemsPreview').innerHTML = '';
+        document.getElementById('customDatesContainer').classList.add('hidden');
+        document.getElementById('customDatesList').innerHTML = '';
+        
+        // Reset YouTube settings to defaults
+        document.getElementById('privacy').value = 'public';
+        document.getElementById('categoryId').value = '24';
+        document.getElementById('monetizationEnabled').checked = true;
+        document.getElementById('madeForKids').checked = false;
+        document.getElementById('playlistId').value = '';
+
         currentItems = [];
+        selectedDates = [];
         document.getElementById('autoliveModal').classList.remove('hidden');
         document.getElementById('autoliveModal').classList.add('flex');
     }
@@ -438,6 +520,13 @@
         const mins = parseInt(document.getElementById('durationMinutes').value) || 0;
         const duration = (hours * 60) + mins;
 
+        // YouTube Settings
+        const privacy = document.getElementById('privacy').value;
+        const categoryId = document.getElementById('categoryId').value;
+        const monetizationEnabled = document.getElementById('monetizationEnabled').checked ? 1 : 0;
+        const madeForKids = document.getElementById('madeForKids').checked ? 1 : 0;
+        const playlistId = document.getElementById('playlistId').value;
+
         if (!name || !videoId || !startTime) {
             alert('Mohon isi semua field wajib (Nama, Video, Waktu Mulai)');
             return;
@@ -460,6 +549,14 @@
         formData.append('repeat_mode', repeatMode);
         formData.append('duration', duration);
         formData.append('youtube_channel_id', channelId);
+        formData.append('custom_dates', JSON.stringify(selectedDates));
+        
+        // Add new YouTube fields
+        formData.append('privacy', privacy);
+        formData.append('category_id', categoryId);
+        formData.append('monetization_enabled', monetizationEnabled);
+        formData.append('made_for_kids', madeForKids);
+        formData.append('playlist_id', playlistId);
 
         // Add items metadata
         formData.append('items', JSON.stringify(currentItems.map((item, idx) => ({
@@ -569,6 +666,13 @@
 
             document.getElementById('durationHours').value = Math.floor(s.duration / 60);
             document.getElementById('durationMinutes').value = s.duration % 60;
+            
+            // Set YouTube settings
+            document.getElementById('privacy').value = s.privacy || 'public';
+            document.getElementById('categoryId').value = s.category_id || '24';
+            document.getElementById('monetizationEnabled').checked = s.monetization_enabled === 1;
+            document.getElementById('madeForKids').checked = s.made_for_kids === 1;
+            document.getElementById('playlistId').value = s.playlist_id || '';
             
             currentItems = s.items.map(item => ({
                 title: item.title,
