@@ -194,9 +194,5 @@ body {
 }
 
 .hide-content {
-  filter: blur(8px);
-  pointer-events: none;
-  user-select: none;
-  opacity: 0.3;
-  transition: all 0.3s ease;
+  display: none !important;
 }
