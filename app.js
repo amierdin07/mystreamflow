@@ -5356,6 +5356,15 @@ app.post('/api/autolive/:id/toggle', isAuthenticated, async (req, res) => {
     
     const newActive = series.is_active === 1 ? 0 : 1;
     await Autolive.update(req.params.id, { is_active: newActive });
+    
+    if (newActive === 0 && series.status === 'live') {
+      const autoliveService = require('./services/autoliveService');
+      // We don't await this to avoid holding up the response if stopping takes time
+      autoliveService.stopAutoliveStream(series).catch(err => {
+        console.error('Error stopping autolive stream on toggle:', err);
+      });
+    }
+
     res.json({ success: true, is_active: newActive });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
