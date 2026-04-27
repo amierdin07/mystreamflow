@@ -177,24 +177,30 @@
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-400 mb-1.5">Pilih Playlist (Internal) - <span class="text-primary font-bold">UTAMA</span></label>
-                            <select id="internalPlaylistId" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all border-primary/30">
-                                <option value="">-- Gunakan Single Video Saja --</option>
-                                <% playlists.forEach(p => { %>
-                                    <option value="<%= p.id %>"><%= p.name %></option>
-                                <% }) %>
-                            </select>
-                            <p class="text-[10px] text-gray-500 mt-1">Gunakan ini jika ingin memutar banyak video dari playlist.</p>
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-400 mb-1.5">Atau Pilih Video (Single)</label>
-                            <select id="videoId" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all">
-                                <option value="">-- Pilih Video --</option>
-                                <% videos.forEach(v => { %>
-                                    <option value="<%= v.id %>"><%= v.title %></option>
-                                <% }) %>
-                            </select>
+                            <label class="block text-sm font-medium text-gray-400 mb-1.5">Select Video</label>
+                            <input type="hidden" id="videoId">
+                            <input type="hidden" id="internalPlaylistId">
+                            <div class="relative">
+                                <button type="button" onclick="toggleAutoliveVideoSelector()"
+                                    id="autoliveVideoBtn"
+                                    class="w-full flex items-center justify-between px-4 py-3 bg-dark-900 border border-gray-700 rounded-xl hover:border-primary focus:border-primary transition-colors text-left">
+                                    <span class="text-sm text-gray-400" id="autoliveSelectedVideoLabel">Choose a video or playlist...</span>
+                                    <i class="ti ti-chevron-down text-gray-400"></i>
+                                </button>
+                                <div id="autoliveVideoDropdown"
+                                    class="hidden absolute z-50 mt-2 w-full bg-dark-800 rounded-xl border border-gray-700 shadow-2xl">
+                                    <div class="p-2 border-b border-gray-700/50">
+                                        <div class="relative">
+                                            <input type="text" id="autoliveVideoSearch"
+                                                class="w-full bg-dark-900 text-white pl-8 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary border border-gray-700"
+                                                placeholder="Search videos or playlists..."
+                                                oninput="filterAutoliveVideos(this.value)">
+                                            <i class="ti ti-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                                        </div>
+                                    </div>
+                                    <div id="autoliveVideoList" class="p-2 space-y-1 max-h-64 overflow-y-auto"></div>
+                                </div>
+                            </div>
                         </div>
 
                         <div>
@@ -494,8 +500,7 @@
     function openCreateSeriesModal() {
         document.getElementById('seriesId').value = '';
         document.getElementById('seriesName').value = '';
-        document.getElementById('videoId').value = '';
-        document.getElementById('internalPlaylistId').value = '';
+        resetAutoliveVideoSelector();
         document.getElementById('startTime').value = '';
         document.getElementById('itemsPreview').innerHTML = '';
         document.getElementById('customDatesContainer').classList.add('hidden');
@@ -720,8 +725,12 @@
             const s = result.series;
             document.getElementById('seriesId').value = s.id;
             document.getElementById('seriesName').value = s.name;
-            document.getElementById('videoId').value = s.video_id || '';
-            document.getElementById('internalPlaylistId').value = s.internal_playlist_id || '';
+            setAutoliveVideoSelector(
+                s.internal_playlist_id || '',
+                s.video_id || '',
+                s.internal_playlist_name || '',
+                s.video_title || ''
+            );
             document.getElementById('channelId').value = s.youtube_channel_id;
             
             // Format date for datetime-local
@@ -772,6 +781,151 @@
             document.getElementById('autoliveModal').classList.add('flex');
         } catch (e) {
             alert('Kesalahan saat memuat data');
+        }
+    }
+
+    // ============================================================
+    // Autolive Custom Video/Playlist Selector
+    // ============================================================
+    const autoliveAllItems = [
+      <% playlists.forEach(p => { %>
+        { type: 'playlist', id: '<%= p.id %>', label: '<%= p.name.replace(/'/g, "\\'") %>', sub: '<%= (p.video_count || 0) %> videos • <%= (p.audio_count || 0) %> audio' },
+      <% }) %>
+      <% videos.forEach(v => { %>
+        { type: 'video', id: '<%= v.id %>', label: '<%= v.title.replace(/'/g, "\\'") %>', sub: '' },
+      <% }) %>
+    ];
+
+    function renderAutoliveVideoList(items) {
+        const container = document.getElementById('autoliveVideoList');
+        container.innerHTML = '';
+
+        const playlists = items.filter(i => i.type === 'playlist');
+        const videos = items.filter(i => i.type === 'video');
+
+        if (playlists.length > 0) {
+            const header = document.createElement('div');
+            header.className = 'px-2 py-1 text-xs font-bold text-gray-500 uppercase tracking-wider';
+            header.textContent = 'Playlists';
+            container.appendChild(header);
+
+            playlists.forEach(item => {
+                const el = document.createElement('button');
+                el.type = 'button';
+                el.className = 'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-dark-700 transition-colors text-left';
+                el.innerHTML = `
+                    <div class="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
+                        <i class="ti ti-list-details text-primary text-base"></i>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm font-medium text-white truncate">${item.label}</div>
+                        <div class="text-xs text-gray-500 truncate">${item.sub}</div>
+                    </div>
+                `;
+                el.onclick = () => selectAutoliveItem(item);
+                container.appendChild(el);
+            });
+        }
+
+        if (videos.length > 0) {
+            const header = document.createElement('div');
+            header.className = 'px-2 py-1 text-xs font-bold text-gray-500 uppercase tracking-wider mt-1';
+            header.textContent = 'Videos';
+            container.appendChild(header);
+
+            videos.forEach(item => {
+                const el = document.createElement('button');
+                el.type = 'button';
+                el.className = 'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-dark-700 transition-colors text-left';
+                el.innerHTML = `
+                    <div class="w-9 h-9 rounded-lg bg-gray-700 flex items-center justify-center flex-shrink-0">
+                        <i class="ti ti-video text-gray-400 text-base"></i>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm font-medium text-white truncate">${item.label}</div>
+                    </div>
+                `;
+                el.onclick = () => selectAutoliveItem(item);
+                container.appendChild(el);
+            });
+        }
+
+        if (items.length === 0) {
+            container.innerHTML = '<p class="text-center text-gray-500 text-sm py-4">No results found</p>';
+        }
+    }
+
+    function selectAutoliveItem(item) {
+        if (item.type === 'playlist') {
+            document.getElementById('internalPlaylistId').value = item.id;
+            document.getElementById('videoId').value = '';
+        } else {
+            document.getElementById('videoId').value = item.id;
+            document.getElementById('internalPlaylistId').value = '';
+        }
+        document.getElementById('autoliveSelectedVideoLabel').textContent = item.label;
+        document.getElementById('autoliveSelectedVideoLabel').classList.remove('text-gray-400');
+        document.getElementById('autoliveSelectedVideoLabel').classList.add('text-white');
+        closeAutoliveVideoSelector();
+    }
+
+    function filterAutoliveVideos(query) {
+        const q = query.toLowerCase();
+        const filtered = autoliveAllItems.filter(i => i.label.toLowerCase().includes(q));
+        renderAutoliveVideoList(filtered);
+    }
+
+    function toggleAutoliveVideoSelector() {
+        const dropdown = document.getElementById('autoliveVideoDropdown');
+        if (dropdown.classList.contains('hidden')) {
+            dropdown.classList.remove('hidden');
+            renderAutoliveVideoList(autoliveAllItems);
+            document.getElementById('autoliveVideoSearch').value = '';
+            document.getElementById('autoliveVideoSearch').focus();
+        } else {
+            closeAutoliveVideoSelector();
+        }
+    }
+
+    function closeAutoliveVideoSelector() {
+        document.getElementById('autoliveVideoDropdown').classList.add('hidden');
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        const btn = document.getElementById('autoliveVideoBtn');
+        const dropdown = document.getElementById('autoliveVideoDropdown');
+        if (dropdown && !dropdown.contains(e.target) && btn && !btn.contains(e.target)) {
+            closeAutoliveVideoSelector();
+        }
+    });
+
+    function resetAutoliveVideoSelector() {
+        document.getElementById('videoId').value = '';
+        document.getElementById('internalPlaylistId').value = '';
+        const label = document.getElementById('autoliveSelectedVideoLabel');
+        label.textContent = 'Choose a video or playlist...';
+        label.classList.add('text-gray-400');
+        label.classList.remove('text-white');
+    }
+
+    function setAutoliveVideoSelector(playlistId, videoId, playlistName, videoTitle) {
+        if (playlistId) {
+            document.getElementById('internalPlaylistId').value = playlistId;
+            document.getElementById('videoId').value = '';
+            const label = document.getElementById('autoliveSelectedVideoLabel');
+            label.textContent = playlistName || 'Playlist';
+            label.classList.remove('text-gray-400');
+            label.classList.add('text-white');
+        } else if (videoId) {
+            document.getElementById('videoId').value = videoId;
+            document.getElementById('internalPlaylistId').value = '';
+            const label = document.getElementById('autoliveSelectedVideoLabel');
+            label.textContent = videoTitle || 'Video';
+            label.classList.remove('text-gray-400');
+            label.classList.add('text-white');
+        } else {
+            resetAutoliveVideoSelector();
         }
     }
 </script>

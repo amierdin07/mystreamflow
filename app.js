@@ -5217,7 +5217,7 @@ app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, re
     const series = await Autolive.create({
       user_id: req.session.userId,
       name,
-      video_id: video_id || null,
+      video_id: video_id || '',
       internal_playlist_id: internal_playlist_id || null,
       start_time,
       repeat_mode,
@@ -5281,7 +5281,7 @@ app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req,
     
     await Autolive.update(req.params.id, {
       name,
-      video_id: video_id || null,
+      video_id: video_id || '',
       internal_playlist_id: internal_playlist_id || null,
       start_time,
       repeat_mode,
