@@ -29,7 +29,7 @@ class Autolive {
           monetization_enabled, made_for_kids, playlist_id
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          id, user_id, name, video_id, start_time, repeat_mode, custom_dates, duration,
+          id, user_id, name, video_id || '', start_time, repeat_mode, custom_dates, duration,
           is_active, youtube_channel_id, seriesData.internal_playlist_id || null,
           privacy, category_id, monetization_enabled, made_for_kids, playlist_id
         ],
