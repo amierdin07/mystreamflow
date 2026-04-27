@@ -398,6 +398,28 @@ function createTables() {
         }
       });
 
+      db.run(`ALTER TABLE autolive_series ADD COLUMN internal_playlist_id TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
+      db.run(`ALTER TABLE autolive_series ADD COLUMN privacy TEXT DEFAULT 'public'`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
+      db.run(`ALTER TABLE autolive_series ADD COLUMN category_id TEXT DEFAULT '10'`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
+      db.run(`ALTER TABLE autolive_series ADD COLUMN monetization_enabled INTEGER DEFAULT 0`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
+      db.run(`ALTER TABLE autolive_series ADD COLUMN made_for_kids INTEGER DEFAULT 0`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
+      db.run(`ALTER TABLE autolive_series ADD COLUMN playlist_id TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
+      db.run(`ALTER TABLE autolive_series ADD COLUMN current_item_index INTEGER DEFAULT 0`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
+
       db.run(`ALTER TABLE users ADD COLUMN disk_limit INTEGER DEFAULT 0`, (err) => {
         if (err && !err.message.includes('duplicate column name')) {
           console.error('Error adding disk_limit column to users:', err.message);
