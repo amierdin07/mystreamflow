@@ -212,6 +212,7 @@ class AutoliveService {
       // Update stream record with current item metadata and series settings
       await Stream.update(streamRecord.id, {
         title: currentItem.title,
+        video_id: series.internal_playlist_id || series.video_id,
         youtube_description: currentItem.description || '',
         youtube_tags: currentItem.tags || '',
         youtube_thumbnail: currentItem.thumbnail_path,
@@ -244,10 +245,14 @@ class AutoliveService {
     const streamId = `autolive_${series.id}`;
     let stream = await Stream.findById(streamId);
     if (!stream) {
+      // For Autolive, we can use the video_id field in the streams table for both single video or playlist,
+      // as the streamingService handles it based on ID lookup in videos or playlists table.
+      const sourceId = series.internal_playlist_id || series.video_id;
+      
       await db.run(
         `INSERT INTO streams (id, user_id, title, video_id, rtmp_url, stream_key, platform, status, is_youtube_api, youtube_channel_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [streamId, series.user_id, series.name, series.video_id, '', '', 'YouTube', 'scheduled', 1, series.youtube_channel_id]
+        [streamId, series.user_id, series.name, sourceId, '', '', 'YouTube', 'scheduled', 1, series.youtube_channel_id]
       );
       stream = await Stream.findById(streamId);
     }

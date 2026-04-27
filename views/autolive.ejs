@@ -46,7 +46,21 @@
               </div>
               <div>
                 <h3 class="font-bold text-white group-hover:text-primary transition-colors"><%= item.name %></h3>
-                <p class="text-xs text-gray-400 mt-0.5"><%= item.item_count %> Metadatas • <%= item.duration %> Menit</p>
+                <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                    <span class="text-[9px] bg-dark-900 text-gray-400 px-1.5 py-0.5 rounded border border-gray-700/50 flex items-center gap-1">
+                        <i class="ti ti-<%= item.internal_playlist_id ? 'list-details' : 'video' %> text-[10px]"></i>
+                        <span class="max-w-[100px] truncate"><%= item.internal_playlist_id ? item.internal_playlist_name : item.video_title %></span>
+                    </span>
+                    <span class="text-[9px] text-primary font-bold bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20">
+                        <%= item.current_item_index + 1 %> / <%= item.item_count %>
+                    </span>
+                    <% if (item.status === 'live' && item.current_item_title) { %>
+                        <div class="w-full mt-1.5 text-[10px] text-green-400 font-medium flex items-center gap-1">
+                            <i class="ti ti-typography"></i>
+                            <span class="truncate italic">"<%= item.current_item_title %>"</span>
+                        </div>
+                    <% } %>
+                </div>
               </div>
             </div>
             <div class="flex items-center gap-2">
@@ -109,10 +123,11 @@
         </div>
         
         <div class="bg-dark-900/50 px-5 py-3 border-t border-gray-700/50 flex items-center justify-between">
-            <div class="flex items-center gap-2 text-xs text-gray-500">
-                <i class="ti ti-brand-youtube text-red-500"></i>
-                <span class="truncate max-w-[150px]"><%= item.youtube_channel_name || 'No Channel' %></span>
-            </div>
+            <a href="<%= item.youtube_broadcast_id ? `https://studio.youtube.com/video/${item.youtube_broadcast_id}/livestreaming` : 'https://studio.youtube.com' %>" target="_blank" class="flex items-center gap-2 text-xs text-gray-400 hover:text-primary transition-colors group">
+                <i class="ti ti-brand-youtube text-red-500 group-hover:scale-110 transition-transform"></i>
+                <span class="truncate max-w-[150px] font-medium"><%= item.youtube_channel_name || 'No Channel' %></span>
+                <i class="ti ti-external-link text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"></i>
+            </a>
             <div class="text-[10px] text-gray-500 uppercase tracking-tighter">
                 ID: <%= item.id.substring(0, 8) %>
             </div>
@@ -162,7 +177,18 @@
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-400 mb-1.5">Pilih Video</label>
+                            <label class="block text-sm font-medium text-gray-400 mb-1.5">Pilih Playlist (Internal) - <span class="text-primary font-bold">UTAMA</span></label>
+                            <select id="internalPlaylistId" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all border-primary/30">
+                                <option value="">-- Gunakan Single Video Saja --</option>
+                                <% playlists.forEach(p => { %>
+                                    <option value="<%= p.id %>"><%= p.name %></option>
+                                <% }) %>
+                            </select>
+                            <p class="text-[10px] text-gray-500 mt-1">Gunakan ini jika ingin memutar banyak video dari playlist.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1.5">Atau Pilih Video (Single)</label>
                             <select id="videoId" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all">
                                 <option value="">-- Pilih Video --</option>
                                 <% videos.forEach(v => { %>
@@ -466,9 +492,10 @@
     }
 
     function openCreateSeriesModal() {
-        document.getElementById('modalTitle').innerText = 'Buat Autolive Baru';
-        document.getElementById('seriesId').value = '';
-        document.getElementById('autoliveForm').reset();
+        document.getElementById('seriesName').value = '';
+        document.getElementById('videoId').value = '';
+        document.getElementById('internalPlaylistId').value = '';
+        document.getElementById('startTime').value = '';
         document.getElementById('itemsPreview').innerHTML = '';
         document.getElementById('customDatesContainer').classList.add('hidden');
         document.getElementById('customDatesList').innerHTML = '';
@@ -559,7 +586,7 @@
         const btn = document.getElementById('saveBtn');
         const id = document.getElementById('seriesId').value;
         const name = document.getElementById('seriesName').value;
-        const videoId = document.getElementById('videoId').value;
+        const internalPlaylistId = document.getElementById('internalPlaylistId').value;
         const startTime = document.getElementById('startTime').value;
         const repeatMode = document.getElementById('repeatMode').value;
         const channelId = document.getElementById('channelId').value;
@@ -575,8 +602,8 @@
         const madeForKids = document.getElementById('madeForKids').checked ? 1 : 0;
         const playlistId = document.getElementById('playlistId').value;
 
-        if (!name || !videoId || !startTime) {
-            alert('Mohon isi semua field wajib (Nama, Video, Waktu Mulai)');
+        if (!name || (!videoId && !internalPlaylistId) || !startTime) {
+            alert('Mohon isi semua field wajib (Nama, Video/Playlist, Waktu Mulai)');
             return;
         }
 
@@ -593,6 +620,7 @@
         const formData = new FormData();
         formData.append('name', name);
         formData.append('video_id', videoId);
+        formData.append('internal_playlist_id', internalPlaylistId);
         formData.append('start_time', startTime);
         formData.append('repeat_mode', repeatMode);
         formData.append('duration', duration);
@@ -690,7 +718,8 @@
             const s = result.series;
             document.getElementById('seriesId').value = s.id;
             document.getElementById('seriesName').value = s.name;
-            document.getElementById('videoId').value = s.video_id;
+            document.getElementById('videoId').value = s.video_id || '';
+            document.getElementById('internalPlaylistId').value = s.internal_playlist_id || '';
             document.getElementById('channelId').value = s.youtube_channel_id;
             
             // Format date for datetime-local

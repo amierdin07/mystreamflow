@@ -2192,6 +2192,31 @@
       }
     }
 
+    function getSourceBadgeHTML(streamId) {
+      if (!streamId) return '';
+      
+      let config = {
+        label: 'MANUAL',
+        icon: 'broadcast',
+        color: 'blue'
+      };
+
+      if (streamId.startsWith('autolive_')) {
+        config = { label: 'AUTOLIVE', icon: 'bolt', color: 'purple' };
+      } else if (streamId.startsWith('rotation_')) {
+        config = { label: 'ROTATION', icon: 'rotate', color: 'green' };
+      }
+
+      return `
+        <div class="flex items-center">
+            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border bg-${config.color}-400/10 text-${config.color}-400 border-${config.color}-400/20 uppercase tracking-tighter mb-1.5">
+              <i class="ti ti-${config.icon} text-[10px]"></i>
+              ${config.label}
+            </span>
+        </div>
+      `;
+    }
+
     function getSignalBadgeHTML(healthStatus, streamId) {
       if (!healthStatus) return '<span class="text-gray-500 text-[10px] animate-pulse">Waiting for signal...</span>';
       
@@ -2394,6 +2419,7 @@
             <img src="${thumbnail}" class="w-full h-full object-cover" alt="${stream.title}">
           </div>
         <div class="flex-1 min-w-0">
+          ${getSourceBadgeHTML(stream.id)}
           ${stream.video_type ? `<div class="text-sm font-semibold text-white truncate leading-tight" title="${stream.video_type === 'playlist' ? stream.playlist_name : stream.video_title}">${stream.video_type === 'playlist' ? '<i class="ti ti-list text-[11px] text-primary mr-1"></i>' + stream.playlist_name : '<i class="ti ti-video text-[11px] text-primary mr-1"></i>' + stream.video_title}</div>` : `<h4 class="text-sm font-medium text-white truncate leading-tight">${stream.title}</h4>`}
           ${stream.video_type ? `<div class="text-[11px] text-gray-400 truncate mt-0.5 leading-tight">${stream.title}</div>` : ''}
           <div class="flex items-center gap-1.5 mt-1">
@@ -2491,6 +2517,7 @@
             <img src="${thumbnail}" class="w-full h-full object-cover" alt="${stream.title}">
           </div>
           <div class="min-w-0 flex-1">
+            ${getSourceBadgeHTML(stream.id)}
             ${stream.video_type ? `<div class="text-sm font-semibold truncate max-w-[200px]" title="${stream.video_type === 'playlist' ? stream.playlist_name : stream.video_title}">${stream.video_type === 'playlist' ? '<i class="ti ti-list text-[11px] text-primary mr-1"></i>' + stream.playlist_name : '<i class="ti ti-video text-[11px] text-primary mr-1"></i>' + stream.video_title}</div>` : `<div class="text-sm font-medium truncate max-w-[200px]" title="${stream.title}">${stream.title}</div>`}
             ${stream.video_type ? `<div class="text-[11px] text-gray-400 truncate max-w-[200px]">${stream.title}</div>` : ''}
             <div class="text-xs text-gray-400 stream-settings-display">${settingsDisplay}</div>

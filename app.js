@@ -5160,12 +5160,14 @@ app.get('/autolive', isAuthenticated, async (req, res) => {
     const series = await Autolive.findAll(req.session.userId);
     const YoutubeChannel = require('./models/YoutubeChannel');
     const youtubeChannels = await YoutubeChannel.findAll(req.session.userId);
+    const playlists = await Playlist.findAll(req.session.userId);
     
     res.render('autolive', {
       title: 'Autolive Series',
       active: 'autolive',
       user: user,
       videos: videos,
+      playlists: playlists,
       series: series,
       youtubeConnected: youtubeChannels.length > 0,
       youtubeChannels: youtubeChannels
@@ -5200,19 +5202,29 @@ app.get('/api/autolive/:id', isAuthenticated, async (req, res) => {
 app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, res) => {
   try {
     const Autolive = require('./models/Autolive');
-    const { name, video_id, start_time, repeat_mode, duration, items, youtube_channel_id, custom_dates } = req.body;
+    const { 
+      name, video_id, internal_playlist_id, start_time, repeat_mode, duration, items, 
+      youtube_channel_id, custom_dates, privacy, category_id, monetization_enabled, 
+      made_for_kids, playlist_id 
+    } = req.body;
     
     const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
     
     const series = await Autolive.create({
       user_id: req.session.userId,
       name,
-      video_id,
+      video_id: video_id || null,
+      internal_playlist_id: internal_playlist_id || null,
       start_time,
       repeat_mode,
       duration: parseInt(duration),
       youtube_channel_id,
-      custom_dates
+      custom_dates,
+      privacy: privacy || 'public',
+      category_id: category_id || '10',
+      monetization_enabled: parseInt(monetization_enabled) || 0,
+      made_for_kids: parseInt(made_for_kids) || 0,
+      playlist_id: playlist_id || null
     });
     
     const uploadedFiles = req.files || [];
@@ -5257,16 +5269,26 @@ app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, re
 app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req, res) => {
   try {
     const Autolive = require('./models/Autolive');
-    const { name, video_id, start_time, repeat_mode, duration, items, youtube_channel_id, custom_dates } = req.body;
+    const { 
+      name, video_id, internal_playlist_id, start_time, repeat_mode, duration, items, 
+      youtube_channel_id, custom_dates, privacy, category_id, monetization_enabled, 
+      made_for_kids, playlist_id 
+    } = req.body;
     
     await Autolive.update(req.params.id, {
       name,
-      video_id,
+      video_id: video_id || null,
+      internal_playlist_id: internal_playlist_id || null,
       start_time,
       repeat_mode,
       duration: parseInt(duration),
       youtube_channel_id,
-      custom_dates
+      custom_dates,
+      privacy: privacy || 'public',
+      category_id: category_id || '10',
+      monetization_enabled: parseInt(monetization_enabled) || 0,
+      made_for_kids: parseInt(made_for_kids) || 0,
+      playlist_id: playlist_id || null
     });
     
     if (items) {

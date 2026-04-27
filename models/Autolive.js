@@ -16,10 +16,9 @@ class Autolive {
     } = seriesData;
 
     return new Promise((resolve, reject) => {
-      db.run(
-        `INSERT INTO autolive_series (id, user_id, name, video_id, start_time, repeat_mode, duration, is_active, youtube_channel_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, user_id, name, video_id, start_time, repeat_mode, duration, is_active, youtube_channel_id],
+        `INSERT INTO autolive_series (id, user_id, name, video_id, start_time, repeat_mode, duration, is_active, youtube_channel_id, internal_playlist_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, user_id, name, video_id, start_time, repeat_mode, duration, is_active, youtube_channel_id, seriesData.internal_playlist_id || null],
         function(err) {
           if (err) {
             console.error('Error creating autolive series:', err.message);
@@ -47,9 +46,11 @@ class Autolive {
     return new Promise((resolve, reject) => {
       db.get(
         `SELECT s.*, v.title as video_title, v.filepath as video_filepath, 
+                p.name as internal_playlist_name,
                 yc.channel_name as youtube_channel_name, yc.channel_thumbnail as youtube_channel_thumbnail
          FROM autolive_series s
          LEFT JOIN videos v ON s.video_id = v.id
+         LEFT JOIN playlists p ON s.internal_playlist_id = p.id
          LEFT JOIN youtube_channels yc ON s.youtube_channel_id = yc.id
          WHERE s.id = ?`,
         [id],
@@ -82,10 +83,13 @@ class Autolive {
       db.all(
         `SELECT s.*, 
                 (SELECT COUNT(*) FROM autolive_items WHERE series_id = s.id) as item_count,
+                (SELECT title FROM autolive_items WHERE series_id = s.id AND order_index = s.current_item_index LIMIT 1) as current_item_title,
                 v.title as video_title,
+                p.name as internal_playlist_name,
                 yc.channel_name as youtube_channel_name
          FROM autolive_series s
          LEFT JOIN videos v ON s.video_id = v.id
+         LEFT JOIN playlists p ON s.internal_playlist_id = p.id
          LEFT JOIN youtube_channels yc ON s.youtube_channel_id = yc.id
          WHERE s.user_id = ?
          ORDER BY s.created_at DESC`,
