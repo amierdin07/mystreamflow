@@ -168,13 +168,18 @@ class AutoliveService {
       // Let's use a more robust way: create/update a dedicated stream record for this series.
       let streamRecord = await this.getOrCreateStreamRecord(series);
       
-      // Update stream record with current item metadata
+      // Update stream record with current item metadata and series settings
       await Stream.update(streamRecord.id, {
         title: currentItem.title,
         youtube_description: currentItem.description || '',
         youtube_tags: currentItem.tags || '',
         youtube_thumbnail: currentItem.thumbnail_path,
-        schedule_time: dummyStream.schedule_time
+        schedule_time: dummyStream.schedule_time,
+        youtube_privacy: series.privacy || 'public',
+        youtube_category: series.category_id || '24',
+        youtube_monetization: series.monetization_enabled === 1 ? 1 : 0,
+        made_for_kids: series.made_for_kids === 1 ? 1 : 0,
+        youtube_playlist_id: series.playlist_id || null
       });
 
       const baseUrl = process.env.BASE_URL || 'http://localhost:7575';
