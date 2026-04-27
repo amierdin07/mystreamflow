@@ -2387,40 +2387,40 @@
       if (youtubeConnected && stream.youtube_channel_name) {
         youtubeInfoHTML = `<div class="flex items-center gap-1 mobile-channel-info ${isChannelHidden ? 'hide-content' : ''}">${stream.youtube_channel_thumbnail ? `<img src="${stream.youtube_channel_thumbnail}" alt="" class="w-3 h-3 rounded-full object-cover">` : `<div class="w-3 h-3 rounded-full bg-red-600 flex items-center justify-center"><i class="ti ti-brand-youtube text-white text-[6px]"></i></div>`}<span class="text-[10px] text-gray-400">${stream.youtube_channel_name}</span></div>`;
       }
-      card.innerHTML = \`
+      card.innerHTML = `
       <div class="p-3">
         <div class="flex gap-3">
           <div class="relative flex-shrink-0 w-20 h-14 bg-dark-700 rounded overflow-hidden">
-            <img src="\${thumbnail}" class="w-full h-full object-cover" alt="\${stream.title}">
+            <img src="${thumbnail}" class="w-full h-full object-cover" alt="${stream.title}">
           </div>
         <div class="flex-1 min-w-0">
-          \${stream.video_type ? \`<div class="text-sm font-semibold text-white truncate leading-tight" title="\${stream.video_type === 'playlist' ? stream.playlist_name : stream.video_title}">\${stream.video_type === 'playlist' ? '<i class="ti ti-list text-[11px] text-primary mr-1"></i>' + stream.playlist_name : '<i class="ti ti-video text-[11px] text-primary mr-1"></i>' + stream.video_title}</div>\` : \`<h4 class="text-sm font-medium text-white truncate leading-tight">\${stream.title}</h4>\`}
-          \${stream.video_type ? \`<div class="text-[11px] text-gray-400 truncate mt-0.5 leading-tight">\${stream.title}</div>\` : ''}
+          ${stream.video_type ? `<div class="text-sm font-semibold text-white truncate leading-tight" title="${stream.video_type === 'playlist' ? stream.playlist_name : stream.video_title}">${stream.video_type === 'playlist' ? '<i class="ti ti-list text-[11px] text-primary mr-1"></i>' + stream.playlist_name : '<i class="ti ti-video text-[11px] text-primary mr-1"></i>' + stream.video_title}</div>` : `<h4 class="text-sm font-medium text-white truncate leading-tight">${stream.title}</h4>`}
+          ${stream.video_type ? `<div class="text-[11px] text-gray-400 truncate mt-0.5 leading-tight">${stream.title}</div>` : ''}
           <div class="flex items-center gap-1.5 mt-1">
             <div class="flex items-center text-[10px] text-gray-400">
-                <i class="ti ti-brand-\${getPlatformIcon(stream.platform)} text-\${getPlatformColor(stream.platform)} mr-0.5 text-xs"></i>
-                <span>\${stream.platform || 'Custom'}</span>
+                <i class="ti ti-brand-${getPlatformIcon(stream.platform)} text-${getPlatformColor(stream.platform)} mr-0.5 text-xs"></i>
+                <span>${stream.platform || 'Custom'}</span>
               </div>
               <span class="text-gray-600 text-[10px]">•</span>
-              <span class="text-[10px] text-gray-400 stream-settings-display">\${settingsDisplay}</span>
+              <span class="text-[10px] text-gray-400 stream-settings-display">${settingsDisplay}</span>
             </div>
-            \${youtubeInfoHTML ? \`<div class="mt-0.5">\${youtubeInfoHTML}</div>\` : ''}
-            \${scheduleHTML ? \`<div class="mt-0.5">\${scheduleHTML}</div>\` : ''}
+            ${youtubeInfoHTML ? `<div class="mt-0.5">${youtubeInfoHTML}</div>` : ''}
+            ${scheduleHTML ? `<div class="mt-0.5">${scheduleHTML}</div>` : ''}
           </div>
         </div>
       </div>
       <div class="border-t border-gray-700 px-3 py-1.5 flex items-center justify-between">
         <div class="flex flex-col gap-1">
-          \${statusBadge}
-          <div class="signal-container" data-stream-id="\${stream.id}">\${signalHTML}</div>
+          ${statusBadge}
+          <div class="signal-container" data-stream-id="${stream.id}">${signalHTML}</div>
         </div>
         <div class="flex items-center gap-1.5">
-          \${getActionButtonHTML(stream.status, stream.id, 'mobile')}
-          <button class="p-1 hover:bg-dark-700 rounded transition-colors \${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" onclick="\${stream.status === 'live' ? '' : \`editStream('\${stream.id}')\`}" \${stream.status === 'live' ? 'disabled' : ''}><i class="ti ti-edit text-gray-400 hover:text-white text-sm"></i></button>
-          <button class="p-1 hover:bg-dark-700 rounded transition-colors \${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" onclick="\${stream.status === 'live' ? '' : \`deleteStream('\${stream.id}')\`}" \${stream.status === 'live' ? 'disabled' : ''}><i class="ti ti-trash text-gray-400 hover:text-red-400 text-sm"></i></button>
+          ${getActionButtonHTML(stream.status, stream.id, 'mobile')}
+          <button class="p-1 hover:bg-dark-700 rounded transition-colors ${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" onclick="${stream.status === 'live' ? '' : `editStream('${stream.id}')`}" ${stream.status === 'live' ? 'disabled' : ''}><i class="ti ti-edit text-gray-400 hover:text-white text-sm"></i></button>
+          <button class="p-1 hover:bg-dark-700 rounded transition-colors ${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" onclick="${stream.status === 'live' ? '' : `deleteStream('${stream.id}')`}" ${stream.status === 'live' ? 'disabled' : ''}><i class="ti ti-trash text-gray-400 hover:text-red-400 text-sm"></i></button>
         </div>
       </div>
-    \`;
+    `;
       return card;
     }
 
@@ -2484,41 +2484,41 @@
       } else {
         statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time, stream.id);
       }
-      row.innerHTML = \`
+      row.innerHTML = `
       <td class="px-6 py-4 whitespace-nowrap">
         <div class="flex items-center">
           <div class="w-20 h-12 bg-dark-700 rounded flex-shrink-0 overflow-hidden mr-3">
-            <img src="\${thumbnail}" class="w-full h-full object-cover" alt="\${stream.title}">
+            <img src="${thumbnail}" class="w-full h-full object-cover" alt="${stream.title}">
           </div>
           <div class="min-w-0 flex-1">
-            \${stream.video_type ? \`<div class="text-sm font-semibold truncate max-w-[200px]" title="\${stream.video_type === 'playlist' ? stream.playlist_name : stream.video_title}">\${stream.video_type === 'playlist' ? '<i class="ti ti-list text-[11px] text-primary mr-1"></i>' + stream.playlist_name : '<i class="ti ti-video text-[11px] text-primary mr-1"></i>' + stream.video_title}</div>\` : \`<div class="text-sm font-medium truncate max-w-[200px]" title="\${stream.title}">\${stream.title}</div>\`}
-            \${stream.video_type ? \`<div class="text-[11px] text-gray-400 truncate max-w-[200px]">\${stream.title}</div>\` : ''}
-            <div class="text-xs text-gray-400 stream-settings-display">\${settingsDisplay}</div>
+            ${stream.video_type ? `<div class="text-sm font-semibold truncate max-w-[200px]" title="${stream.video_type === 'playlist' ? stream.playlist_name : stream.video_title}">${stream.video_type === 'playlist' ? '<i class="ti ti-list text-[11px] text-primary mr-1"></i>' + stream.playlist_name : '<i class="ti ti-video text-[11px] text-primary mr-1"></i>' + stream.video_title}</div>` : `<div class="text-sm font-medium truncate max-w-[200px]" title="${stream.title}">${stream.title}</div>`}
+            ${stream.video_type ? `<div class="text-[11px] text-gray-400 truncate max-w-[200px]">${stream.title}</div>` : ''}
+            <div class="text-xs text-gray-400 stream-settings-display">${settingsDisplay}</div>
           </div>
         </div>
       </td>
-      \${youtubeConnected ? \`
-      <td class="px-6 py-4 whitespace-nowrap channel-column-cell \${isChannelHidden ? 'hide-content' : ''}">
-        \${stream.youtube_channel_name && stream.youtube_channel_external_id ? \`
-        <a href="https://www.youtube.com/channel/\${stream.youtube_channel_external_id}" 
+      ${youtubeConnected ? `
+      <td class="px-6 py-4 whitespace-nowrap channel-column-cell ${isChannelHidden ? 'hide-content' : ''}">
+        ${stream.youtube_channel_name && stream.youtube_channel_external_id ? `
+        <a href="https://www.youtube.com/channel/${stream.youtube_channel_external_id}" 
            target="_blank" 
            rel="noopener noreferrer"
            class="inline-flex items-center gap-1.5 hover:transition-colors group"
-           title="\${stream.youtube_channel_name}">
-          \${stream.youtube_channel_thumbnail ? \`
-          <img src="\${stream.youtube_channel_thumbnail}" alt="" class="w-5 h-5 rounded-full object-cover">
-          \` : \`
+           title="${stream.youtube_channel_name}">
+          ${stream.youtube_channel_thumbnail ? `
+          <img src="${stream.youtube_channel_thumbnail}" alt="" class="w-5 h-5 rounded-full object-cover">
+          ` : `
           <div class="w-5 h-5 rounded-full bg-red-600 flex items-center justify-center">
             <i class="ti ti-brand-youtube text-white text-xs"></i>
           </div>
-          \`}
-          <span class="text-sm group-hover:text-gray-300">\${stream.youtube_channel_name}</span>
+          `}
+          <span class="text-sm group-hover:text-gray-300">${stream.youtube_channel_name}</span>
         </a>
-        \` : '<span class="text-gray-500 text-xs">—</span>'}
+        ` : '<span class="text-gray-500 text-xs">—</span>'}
       </td>
       <td class="px-6 py-4 whitespace-nowrap">
-        \${stream.youtube_broadcast_id ? \`
-        <a href="https://studio.youtube.com/video/\${stream.youtube_broadcast_id}/livestreaming" 
+        ${stream.youtube_broadcast_id ? `
+        <a href="https://studio.youtube.com/video/${stream.youtube_broadcast_id}/livestreaming" 
            target="_blank" 
            rel="noopener noreferrer"
            class="inline-flex items-center gap-1.5  hover:text-gray-300 text-sm transition-colors">
@@ -2535,58 +2535,58 @@
             <path d="M15 4h5v5" />
           </svg>
         </a>
-        \` : '<span class="text-gray-500 text-xs">—</span>'}
+        ` : '<span class="text-gray-500 text-xs">—</span>'}
       </td>
-      \` : ''}
+      ` : ''}
       <td class="px-6 py-4 whitespace-nowrap">
         <div class="flex items-center">
-          <i class="ti ti-brand-\${getPlatformIcon(stream.platform)} text-\${getPlatformColor(stream.platform)} mr-1.5"></i>
-          <span class="text-sm">\${stream.platform || 'Custom'}</span>
+          <i class="ti ti-brand-${getPlatformIcon(stream.platform)} text-${getPlatformColor(stream.platform)} mr-1.5"></i>
+          <span class="text-sm">${stream.platform || 'Custom'}</span>
         </div>
       </td>
       <td class="px-6 py-4 whitespace-nowrap">
-        \${(() => {
+        ${(() => {
           const endDate = stream.end_time ? new Date(stream.end_time) : null;
           if (scheduleDate && endDate) {
-            return \`<div class="text-xs text-yellow-500 font-medium">Start: \${formatDate(scheduleDate)} \${formatTime(scheduleDate)}</div>
-                    <div class="text-xs text-green-500 font-medium">End: \${formatDate(endDate)} \${formatTime(endDate)}</div>\`;
+            return `<div class="text-xs text-yellow-500 font-medium">Start: ${formatDate(scheduleDate)} ${formatTime(scheduleDate)}</div>
+                    <div class="text-xs text-green-500 font-medium">End: ${formatDate(endDate)} ${formatTime(endDate)}</div>`;
           } else if (scheduleDate) {
-            return \`<div class="text-xs text-yellow-500 font-medium">Start: \${formatDate(scheduleDate)} \${formatTime(scheduleDate)}</div>\`;
+            return `<div class="text-xs text-yellow-500 font-medium">Start: ${formatDate(scheduleDate)} ${formatTime(scheduleDate)}</div>`;
           } else if (endDate) {
-            return \`<div class="text-xs text-green-500 font-medium">End: \${formatDate(endDate)} \${formatTime(endDate)}</div>\`;
+            return `<div class="text-xs text-green-500 font-medium">End: ${formatDate(endDate)} ${formatTime(endDate)}</div>`;
           } else {
-            return \`<div class="text-sm">--</div>\`;
+            return `<div class="text-sm">--</div>`;
           }
         })()}
       </td>
       <td class="px-6 py-4 whitespace-nowrap min-w-[150px]">
         <div class="flex items-center">
-          \${statusBadge}
+          ${statusBadge}
         </div>
       </td>
       <td class="px-6 py-4 whitespace-nowrap">
-        <div class="signal-container" data-stream-id="\${stream.id}">
-          \${signalHTML}
+        <div class="signal-container" data-stream-id="${stream.id}">
+          ${signalHTML}
         </div>
       </td>
       <td class="px-6 py-4 whitespace-nowrap text-right">
         <div class="flex items-center justify-end space-x-2">
-          \${getActionButtonHTML(stream.status, stream.id, 'desktop')}
+          ${getActionButtonHTML(stream.status, stream.id, 'desktop')}
           <div class="ml-2 flex items-center gap-1">
-            <button class="p-1.5 hover:bg-dark-700 rounded transition-colors \${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" 
-                    onclick="\${stream.status === 'live' ? '' : \`editStream('\${stream.id}')\`}"
-                    \${stream.status === 'live' ? 'disabled' : ''}>
+            <button class="p-1.5 hover:bg-dark-700 rounded transition-colors ${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" 
+                    onclick="${stream.status === 'live' ? '' : `editStream('${stream.id}')`}"
+                    ${stream.status === 'live' ? 'disabled' : ''}>
               <i class="ti ti-edit text-gray-400 hover:text-white"></i>
             </button>
-            <button class="p-1.5 hover:bg-dark-700 rounded transition-colors \${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" 
-                    onclick="\${stream.status === 'live' ? '' : \`deleteStream('\${stream.id}')\`}"
-                    \${stream.status === 'live' ? 'disabled' : ''}>
+            <button class="p-1.5 hover:bg-dark-700 rounded transition-colors ${stream.status === 'live' ? 'opacity-50 cursor-not-allowed' : ''}" 
+                    onclick="${stream.status === 'live' ? '' : `deleteStream('${stream.id}')`}"
+                    ${stream.status === 'live' ? 'disabled' : ''}>
               <i class="ti ti-trash text-gray-400 hover:text-red-400"></i>
             </button>
           </div>
         </div>
       </td>
-    \`;
+    `;
       return row;
     }
 
