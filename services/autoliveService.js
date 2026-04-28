@@ -8,26 +8,40 @@ const fs = require('fs');
 
 let checkInterval = null;
 
-// Parse a datetime string (from datetime-local input, no timezone) as SERVER LOCAL TIME
-// This avoids UTC misinterpretation on Linux VPS
+// Parse start_time from DB. Handles both:
+// - New ISO UTC strings ("2026-04-27T10:20:00.000Z") - from browser UTC conversion
+// - Old local strings ("2026-04-27T17:20") - from old data without timezone
 function parseLocalDateTime(dtStr) {
   if (!dtStr) return new Date(NaN);
-  // If it already has timezone info (Z, +, -), parse as-is
-  if (/[Z+]/.test(dtStr.slice(10)) || (dtStr.length > 19 && dtStr[19] === '-')) {
+  // If it has timezone info (Z or +), it's a proper ISO string - parse directly
+  if (dtStr.includes('Z') || dtStr.includes('+') || /T\d{2}:\d{2}:\d{2}-/.test(dtStr)) {
     return new Date(dtStr);
   }
-  // Otherwise it's a local datetime string like "2026-04-27T17:14"
-  // Split and construct with Date constructor treating as local
-  const [datePart, timePart] = dtStr.split('T');
-  if (!datePart) return new Date(NaN);
+  // Old format without timezone (e.g. "2026-04-27T17:20")
+  // Use Date constructor with individual parts to treat as LOCAL time
+  const [datePart, timePart = '0:0:0'] = dtStr.split('T');
   const [year, month, day] = datePart.split('-').map(Number);
-  const [hour = 0, minute = 0, second = 0] = (timePart || '0:0:0').split(':').map(Number);
+  const [hour = 0, minute = 0, second = 0] = timePart.split(':').map(Number);
   return new Date(year, month - 1, day, hour, minute, second);
 }
 
 class AutoliveService {
-  static init() {
+  static async init() {
     if (checkInterval) clearInterval(checkInterval);
+
+    // FIX #1: Reset any autolive series still stuck in 'live' state on server restart.
+    // When server crashes/restarts, the stream is gone but status stays 'live', blocking re-start.
+    try {
+      await new Promise((resolve, reject) => {
+        const { db } = require('../db/database');
+        db.run(`UPDATE autolive_series SET status = 'offline' WHERE status = 'live'`, [], function(err) {
+          if (err) { console.error('[Autolive] Failed to reset stale live statuses:', err.message); }
+          else if (this.changes > 0) { console.log(`[Autolive] Reset ${this.changes} stale 'live' series to 'offline'`); }
+          resolve();
+        });
+      });
+    } catch (e) { console.error('[Autolive] Error resetting stale statuses:', e); }
+
     checkInterval = setInterval(() => this.checkAutoliveSeries(), 60000);
     console.log('Autolive Service initialized');
     this.checkAutoliveSeries(); // Run once immediately
@@ -57,18 +71,22 @@ class AutoliveService {
       return;
     }
 
-    // Calculate the most relevant start time (could be in the past if we are currently within the duration)
+    // FIX #2 & #3: Properly calculate which session window 'now' falls into.
     let sessionStart = parseLocalDateTime(series.start_time);
-    const durationMs = (series.duration || 0) * 60 * 1000;
+    // FIX #3: durationMs must be at least 1 minute to avoid zero-window. If user set 0, default to 60 min.
+    const rawDurationMs = (series.duration || 0) * 60 * 1000;
+    const durationMs = rawDurationMs > 0 ? rawDurationMs : 60 * 60 * 1000;
     
-    // Find the session start time that covers 'now'
+    // FIX #2: Find the most recent session start that is <= now (i.e. the session currently active or the last one).
     if (series.repeat_mode !== 'none' && series.repeat_mode !== 'custom') {
-      let checkStart = parseLocalDateTime(series.start_time);
-      while (checkStart <= now) {
-        sessionStart = new Date(checkStart);
-        checkStart = this.getNextStartTime(checkStart.toISOString(), series.repeat_mode);
-        if (checkStart > now) break; 
+      let candidate = parseLocalDateTime(series.start_time);
+      // Walk forward one interval at a time; stop as soon as next would be > now
+      while (true) {
+        const next = this.getNextStartTime(candidate.toISOString(), series.repeat_mode);
+        if (next > now) break; // 'candidate' is the most recent session start <= now
+        candidate = next;
       }
+      sessionStart = candidate;
     } else if (series.repeat_mode === 'custom' && series.custom_dates) {
       try {
         const dates = JSON.parse(series.custom_dates);
@@ -79,7 +97,6 @@ class AutoliveService {
           return now >= dStart && now < dEnd;
         });
         if (activeDate) {
-          const timePart = parseLocalDateTime(series.start_time);
           sessionStart = parseLocalDateTime(series.start_time);
           sessionStart.setFullYear(new Date(activeDate).getFullYear(), new Date(activeDate).getMonth(), new Date(activeDate).getDate());
         } else {
@@ -92,7 +109,7 @@ class AutoliveService {
     }
 
     const sessionEnd = new Date(sessionStart.getTime() + durationMs);
-    console.log(`[Autolive] Series "${series.name}" | now=${now.toISOString()} | sessionStart=${sessionStart.toISOString()} | sessionEnd=${sessionEnd.toISOString()} | status=${series.status}`);
+    console.log(`[Autolive] "${series.name}" | now=${now.toISOString()} sessionStart=${sessionStart.toISOString()} sessionEnd=${sessionEnd.toISOString()} status=${series.status}`);
 
     // 1. YouTube Pre-Sync (2 Hours before NEXT start)
     const futureStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates);
@@ -259,11 +276,21 @@ class AutoliveService {
       // as the streamingService handles it based on ID lookup in videos or playlists table.
       const sourceId = series.internal_playlist_id || series.video_id;
       
-      await db.run(
-        `INSERT INTO streams (id, user_id, title, video_id, rtmp_url, stream_key, platform, status, is_youtube_api, youtube_channel_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [streamId, series.user_id, series.name, sourceId, '', '', 'YouTube', 'scheduled', 1, series.youtube_channel_id]
-      );
+      // FIX #4: db.run is callback-based in sqlite3 — must wrap in Promise, not use await directly.
+      await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO streams (id, user_id, title, video_id, rtmp_url, stream_key, platform, status, is_youtube_api, youtube_channel_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [streamId, series.user_id, series.name, sourceId, '', '', 'YouTube', 'scheduled', 1, series.youtube_channel_id],
+          function(err) {
+            if (err) {
+              console.error('[Autolive] Error creating stream record:', err.message);
+              return reject(err);
+            }
+            resolve();
+          }
+        );
+      });
       stream = await Stream.findById(streamId);
     }
     return stream;

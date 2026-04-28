@@ -628,7 +628,9 @@
         formData.append('name', name);
         formData.append('video_id', videoId);
         formData.append('internal_playlist_id', internalPlaylistId);
-        formData.append('start_time', startTime);
+        // Convert datetime-local (browser local time) to ISO UTC so server timezone doesn't matter
+        const startTimeISO = startTime ? new Date(startTime).toISOString() : '';
+        formData.append('start_time', startTimeISO);
         formData.append('repeat_mode', repeatMode);
         formData.append('duration', duration);
         formData.append('youtube_channel_id', channelId);
