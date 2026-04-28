@@ -46,6 +46,41 @@ function mapResolutionToYouTube(resolution) {
   return mapping[cleanRes] || '1080p';
 }
 
+function getThumbnailMimeType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case '.png':
+      return 'image/png';
+    case '.gif':
+      return 'image/gif';
+    case '.bmp':
+      return 'image/bmp';
+    default:
+      return 'image/jpeg';
+  }
+}
+
+function resolveThumbnailPath(thumbnailPath) {
+  if (!thumbnailPath) return null;
+
+  const projectRoot = path.resolve(__dirname, '..');
+  const normalized = thumbnailPath.replace(/\\/g, '/');
+  const relPath = normalized.startsWith('/') ? normalized.slice(1) : normalized;
+  const candidates = [];
+
+  if (path.isAbsolute(thumbnailPath)) {
+    candidates.push(thumbnailPath);
+  }
+
+  candidates.push(path.join(projectRoot, 'public', relPath));
+
+  if (!relPath.startsWith('uploads/')) {
+    candidates.push(path.join(projectRoot, 'public', 'uploads', 'thumbnails', relPath));
+  }
+
+  return candidates.find(candidate => fs.existsSync(candidate)) || candidates[0];
+}
+
 function handleYoutubeError(error, context = '') {
   const message = error.message || '';
   const errors = error.errors || [];
@@ -286,18 +321,19 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
 
   if (stream.youtube_thumbnail) {
     try {
-      const projectRoot = path.resolve(__dirname, '..');
-      const thumbnailPath = path.join(projectRoot, 'public', stream.youtube_thumbnail);
+      const thumbnailPath = resolveThumbnailPath(stream.youtube_thumbnail);
       if (fs.existsSync(thumbnailPath)) {
         const thumbnailStream = fs.createReadStream(thumbnailPath);
         await youtube.thumbnails.set({
           videoId: broadcastId,
           media: {
-            mimeType: 'image/jpeg',
+            mimeType: getThumbnailMimeType(thumbnailPath),
             body: thumbnailStream
           }
         });
         console.log(`[YouTubeService] Uploaded thumbnail for broadcast ${broadcastId}`);
+      } else {
+        console.warn(`[YouTubeService] Thumbnail file not found, skipping upload: ${stream.youtube_thumbnail}`);
       }
     } catch (thumbError) {
       console.log('[YouTubeService] Note: Could not upload thumbnail:', thumbError.message);
@@ -577,20 +613,20 @@ async function updateLiveMetadata(userId, channelId, broadcastId, metadata) {
 
     // 2. Update Thumbnail if provided
     if (metadata.thumbnail_path) {
-      const projectRoot = path.resolve(__dirname, '..');
-      const relPath = metadata.thumbnail_path.startsWith('/') ? metadata.thumbnail_path.substring(1) : metadata.thumbnail_path;
-      const fullThumbnailPath = path.join(projectRoot, 'public', relPath);
+      const fullThumbnailPath = resolveThumbnailPath(metadata.thumbnail_path);
       
       if (fs.existsSync(fullThumbnailPath)) {
         const thumbnailStream = fs.createReadStream(fullThumbnailPath);
         await youtube.thumbnails.set({
           videoId: broadcastId,
           media: {
-            mimeType: 'image/jpeg',
+            mimeType: getThumbnailMimeType(fullThumbnailPath),
             body: thumbnailStream
           }
         });
         console.log(`[YouTubeService] Mid-stream thumbnail updated for ${broadcastId}`);
+      } else {
+        console.warn(`[YouTubeService] Thumbnail file not found, skipping metadata thumbnail update: ${metadata.thumbnail_path}`);
       }
     }
 

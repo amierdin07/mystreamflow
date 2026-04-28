@@ -386,6 +386,15 @@
         </div>
 
         <div class="px-6 py-4 border-t border-gray-700 flex items-center justify-end gap-3 flex-shrink-0 bg-dark-800/80 backdrop-blur-md">
+            <div id="autoliveUploadStatus" class="hidden flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-3 mb-1">
+                    <span id="autoliveUploadText" class="text-xs text-gray-300 truncate">Menyiapkan upload...</span>
+                    <span id="autoliveUploadPercent" class="text-xs font-mono text-primary">0%</span>
+                </div>
+                <div class="h-1.5 bg-dark-900 rounded-full overflow-hidden border border-gray-700/60">
+                    <div id="autoliveUploadBar" class="h-full bg-primary rounded-full transition-all duration-200" style="width: 0%"></div>
+                </div>
+            </div>
             <button onclick="closeModal()" class="px-6 py-2.5 text-gray-400 hover:text-white transition-colors font-medium">Batal</button>
             <button onclick="saveSeries()" id="saveBtn" class="px-8 py-2.5 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-primary/20 flex items-center gap-2">
                 <i class="ti ti-device-floppy"></i>
@@ -530,7 +539,59 @@
 
     function handleThumbnailPreview(input) {
         const count = input.files.length;
-        document.getElementById('thumbCount').innerText = `${count} file dipilih`;
+        const totalSize = Array.from(input.files).reduce((sum, file) => sum + file.size, 0);
+        const totalMb = totalSize / (1024 * 1024);
+        document.getElementById('thumbCount').innerText = count
+            ? `${count} file dipilih - ${totalMb.toFixed(totalMb >= 10 ? 0 : 1)} MB`
+            : 'Belum ada file dipilih';
+    }
+
+    function setAutoliveSaving(isSaving, message = 'Menyiapkan upload...', percent = 0) {
+        const btn = document.getElementById('saveBtn');
+        const status = document.getElementById('autoliveUploadStatus');
+        const text = document.getElementById('autoliveUploadText');
+        const percentText = document.getElementById('autoliveUploadPercent');
+        const bar = document.getElementById('autoliveUploadBar');
+        const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
+
+        btn.disabled = isSaving;
+        btn.innerHTML = isSaving
+            ? '<i class="ti ti-loader animate-spin"></i><span>Menyimpan...</span>'
+            : '<i class="ti ti-device-floppy"></i><span>Simpan Autolive</span>';
+
+        status.classList.toggle('hidden', !isSaving);
+        text.innerText = message;
+        percentText.innerText = `${safePercent}%`;
+        bar.style.width = `${safePercent}%`;
+    }
+
+    function submitAutoliveForm(url, method, formData, onProgress) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open(method, url);
+            xhr.setRequestHeader('x-csrf-token', document.querySelector('input[name="_csrf"]').value);
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    onProgress(Math.round((event.loaded / event.total) * 100));
+                }
+            };
+            xhr.onload = () => {
+                let result = {};
+                try {
+                    result = JSON.parse(xhr.responseText || '{}');
+                } catch (error) {
+                    return reject(new Error('Respons server tidak valid'));
+                }
+
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(result);
+                } else {
+                    reject(new Error(result.error || `HTTP ${xhr.status}`));
+                }
+            };
+            xhr.onerror = () => reject(new Error('Upload gagal terkirim'));
+            xhr.send(formData);
+        });
     }
 
     function generateItemsFromBulk() {
@@ -589,7 +650,6 @@
     }
 
     async function saveSeries() {
-        const btn = document.getElementById('saveBtn');
         const id = document.getElementById('seriesId').value;
         const name = document.getElementById('seriesName').value;
         const videoId = document.getElementById('videoId').value;
@@ -660,34 +720,26 @@
             formData.append(`thumbnail_${i}`, thumbnailFiles[i]);
         }
 
-        btn.disabled = true;
-        btn.innerHTML = '<i class="ti ti-loader animate-spin"></i><span>Menyimpan...</span>';
+        setAutoliveSaving(true, 'Mengupload thumbnail dan metadata...', 0);
 
         try {
             const url = id ? `/api/autolive/${id}` : '/api/autolive';
             const method = id ? 'PUT' : 'POST';
-            
-            const response = await fetch(url, {
-                method: method,
-                body: formData,
-                headers: {
-                    'x-csrf-token': document.querySelector('input[name="_csrf"]').value
-                }
-            });
 
-            const result = await response.json();
+            const result = await submitAutoliveForm(url, method, formData, (percent) => {
+                setAutoliveSaving(true, 'Mengupload thumbnail dan metadata...', percent);
+            });
             if (result.success) {
+                setAutoliveSaving(true, 'Selesai, memuat ulang...', 100);
                 location.reload();
             } else {
                 alert('Gagal menyimpan: ' + result.error);
-                btn.disabled = false;
-                btn.innerHTML = '<i class="ti ti-device-floppy"></i><span>Simpan Autolive</span>';
+                setAutoliveSaving(false);
             }
         } catch (error) {
             console.error('Save error:', error);
-            alert('Terjadi kesalahan sistem');
-            btn.disabled = false;
-            btn.innerHTML = '<i class="ti ti-device-floppy"></i><span>Simpan Autolive</span>';
+            alert(error.message || 'Terjadi kesalahan sistem');
+            setAutoliveSaving(false);
         }
     }
 
