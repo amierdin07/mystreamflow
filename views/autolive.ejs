@@ -78,14 +78,14 @@
               <span class="text-gray-400">Status</span>
               <div class="flex items-center gap-2">
                 <% if (item.status === 'live') { %>
-                  <span class="flex items-center text-green-400 text-xs font-bold uppercase tracking-wider">
+                  <span id="status-badge-<%= item.id %>" class="flex items-center text-green-400 text-xs font-bold uppercase tracking-wider">
                     <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse mr-1.5"></span>
                     LIVE NOW
                   </span>
                 <% } else if (item.is_active) { %>
-                  <span class="text-blue-400 text-xs font-bold uppercase tracking-wider">SCHEDULED</span>
+                  <span id="status-badge-<%= item.id %>" class="text-blue-400 text-xs font-bold uppercase tracking-wider">SCHEDULED</span>
                 <% } else { %>
-                  <span class="text-gray-500 text-xs font-bold uppercase tracking-wider">INACTIVE</span>
+                  <span id="status-badge-<%= item.id %>" class="text-gray-500 text-xs font-bold uppercase tracking-wider">INACTIVE</span>
                 <% } %>
                 
                 <label class="relative inline-flex items-center cursor-pointer ml-2">
@@ -826,9 +826,27 @@
                 headers: { 'x-csrf-token': document.querySelector('input[name="_csrf"]').value }
             });
             const result = await response.json();
-            if (!result.success) alert('Gagal mengubah status');
+            if (!result.success) {
+                alert('Gagal mengubah status');
+                // Revert checkbox state if failed
+                const checkbox = document.querySelector(`input[onchange="toggleSeries('${id}')"]`);
+                if (checkbox) checkbox.checked = !checkbox.checked;
+            } else {
+                const badge = document.getElementById(`status-badge-${id}`);
+                if (badge && !badge.innerText.includes('LIVE')) {
+                    if (result.is_active) {
+                        badge.className = 'text-blue-400 text-xs font-bold uppercase tracking-wider';
+                        badge.innerText = 'SCHEDULED';
+                    } else {
+                        badge.className = 'text-gray-500 text-xs font-bold uppercase tracking-wider';
+                        badge.innerText = 'INACTIVE';
+                    }
+                }
+            }
         } catch (e) {
             alert('Terjadi kesalahan');
+            const checkbox = document.querySelector(`input[onchange="toggleSeries('${id}')"]`);
+            if (checkbox) checkbox.checked = !checkbox.checked;
         }
     }
 
