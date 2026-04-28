@@ -2112,6 +2112,7 @@
     let currentSearch = '';
     let totalStreamsCount = 0;
     const selectedStreamIds = new Set();
+    const viewerCountCache = new Map();
 
     function refreshStreamsView(page = currentPage, search = currentSearch) {
       currentPage = page;
@@ -2214,14 +2215,7 @@
       }
     }
 
-    function getStatusBadgeHTML(status, duration = '', scheduleTime = null, streamId = null, endTime = null) {
-      const scheduleDate = scheduleTime ? new Date(scheduleTime) : null;
-      const endDate = endTime ? new Date(endTime) : null;
-      const scheduleDetails = scheduleDate || endDate ? `
-            <div class="ml-1 space-y-0.5 text-[10px] leading-tight">
-              ${scheduleDate ? `<div class="text-yellow-500/90"><span class="text-gray-500">Start:</span> ${formatDate(scheduleDate)} ${formatTime(scheduleDate)}</div>` : ''}
-              ${endDate ? `<div class="text-green-400/90"><span class="text-gray-500">End:</span> ${formatDate(endDate)} ${formatTime(endDate)}</div>` : ''}
-            </div>` : '';
+    function getStatusBadgeHTML(status, duration = '', scheduleTime = null, streamId = null) {
       switch (status) {
         case 'live':
           return `
@@ -2246,7 +2240,6 @@
             <span class="text-[10px] font-medium text-yellow-500/80 ml-1 scheduled-countdown animate-pulse" data-schedule-time="${scheduleTime}">
               Loading countdown...
             </span>` : ''}
-            ${scheduleDetails}
           </div>
         `;
         case 'offline':
@@ -2464,11 +2457,13 @@
       
       let statusBadge = '';
       if (stream.status === 'live') {
-        const viewerBadge = stream.youtube_broadcast_id ? `<span class="flex items-center mt-1 text-green-400 text-[10px]"><i class="ti ti-eye mr-0.5"></i> <span class="concurrent-viewers" data-channel-id="${stream.youtube_channel_id}" data-broadcast-id="${stream.youtube_broadcast_id}">...</span></span>` : '';
+        const viewerCacheKey = `${stream.youtube_channel_id}:${stream.youtube_broadcast_id}`;
+        const cachedViewers = viewerCountCache.get(viewerCacheKey) || '...';
+        const viewerBadge = stream.youtube_broadcast_id ? `<span class="flex items-center mt-1 text-green-400 text-[10px]"><i class="ti ti-eye mr-0.5"></i> <span class="concurrent-viewers" data-channel-id="${stream.youtube_channel_id}" data-broadcast-id="${stream.youtube_broadcast_id}">${cachedViewers}</span></span>` : '';
         const cpuBadge = `<span class="stream-cpu-badge ${cpuHiddenClass} text-[9px] text-gray-400 bg-dark-900/50 px-1 py-0.5 rounded border border-gray-700 ml-1.5" data-stream-id="${stream.id}">${cpuText}</span>`;
         statusBadge = `<div><div class="flex items-center"><span class="flex items-center text-red-400"><span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse mr-1"></span><span class="text-[10px] font-medium">Live${durationDisplay ? ' • ' : ''}</span>${durationDisplay ? `<span class="text-[10px] font-medium tabular-nums live-duration" data-start-time="${stream.start_time}">${durationDisplay}</span>` : ''}</span>${cpuBadge}</div>${viewerBadge}</div>`;
       } else {
-        statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time, stream.id, stream.end_time);
+        statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time, stream.id);
       }
       let scheduleHTML = '';
       if (stream.status === 'scheduled' && scheduleDate) {
@@ -2561,6 +2556,8 @@
       let durationDisplay = '';
       let statusBadge = '';
       if (stream.status === 'live' && stream.start_time) {
+        const viewerCacheKey = `${stream.youtube_channel_id}:${stream.youtube_broadcast_id}`;
+        const cachedViewers = viewerCountCache.get(viewerCacheKey) || '...';
         const startTime = new Date(stream.start_time);
         const now = new Date();
         const durationMs = now - startTime;
@@ -2580,12 +2577,12 @@
             </div>
             ${stream.youtube_broadcast_id ? `
             <span class="flex items-center w-fit bg-gray-800 text-green-400 rounded-full px-2.5 py-1 text-xs border border-gray-700">
-              <i class="ti ti-eye mr-1"></i> <span class="concurrent-viewers ml-1" data-channel-id="${stream.youtube_channel_id}" data-broadcast-id="${stream.youtube_broadcast_id}">...</span>
+              <i class="ti ti-eye mr-1"></i> <span class="concurrent-viewers ml-1" data-channel-id="${stream.youtube_channel_id}" data-broadcast-id="${stream.youtube_broadcast_id}">${cachedViewers}</span>
             </span>` : ''}
           </div>
         `;
       } else {
-        statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time, stream.id, stream.end_time);
+        statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time, stream.id);
       }
       const canSelectStream = stream.status !== 'live';
       row.innerHTML = `
@@ -2805,6 +2802,7 @@
       displayDesktopStreams(streams);
       applyChannelVisibility();
       syncStreamSelectionUI();
+      pollConcurrentViewers();
     }
 
     function fetchStreams(page = 1, limit = 10, search = '') {
@@ -5091,22 +5089,28 @@
 
       setInterval(() => {
         pollConcurrentViewers();
-      }, 180000); // 3 minutes interval
+      }, 30000);
     });
 
     async function pollConcurrentViewers() {
       const viewerElements = document.querySelectorAll('.concurrent-viewers');
+      const seen = new Set();
       viewerElements.forEach(async (el) => {
         const channelId = el.getAttribute('data-channel-id');
         const broadcastId = el.getAttribute('data-broadcast-id');
         if (channelId && broadcastId) {
+          const cacheKey = `${channelId}:${broadcastId}`;
+          if (seen.has(cacheKey)) return;
+          seen.add(cacheKey);
           try {
             const res = await fetch(`/api/youtube/live-viewers/${channelId}/${broadcastId}`);
             const json = await res.json();
             if (json.success && json.concurrentViewers !== undefined) {
-              el.textContent = new Intl.NumberFormat().format(json.concurrentViewers);
-            } else {
-              el.textContent = 'Err';
+              const formatted = new Intl.NumberFormat().format(json.concurrentViewers);
+              viewerCountCache.set(cacheKey, formatted);
+              document.querySelectorAll(`.concurrent-viewers[data-channel-id="${channelId}"][data-broadcast-id="${broadcastId}"]`).forEach(viewerEl => {
+                viewerEl.textContent = formatted;
+              });
             }
           } catch (e) {}
         }
