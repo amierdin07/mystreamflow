@@ -414,6 +414,7 @@
 <script>
     let currentItems = [];
     let selectedDates = [];
+    let uploadedThumbnailPaths = [];
 
     document.getElementById('repeatMode').addEventListener('change', function() {
         const container = document.getElementById('customDatesContainer');
@@ -531,6 +532,7 @@
 
         currentItems = [];
         selectedDates = [];
+        uploadedThumbnailPaths = [];
         setAutoliveSaving(false);
         document.getElementById('autoliveModal').classList.remove('hidden');
         document.getElementById('autoliveModal').classList.add('flex');
@@ -541,13 +543,42 @@
         document.getElementById('autoliveModal').classList.remove('flex');
     }
 
-    function handleThumbnailPreview(input) {
+    async function handleThumbnailPreview(input) {
         const count = input.files.length;
         const totalSize = Array.from(input.files).reduce((sum, file) => sum + file.size, 0);
         const totalMb = totalSize / (1024 * 1024);
-        document.getElementById('thumbCount').innerText = count
-            ? `${count} file dipilih - ${totalMb.toFixed(totalMb >= 10 ? 0 : 1)} MB`
-            : 'Belum ada file dipilih';
+        const thumbCountEl = document.getElementById('thumbCount');
+        
+        if (count === 0) {
+            thumbCountEl.innerText = 'Belum ada file dipilih';
+            return;
+        }
+        
+        thumbCountEl.innerHTML = `<i class="ti ti-loader animate-spin"></i> Mengupload ${count} file...`;
+        
+        const formData = new FormData();
+        for (let i = 0; i < input.files.length; i++) {
+            formData.append('thumbnails', input.files[i]);
+        }
+        
+        try {
+            const url = '/api/autolive/upload-thumbnails';
+            const method = 'POST';
+            
+            const result = await submitAutoliveForm(url, method, formData, (percent) => {
+                thumbCountEl.innerHTML = `<i class="ti ti-loader animate-spin"></i> Mengupload ${percent}%`;
+            });
+            
+            if (result.success) {
+                uploadedThumbnailPaths = result.thumbnails;
+                thumbCountEl.innerHTML = `<span class="text-green-400"><i class="ti ti-check"></i> ${count} file terupload - ${totalMb.toFixed(totalMb >= 10 ? 0 : 1)} MB</span>`;
+            } else {
+                thumbCountEl.innerHTML = `<span class="text-red-400"><i class="ti ti-x"></i> Gagal upload: ${result.error}</span>`;
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            thumbCountEl.innerHTML = `<span class="text-red-400"><i class="ti ti-x"></i> ${error.message || 'Gagal upload'}</span>`;
+        }
     }
 
     function setAutoliveSaving(isSaving, message = 'Menyiapkan upload...', percent = 0) {
@@ -606,34 +637,31 @@
         }
 
         const titles = titlesText.split('\n').map(t => t.trim()).filter(t => t);
-        const thumbnailFiles = document.getElementById('bulkThumbnails').files;
         const previousItems = currentItems.slice();
         const hasExistingItems = previousItems.length > 0;
         
         currentItems = titles.map((title, index) => {
             const previousItem = previousItems[index] || {};
             const newItemOffset = index - previousItems.length;
-            const shouldUseUploadedThumbnail = thumbnailFiles.length > 0 && (
+            const shouldUseUploadedThumbnail = uploadedThumbnailPaths.length > 0 && (
                 !hasExistingItems ||
                 newItemOffset >= 0 ||
                 !previousItem.thumbnail_path ||
-                thumbnailFiles.length >= titles.length
+                uploadedThumbnailPaths.length >= titles.length
             );
-            const newThumbnailFile = shouldUseUploadedThumbnail
-                ? thumbnailFiles[(newItemOffset >= 0 ? newItemOffset : index) % thumbnailFiles.length]
+            
+            const newThumbnailData = shouldUseUploadedThumbnail
+                ? uploadedThumbnailPaths[(newItemOffset >= 0 ? newItemOffset : index) % uploadedThumbnailPaths.length]
                 : null;
-            const thumbnailUploadIndex = newThumbnailFile
-                ? (newItemOffset >= 0 ? newItemOffset : index) % thumbnailFiles.length
-                : -1;
 
             return {
                 title: title,
                 description: previousItem.description || '',
                 tags: previousItem.tags || '',
-                thumbnail_path: previousItem.thumbnail_path || null,
-                original_thumbnail_path: previousItem.original_thumbnail_path || null,
-                thumbnail_file: newThumbnailFile,
-                thumbnail_upload_index: thumbnailUploadIndex
+                thumbnail_path: newThumbnailData ? newThumbnailData.path : (previousItem.thumbnail_path || null),
+                original_thumbnail_path: newThumbnailData ? newThumbnailData.originalName : (previousItem.original_thumbnail_path || null),
+                thumbnail_file: null,
+                thumbnail_upload_index: -1
             };
         });
 
@@ -648,15 +676,30 @@
 
         currentItems.forEach((item, index) => {
             const div = document.createElement('div');
-            div.className = 'flex items-center gap-4 bg-dark-900/50 p-3 rounded-xl border border-gray-700/50';
+            div.className = 'flex items-center gap-4 bg-dark-900/50 p-3 rounded-xl border border-gray-700/50 relative group';
+            
+            let thumbnailInfo = '<i class="ti ti-photo-off mr-1"></i>No Thumbnail';
+            let previewImageHtml = '';
+            
+            if (item.thumbnail_path) {
+                const displayName = item.original_thumbnail_path || 'Thumbnail tersimpan';
+                thumbnailInfo = `<button type="button" onclick="toggleThumbnailPreview(${index})" class="text-primary hover:text-blue-400 transition-colors flex items-center gap-1">
+                                    <i class="ti ti-photo mr-1"></i>${displayName}
+                                 </button>`;
+                previewImageHtml = `<div id="thumb-preview-${index}" class="hidden absolute top-full left-10 z-50 mt-2 p-2 bg-dark-800 rounded-xl border border-gray-700 shadow-2xl max-w-[200px]">
+                                        <img src="${item.thumbnail_path}" class="w-full h-auto rounded-lg object-cover" alt="Preview">
+                                    </div>`;
+            }
+
             div.innerHTML = `
                 <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-400">
                     ${index + 1}
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="text-sm font-medium text-white truncate">${item.title}</div>
-                    <div class="text-[10px] text-gray-500 mt-0.5">
-                        ${item.thumbnail_file ? `<i class="ti ti-photo mr-1"></i>${item.thumbnail_file.name}` : (item.thumbnail_path ? '<i class="ti ti-photo-check mr-1"></i>Thumbnail tersimpan' : '<i class="ti ti-photo-off mr-1"></i>No New Thumbnail')}
+                    <div class="text-[10px] text-gray-500 mt-0.5 relative">
+                        ${thumbnailInfo}
+                        ${previewImageHtml}
                     </div>
                 </div>
                 <button type="button" onclick="removeItem(${index})" class="p-2 text-gray-500 hover:text-red-500 transition-colors">
@@ -665,6 +708,13 @@
             `;
             container.appendChild(div);
         });
+    }
+
+    function toggleThumbnailPreview(index) {
+        const previewEl = document.getElementById(`thumb-preview-${index}`);
+        if (previewEl) {
+            previewEl.classList.toggle('hidden');
+        }
     }
 
     function removeItem(index) {
@@ -732,16 +782,10 @@
             title: item.title,
             description: item.description,
             tags: item.tags,
-            thumbnail_upload_index: item.thumbnail_upload_index,
-            thumbnail_path: item.thumbnail_path, // for edits
-            original_thumbnail_path: item.original_thumbnail_path // for edits
+            thumbnail_upload_index: -1,
+            thumbnail_path: item.thumbnail_path, // for edits and new
+            original_thumbnail_path: item.original_thumbnail_path // for edits and new
         }))));
-
-        // Add actual thumbnail files
-        const thumbnailFiles = document.getElementById('bulkThumbnails').files;
-        for (let i = 0; i < thumbnailFiles.length; i++) {
-            formData.append(`thumbnail_${i}`, thumbnailFiles[i]);
-        }
 
         setAutoliveSaving(true, 'Mengupload thumbnail dan metadata...', 0);
 

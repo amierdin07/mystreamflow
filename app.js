@@ -5254,6 +5254,24 @@ app.get('/api/autolive/:id', isAuthenticated, async (req, res) => {
   }
 });
 
+app.post('/api/autolive/upload-thumbnails', isAuthenticated, uploadThumbnail.any(), async (req, res) => {
+  try {
+    const uploadedFiles = req.files || [];
+    const thumbnails = uploadedFiles.map(file => {
+      return {
+        originalName: file.originalname,
+        filename: file.filename,
+        path: `/uploads/thumbnails/${file.filename}`
+      };
+    });
+    
+    res.json({ success: true, thumbnails });
+  } catch (error) {
+    console.error('Error uploading thumbnails:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, res) => {
   try {
     const Autolive = require('./models/Autolive');
@@ -5288,14 +5306,13 @@ app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, re
     
     for (let i = 0; i < parsedItems.length; i++) {
       const item = parsedItems[i];
-      const thumbnailFile = uploadedFileMap.get(`thumbnail_${item.thumbnail_upload_index}`);
+      let thumbnailPath = item.thumbnail_path;
+      let originalThumbnailPath = item.original_thumbnail_path;
       
-      let thumbnailPath = null;
-      let originalThumbnailPath = null;
+      const thumbnailFile = uploadedFileMap.get(`thumbnail_${item.thumbnail_upload_index}`);
       if (thumbnailFile) {
         const originalFilename = thumbnailFile.filename;
         originalThumbnailPath = originalFilename;
-        // Use original file directly - no resize/compress
         thumbnailPath = `/uploads/thumbnails/${originalFilename}`;
       }
       
