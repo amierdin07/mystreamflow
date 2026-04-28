@@ -212,6 +212,15 @@ class AutoliveService {
     const alreadyQueued = this.isStreamQueuedFor(linkedStream, targetStart);
 
     if (isReadyToStart && now < targetEnd && timeToTarget <= PREPARE_WINDOW_MS) {
+      if (linkedStream && linkedStream.status === 'scheduled' && !linkedStream.schedule_time) {
+        console.log(`[Autolive] Repairing missing schedule_time for "${series.name}" at ${targetStart.toISOString()}`);
+        await Stream.update(streamId, {
+          schedule_time: targetStart.toISOString(),
+          end_time: targetEnd.toISOString(),
+          duration: series.duration || null
+        });
+      }
+
       if (!alreadyQueued) {
         console.log(`[Autolive] Queueing stream task for "${series.name}" at ${targetStart.toISOString()}`);
         await this.syncToYouTube(series, targetStart, targetEnd);
@@ -376,7 +385,12 @@ class AutoliveService {
       // We need to temporarily save this dummy stream to the DB so youtubeService can find it
       // OR we modify youtubeService to accept an object. 
       // Let's use a more robust way: create/update a dedicated stream record for this series.
-      let streamRecord = await this.getOrCreateStreamRecord(series);
+      let streamRecord = await this.getOrCreateStreamRecord(series, {
+        title: currentItem.title,
+        schedule_time: scheduledStart.toISOString(),
+        end_time: scheduledEnd.toISOString(),
+        duration: series.duration || null
+      });
       
       // Update stream record with current item metadata and series settings
       await Stream.update(streamRecord.id, {
@@ -415,7 +429,7 @@ class AutoliveService {
     }
   }
 
-  static async getOrCreateStreamRecord(series) {
+  static async getOrCreateStreamRecord(series, defaults = {}) {
     const streamId = `autolive_${series.id}`;
     let stream = await Stream.findById(streamId);
     if (!stream) {
@@ -426,9 +440,25 @@ class AutoliveService {
       // FIX #4: db.run is callback-based in sqlite3 — must wrap in Promise, not use await directly.
       await new Promise((resolve, reject) => {
         db.run(
-          `INSERT INTO streams (id, user_id, title, video_id, rtmp_url, stream_key, platform, status, is_youtube_api, youtube_channel_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [streamId, series.user_id, series.name, sourceId, '', '', 'YouTube', 'scheduled', 1, series.youtube_channel_id],
+          `INSERT INTO streams (
+            id, user_id, title, video_id, rtmp_url, stream_key, platform, status,
+            is_youtube_api, youtube_channel_id, schedule_time, end_time, duration
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            streamId,
+            series.user_id,
+            defaults.title || series.name,
+            sourceId,
+            '',
+            '',
+            'YouTube',
+            defaults.schedule_time ? 'scheduled' : 'offline',
+            1,
+            series.youtube_channel_id,
+            defaults.schedule_time || null,
+            defaults.end_time || null,
+            defaults.duration || null
+          ],
           function(err) {
             if (err) {
               console.error('[Autolive] Error creating stream record:', err.message);

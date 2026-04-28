@@ -2214,7 +2214,14 @@
       }
     }
 
-    function getStatusBadgeHTML(status, duration = '', scheduleTime = null, streamId = null) {
+    function getStatusBadgeHTML(status, duration = '', scheduleTime = null, streamId = null, endTime = null) {
+      const scheduleDate = scheduleTime ? new Date(scheduleTime) : null;
+      const endDate = endTime ? new Date(endTime) : null;
+      const scheduleDetails = scheduleDate || endDate ? `
+            <div class="ml-1 space-y-0.5 text-[10px] leading-tight">
+              ${scheduleDate ? `<div class="text-yellow-500/90"><span class="text-gray-500">Start:</span> ${formatDate(scheduleDate)} ${formatTime(scheduleDate)}</div>` : ''}
+              ${endDate ? `<div class="text-green-400/90"><span class="text-gray-500">End:</span> ${formatDate(endDate)} ${formatTime(endDate)}</div>` : ''}
+            </div>` : '';
       switch (status) {
         case 'live':
           return `
@@ -2239,6 +2246,7 @@
             <span class="text-[10px] font-medium text-yellow-500/80 ml-1 scheduled-countdown animate-pulse" data-schedule-time="${scheduleTime}">
               Loading countdown...
             </span>` : ''}
+            ${scheduleDetails}
           </div>
         `;
         case 'offline':
@@ -2460,12 +2468,12 @@
         const cpuBadge = `<span class="stream-cpu-badge ${cpuHiddenClass} text-[9px] text-gray-400 bg-dark-900/50 px-1 py-0.5 rounded border border-gray-700 ml-1.5" data-stream-id="${stream.id}">${cpuText}</span>`;
         statusBadge = `<div><div class="flex items-center"><span class="flex items-center text-red-400"><span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse mr-1"></span><span class="text-[10px] font-medium">Live${durationDisplay ? ' • ' : ''}</span>${durationDisplay ? `<span class="text-[10px] font-medium tabular-nums live-duration" data-start-time="${stream.start_time}">${durationDisplay}</span>` : ''}</span>${cpuBadge}</div>${viewerBadge}</div>`;
       } else {
-        statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time, stream.id);
+        statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time, stream.id, stream.end_time);
       }
       let scheduleHTML = '';
       if (stream.status === 'scheduled' && scheduleDate) {
-        scheduleHTML = `<span class="text-[10px] text-yellow-500">${scheduleDate} ${scheduleTime}</span>`;
-        if (endDate) scheduleHTML += ` <span class="text-[10px] text-gray-500">→</span> <span class="text-[10px] text-green-500">${endDate} ${endTime}</span>`;
+        scheduleHTML = `<span class="text-[10px] text-yellow-500">Start: ${scheduleDate} ${scheduleTime}</span>`;
+        if (endDate) scheduleHTML += ` <span class="text-[10px] text-gray-500">→</span> <span class="text-[10px] text-green-500">End: ${endDate} ${endTime}</span>`;
       } else if (endDate) {
         scheduleHTML = `<span class="text-[10px] text-green-500">End: ${endDate} ${endTime}</span>`;
       }
@@ -2577,7 +2585,7 @@
           </div>
         `;
       } else {
-        statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time, stream.id);
+        statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time, stream.id, stream.end_time);
       }
       const canSelectStream = stream.status !== 'live';
       row.innerHTML = `
@@ -5400,3 +5408,4 @@
       window._tipsPrevModal = null;
     }
   </script>
+
