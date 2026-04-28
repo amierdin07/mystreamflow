@@ -2454,6 +2454,7 @@
       const cpuText = existingState.cpuText || 'CPU: 0%';
       const cpuHiddenClass = existingState.cpuHidden !== false ? 'hidden' : '';
       const signalHTML = existingState.signalHTML || '<span class="text-gray-500 text-[10px] animate-pulse">Connecting...</span>';
+      const autoliveNameHTML = stream.autolive_series_name ? `<div class="text-[10px] text-purple-300 truncate mt-0.5 leading-tight"><i class="ti ti-bolt text-[10px] mr-0.5"></i>Autolive: ${stream.autolive_series_name}</div>` : '';
       
       let statusBadge = '';
       if (stream.status === 'live') {
@@ -2493,6 +2494,7 @@
         <div class="flex-1 min-w-0">
           ${getSourceBadgeHTML(stream.id)}
           ${stream.video_type ? `<div class="text-sm font-semibold text-white truncate leading-tight" title="${stream.video_type === 'playlist' ? stream.playlist_name : stream.video_title}">${stream.video_type === 'playlist' ? '<i class="ti ti-list text-[11px] text-primary mr-1"></i>' + stream.playlist_name : '<i class="ti ti-video text-[11px] text-primary mr-1"></i>' + stream.video_title}</div>` : `<h4 class="text-sm font-medium text-white truncate leading-tight">${stream.title}</h4>`}
+          ${autoliveNameHTML}
           ${stream.video_type ? `<div class="text-[11px] text-gray-400 truncate mt-0.5 leading-tight">${stream.title}</div>` : ''}
           <div class="flex items-center gap-1.5 mt-1">
             <div class="flex items-center text-[10px] text-gray-400">
@@ -2552,6 +2554,7 @@
       const cpuText = existingState.cpuText || 'CPU: 0%';
       const cpuHiddenClass = existingState.cpuHidden !== false ? 'hidden' : '';
       const signalHTML = existingState.signalHTML || '<span class="text-gray-500 text-[10px] animate-pulse">Connecting...</span>';
+      const autoliveNameHTML = stream.autolive_series_name ? `<div class="text-[11px] text-purple-300 truncate max-w-[200px]"><i class="ti ti-bolt text-[10px] mr-0.5"></i>Autolive: ${stream.autolive_series_name}</div>` : '';
       
       let durationDisplay = '';
       let statusBadge = '';
@@ -2603,6 +2606,7 @@
           <div class="min-w-0 flex-1">
             ${getSourceBadgeHTML(stream.id)}
             ${stream.video_type ? `<div class="text-sm font-semibold truncate max-w-[200px]" title="${stream.video_type === 'playlist' ? stream.playlist_name : stream.video_title}">${stream.video_type === 'playlist' ? '<i class="ti ti-list text-[11px] text-primary mr-1"></i>' + stream.playlist_name : '<i class="ti ti-video text-[11px] text-primary mr-1"></i>' + stream.video_title}</div>` : `<div class="text-sm font-medium truncate max-w-[200px]" title="${stream.title}">${stream.title}</div>`}
+            ${autoliveNameHTML}
             ${stream.video_type ? `<div class="text-[11px] text-gray-400 truncate max-w-[200px]">${stream.title}</div>` : ''}
             <div class="text-xs text-gray-400 stream-settings-display">${settingsDisplay}</div>
           </div>

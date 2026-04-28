@@ -99,11 +99,13 @@ class Stream {
                END AS video_type,
                yc.channel_name AS youtube_channel_name,
                yc.channel_thumbnail AS youtube_channel_thumbnail,
-               yc.channel_id AS youtube_channel_external_id
+               yc.channel_id AS youtube_channel_external_id,
+               als.name AS autolive_series_name
         FROM streams s
         LEFT JOIN videos v ON s.video_id = v.id
         LEFT JOIN playlists p ON s.video_id = p.id
         LEFT JOIN youtube_channels yc ON s.youtube_channel_id = yc.id
+        LEFT JOIN autolive_series als ON s.id = 'autolive_' || als.id
       `;
       const params = [];
       const conditions = [];
@@ -161,6 +163,7 @@ class Stream {
         LEFT JOIN videos v ON s.video_id = v.id
         LEFT JOIN playlists p ON s.video_id = p.id
         LEFT JOIN youtube_channels yc ON s.youtube_channel_id = yc.id
+        LEFT JOIN autolive_series als ON s.id = 'autolive_' || als.id
       `;
       const params = [];
       const conditions = [];
@@ -209,7 +212,8 @@ class Stream {
                  END AS video_type,
                  yc.channel_name AS youtube_channel_name,
                  yc.channel_thumbnail AS youtube_channel_thumbnail,
-                 yc.channel_id AS youtube_channel_external_id
+                 yc.channel_id AS youtube_channel_external_id,
+                 als.name AS autolive_series_name
           ${baseQuery}
           ORDER BY 
             ${sort === 'channel' ? `
