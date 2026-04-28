@@ -77,16 +77,9 @@ class AutoliveService {
     const rawDurationMs = (series.duration || 0) * 60 * 1000;
     const durationMs = rawDurationMs > 0 ? rawDurationMs : 60 * 60 * 1000;
     
-    // FIX #2: Find the most recent session start that is <= now (i.e. the session currently active or the last one).
+    // Find the most recent session start that is <= now (i.e. the session currently active or the last one).
     if (series.repeat_mode !== 'none' && series.repeat_mode !== 'custom') {
-      let candidate = parseLocalDateTime(series.start_time);
-      // Walk forward one interval at a time; stop as soon as next would be > now
-      while (true) {
-        const next = this.getNextStartTime(candidate.toISOString(), series.repeat_mode);
-        if (next > now) break; // 'candidate' is the most recent session start <= now
-        candidate = next;
-      }
-      sessionStart = candidate;
+      sessionStart = this.getCurrentSessionStart(series.start_time, series.repeat_mode, now);
     } else if (series.repeat_mode === 'custom' && series.custom_dates) {
       try {
         const dates = JSON.parse(series.custom_dates);
@@ -207,6 +200,50 @@ class AutoliveService {
       }
     }
     return nextStart;
+  }
+
+  static getCurrentSessionStart(startTimeStr, repeatMode, now = new Date()) {
+    let currentStart = parseLocalDateTime(startTimeStr);
+    if (isNaN(currentStart.getTime()) || currentStart > now) return currentStart;
+
+    const dayMap = {
+      'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+      'thursday': 4, 'friday': 5, 'saturday': 6
+    };
+
+    if (dayMap[repeatMode] !== undefined) {
+      const targetDay = dayMap[repeatMode];
+      while (currentStart.getDay() !== targetDay) {
+        currentStart.setDate(currentStart.getDate() + 1);
+      }
+
+      while (true) {
+        const nextStart = new Date(currentStart);
+        nextStart.setDate(nextStart.getDate() + 7);
+        if (nextStart > now) return currentStart;
+        currentStart = nextStart;
+      }
+    }
+
+    const advance = (date) => {
+      const nextStart = new Date(date);
+      switch (repeatMode) {
+        case 'daily': nextStart.setDate(nextStart.getDate() + 1); break;
+        case 'weekly': nextStart.setDate(nextStart.getDate() + 7); break;
+        case 'every_2_days': nextStart.setDate(nextStart.getDate() + 2); break;
+        case 'every_3_days': nextStart.setDate(nextStart.getDate() + 3); break;
+        case 'every_4_days': nextStart.setDate(nextStart.getDate() + 4); break;
+        case 'every_5_days': nextStart.setDate(nextStart.getDate() + 5); break;
+        default: return date;
+      }
+      return nextStart;
+    };
+
+    while (true) {
+      const nextStart = advance(currentStart);
+      if (nextStart <= currentStart || nextStart > now) return currentStart;
+      currentStart = nextStart;
+    }
   }
 
   static async syncToYouTube(series) {
