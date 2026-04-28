@@ -131,14 +131,13 @@ class AutoliveService {
       return;
     }
 
-    // STOP if all items are already used
-    if (series.current_item_index >= items.length) {
-      console.log(`[Autolive] Series "${series.name}" finished all items. Stopping series.`);
-      await Autolive.update(series.id, { is_active: 0, status: 'offline' });
-      return;
-    }
+    // Looping is handled by % items.length in syncToYouTube, so we don't need to force stop here
+    // unless it's a one-time series that has no more sessions (which is handled below).
+
 
     const timeZone = getSeriesTimeZone(series);
+    console.log(`[Autolive] Processing "${series.name}": index=${series.current_item_index}, items=${items.length}, repeat=${series.repeat_mode}`);
+
 
     // FIX #2 & #3: Properly calculate which session window 'now' falls into.
     let sessionStart = parseLocalDateTime(series.start_time);
