@@ -5257,13 +5257,27 @@ app.get('/api/autolive/:id', isAuthenticated, async (req, res) => {
 app.post('/api/autolive/upload-thumbnails', isAuthenticated, uploadThumbnail.any(), async (req, res) => {
   try {
     const uploadedFiles = req.files || [];
-    const thumbnails = uploadedFiles.map(file => {
-      return {
-        originalName: file.originalname,
-        filename: file.filename,
-        path: `/uploads/thumbnails/${file.filename}`
-      };
-    });
+    
+    const thumbnails = await Promise.all(uploadedFiles.map(async (file) => {
+      const originalFilename = file.filename;
+      const thumbFilename = `thumb-${path.parse(originalFilename).name}.jpg`;
+      
+      try {
+        await generateImageThumbnail(file.path, thumbFilename);
+        return {
+          originalName: file.originalname,
+          filename: thumbFilename,
+          path: `/uploads/thumbnails/${thumbFilename}`
+        };
+      } catch (thumbError) {
+        console.error('Note: Could not process thumbnail, falling back to original:', thumbError.message);
+        return {
+          originalName: file.originalname,
+          filename: file.filename,
+          path: `/uploads/thumbnails/${file.filename}`
+        };
+      }
+    }));
     
     res.json({ success: true, thumbnails });
   } catch (error) {
