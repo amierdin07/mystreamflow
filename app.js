@@ -4333,6 +4333,57 @@ app.put('/api/streams/:id', isAuthenticated, uploadThumbnail.single('thumbnail')
     res.status(500).json({ success: false, error: 'Failed to update stream' });
   }
 });
+
+app.delete('/api/streams/batch', isAuthenticated, async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter(Boolean) : [];
+    const uniqueIds = [...new Set(ids)];
+
+    if (uniqueIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'No streams selected' });
+    }
+
+    const result = {
+      deleted: 0,
+      skipped: 0,
+      notFound: 0,
+      unauthorized: 0,
+      skippedLive: 0
+    };
+
+    for (const streamId of uniqueIds) {
+      const stream = await Stream.findById(streamId);
+      if (!stream) {
+        result.notFound++;
+        continue;
+      }
+
+      if (stream.user_id !== req.session.userId) {
+        result.unauthorized++;
+        continue;
+      }
+
+      if (stream.status === 'live') {
+        result.skipped++;
+        result.skippedLive++;
+        continue;
+      }
+
+      await Stream.delete(streamId, req.session.userId);
+      result.deleted++;
+    }
+
+    res.json({
+      success: true,
+      ...result,
+      message: `Deleted ${result.deleted} stream(s)`
+    });
+  } catch (error) {
+    console.error('Error batch deleting streams:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete selected streams' });
+  }
+});
+
 app.delete('/api/streams/:id', isAuthenticated, async (req, res) => {
   try {
     const stream = await Stream.findById(req.params.id);
@@ -5259,6 +5310,10 @@ app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, re
       });
     }
     
+    require('./services/autoliveService').checkAutoliveSeries().catch(err => {
+      console.error('Error triggering autolive check after create:', err);
+    });
+
     res.json({ success: true, series });
   } catch (error) {
     console.error('Error creating autolive:', error);
@@ -5324,6 +5379,10 @@ app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req,
       }
     }
     
+    require('./services/autoliveService').checkAutoliveSeries().catch(err => {
+      console.error('Error triggering autolive check after update:', err);
+    });
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -5333,6 +5392,28 @@ app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req,
 app.delete('/api/autolive/:id', isAuthenticated, async (req, res) => {
   try {
     const Autolive = require('./models/Autolive');
+    const series = await Autolive.findById(req.params.id);
+    if (!series) return res.status(404).json({ success: false, error: 'Series not found' });
+    if (series.user_id !== req.session.userId) {
+      return res.status(403).json({ success: false, error: 'Not authorized to delete this series' });
+    }
+
+    const streamId = `autolive_${req.params.id}`;
+    const linkedStream = await Stream.findById(streamId);
+    if (linkedStream && linkedStream.user_id === req.session.userId) {
+      if (linkedStream.status === 'live') {
+        try {
+          const stopResult = await streamingService.stopStream(streamId);
+          if (!stopResult.success && stopResult.error !== 'Stream is not active') {
+            console.error('Error stopping linked autolive stream before delete:', stopResult.error);
+          }
+        } catch (stopError) {
+          console.error('Error stopping linked autolive stream before delete:', stopError);
+        }
+      }
+      await Stream.delete(streamId, req.session.userId);
+    }
+
     await Autolive.delete(req.params.id, req.session.userId);
     res.json({ success: true });
   } catch (error) {
@@ -5354,6 +5435,10 @@ app.post('/api/autolive/:id/toggle', isAuthenticated, async (req, res) => {
       // We don't await this to avoid holding up the response if stopping takes time
       autoliveService.stopAutoliveStream(series).catch(err => {
         console.error('Error stopping autolive stream on toggle:', err);
+      });
+    } else if (newActive === 1) {
+      require('./services/autoliveService').checkAutoliveSeries().catch(err => {
+        console.error('Error triggering autolive check after toggle:', err);
       });
     }
 

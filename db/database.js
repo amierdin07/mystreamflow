@@ -425,6 +425,24 @@ function createTables() {
       db.run(`ALTER TABLE autolive_series ADD COLUMN timezone TEXT DEFAULT 'Asia/Bangkok'`, (err) => {
         if (err && !err.message.includes('duplicate column name')) console.error(err.message);
       });
+      db.run(`ALTER TABLE autolive_series ADD COLUMN youtube_broadcast_id TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
+      db.run(`ALTER TABLE autolive_series ADD COLUMN youtube_stream_id TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
+      db.run(`ALTER TABLE autolive_series ADD COLUMN rtmp_url TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
+      db.run(`ALTER TABLE autolive_series ADD COLUMN stream_key TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
+      db.run(`ALTER TABLE autolive_series ADD COLUMN last_metadata_update TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
+      db.run(`ALTER TABLE autolive_series ADD COLUMN status TEXT DEFAULT 'offline'`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
 
       db.run(`ALTER TABLE users ADD COLUMN disk_limit INTEGER DEFAULT 0`, (err) => {
         if (err && !err.message.includes('duplicate column name')) {

@@ -112,7 +112,11 @@ class AutoliveService {
       const now = new Date();
 
       for (const series of activeSeries) {
-        await this.processSeries(series, now);
+        try {
+          await this.processSeries(series, now);
+        } catch (seriesError) {
+          console.error(`[Autolive] Error processing series "${series.name || series.id}":`, seriesError);
+        }
       }
     } catch (error) {
       console.error('Error in Autolive check:', error);
@@ -121,7 +125,10 @@ class AutoliveService {
 
   static async processSeries(series, now) {
     const items = await Autolive.getItemsBySeriesId(series.id);
-    if (items.length === 0) return;
+    if (items.length === 0) {
+      console.log(`[Autolive] Series "${series.name}" skipped: no metadata items`);
+      return;
+    }
 
     // STOP if all items are already used
     if (series.current_item_index >= items.length) {
@@ -134,6 +141,11 @@ class AutoliveService {
 
     // FIX #2 & #3: Properly calculate which session window 'now' falls into.
     let sessionStart = parseLocalDateTime(series.start_time);
+    if (!series.start_time || isNaN(sessionStart.getTime())) {
+      console.error(`[Autolive] Series "${series.name}" skipped: invalid start_time "${series.start_time}"`);
+      return;
+    }
+
     // FIX #3: durationMs must be at least 1 minute to avoid zero-window. If user set 0, default to 60 min.
     const rawDurationMs = (series.duration || 0) * 60 * 1000;
     const durationMs = rawDurationMs > 0 ? rawDurationMs : 60 * 60 * 1000;
