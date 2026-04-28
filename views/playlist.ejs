@@ -1,26 +1,33 @@
 <% layout('layout') -%>
 
-<!-- Negative margin to counteract the layout pt-20 -->
-<div>
-
-<div class="flex flex flex-row items-center justify-between mb-1 gap-2">
-  <div>
-    <h2 class="text-sm font-bold uppercase tracking-wider text-gray-400">Playlist Manager</h2>
-  </div>
+<div class="playlist-page flex min-h-[calc(100vh-9rem)] flex-col pb-6">
+<div class="mb-3 flex flex-row items-center justify-between gap-3">
+  <h2 class="text-sm font-bold uppercase tracking-wider text-gray-400">Playlist Manager</h2>
+  <div class="flex items-center gap-2">
+    <% if (!showChannels && playlists && playlists.length > 0) { %>
+    <button id="plSelectModeBtn" onclick="togglePlaylistSelectMode()"
+      class="h-8 flex items-center gap-1.5 bg-dark-700 text-gray-300 hover:text-white px-3 rounded-lg transition-colors text-xs border border-gray-600">
+      <i class="ti ti-checkbox"></i>
+      <span>Tandai</span>
+    </button>
+    <% } %>
     <button onclick="openCreatePlaylistModal()"
-      class="flex items-center gap-1.5 bg-primary hover:bg-blue-600 text-white px-3 py-1 rounded transition-colors text-xs">
+      class="h-8 flex items-center gap-1.5 bg-primary hover:bg-blue-600 text-white px-3 rounded-lg transition-colors text-xs">
       <i class="ti ti-plus"></i>
       <span>Create Playlist</span>
     </button>
   </div>
 </div>
 
-<div id="plSelectActionBar" class="hidden mb-2 flex items-center gap-2 bg-dark-800 border border-primary/40 rounded-lg px-3 py-1.5">
+<div id="plSelectActionBar" class="hidden mb-3 flex items-center gap-2 rounded-lg border border-primary/40 bg-dark-800 px-3 py-2">
   <input type="checkbox" id="plSelectAllCheckbox" class="w-4 h-4 accent-primary cursor-pointer" onchange="toggleSelectAllPlaylists(this.checked)">
   <span id="plSelectedCountLabel" class="text-xs text-gray-300">0 selected</span>
   <div class="flex-1"></div>
   <button id="plBatchMoveBtn" disabled onclick="batchMovePlaylists()" class="flex items-center gap-1 px-2 py-1 bg-dark-700 border border-gray-600 hover:bg-dark-600 text-gray-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed rounded text-xs transition-colors">
     <i class="ti ti-folder-arrow-right"></i><span>Move</span>
+  </button>
+  <button id="plBatchDeleteBtn" disabled onclick="batchDeletePlaylists()" class="flex items-center gap-1 px-2 py-1 bg-red-500/10 border border-red-500/40 hover:bg-red-500/20 text-red-300 hover:text-red-200 disabled:opacity-40 disabled:cursor-not-allowed rounded text-xs transition-colors">
+    <i class="ti ti-trash"></i><span>Delete</span>
   </button>
   <button onclick="togglePlaylistSelectMode()" class="flex items-center gap-1 px-2 py-1 bg-dark-700 border border-gray-600 hover:bg-dark-600 text-gray-300 rounded text-xs">
     <i class="ti ti-x"></i><span>Cancel</span>
@@ -36,7 +43,7 @@
 </div>
 <% } %>
 
-<div class="bg-gray-800/40 rounded-lg p-1.5 mb-2 max-w-2xl">
+<div class="mb-3 rounded-lg bg-gray-800/40 p-2">
   <div class="flex flex-row items-center gap-2">
     <div class="relative w-full sm:w-64">
       <input type="text" id="searchPlaylists" placeholder="Search..."
@@ -52,18 +59,11 @@
           <option value="name">Name</option>
         </select>
       </div>
-      <% if (!showChannels) { %>
-      <button id="plSelectModeBtn" onclick="togglePlaylistSelectMode()"
-        class="h-[32px] flex items-center gap-1.5 bg-dark-700 text-gray-300 hover:text-white px-3 rounded-lg transition-colors text-xs border border-gray-600">
-        <i class="ti ti-checkbox"></i>
-        <span>Select</span>
-      </button>
-      <% } %>
     </div>
   </div>
 </div>
 
-<div id="playlistsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+<div id="playlistsContainer" class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
   <% if (typeof showChannels !== 'undefined' && showChannels) { %>
       <a href="/playlist?channel=general" class="bg-gray-800 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-all hover:bg-dark-600 flex flex-col justify-center items-center min-h-[172px]">
         <div class="w-16 h-16 rounded-full bg-dark-600 flex items-center justify-center mb-4 border border-gray-600">
@@ -88,7 +88,7 @@
       const displayThumbnails = thumbnails.slice(0, 4);
       const audioCount = playlist.audio_count || 0;
     %>
-    <div class="bg-gray-800 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow playlist-card flex flex-col relative"
+    <div class="bg-gray-800 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow playlist-card flex flex-col relative min-h-[220px]"
          data-playlist-id="<%= playlist.id %>" 
          data-created-at="<%= playlist.created_at %>" 
          data-updated-at="<%= playlist.updated_at %>">
@@ -145,7 +145,7 @@
             <button class="p-1 hover:bg-dark-700 rounded transition-colors" onclick="editPlaylist('<%= playlist.id %>')" title="Edit">
               <i class="ti ti-edit text-gray-400 hover:text-white text-sm"></i>
             </button>
-            <button class="p-1 hover:bg-dark-700 rounded transition-colors" onclick="deletePlaylist('<%= playlist.id %>', '<%= playlist.name %>')" title="Delete">
+            <button class="p-1 hover:bg-dark-700 rounded transition-colors" onclick='deletePlaylist(<%- JSON.stringify(playlist.id) %>, <%- JSON.stringify(playlist.name) %>)' title="Delete">
               <i class="ti ti-trash text-gray-400 hover:text-red-400 text-sm"></i>
             </button>
           </div>
@@ -166,13 +166,14 @@
     </div>
   <% } %>
 <% } %>
-
-</div> <!-- End of compact wrapper -->
 </div>
 
-<div class="mt-6 flex items-center justify-between">
+<% if (!showChannels) { %>
+<div class="mt-auto flex items-center justify-between pt-6">
   <p class="text-sm text-gray-400" id="paginationInfo">Showing 1-<%= Math.min(8, playlists ? playlists.length : 0) %> of <%= playlists ? playlists.length : 0 %> playlists</p>
   <div class="flex items-center gap-2" id="paginationControls"></div>
+</div>
+<% } %>
 </div>
 
 <div id="playlistModal" class="fixed inset-0 bg-black/50 z-50 hidden modal-overlay overflow-y-auto">
@@ -473,6 +474,14 @@ function updatePlaylistSelectionUI() {
   if (label) label.textContent = count + ' selected';
   const moveBtn = document.getElementById('plBatchMoveBtn');
   if (moveBtn) moveBtn.disabled = count === 0;
+  const deleteBtn = document.getElementById('plBatchDeleteBtn');
+  if (deleteBtn) deleteBtn.disabled = count === 0;
+  const selectAll = document.getElementById('plSelectAllCheckbox');
+  const checkboxes = Array.from(document.querySelectorAll('.pl-item-checkbox'));
+  if (selectAll) {
+    selectAll.checked = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
+    selectAll.indeterminate = count > 0 && !selectAll.checked;
+  }
 }
 
 async function batchMovePlaylists() {
@@ -517,6 +526,41 @@ async function batchMovePlaylists() {
       showToast('An error occurred', 'error');
     }
   };
+}
+
+async function batchDeletePlaylists() {
+  const items = [...selectedPlaylists.values()];
+  if (items.length === 0) return;
+
+  const message = items.length === 1
+    ? `Are you sure you want to delete "${items[0].name}"?`
+    : `Are you sure you want to delete ${items.length} selected playlists?`;
+
+  if (!confirm(message)) return;
+
+  const csrfToken = document.querySelector('input[name="_csrf"]')?.value || '';
+  const deleteBtn = document.getElementById('plBatchDeleteBtn');
+  if (deleteBtn) deleteBtn.disabled = true;
+
+  try {
+    const results = await Promise.all(items.map(item => fetch(`/api/playlists/${encodeURIComponent(item.id)}`, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-Token': csrfToken }
+    }).then(response => response.json())));
+
+    const failed = results.filter(result => !result.success);
+    if (failed.length === 0) {
+      showToast('Selected playlists deleted successfully', 'success');
+      togglePlaylistSelectMode();
+      setTimeout(() => location.reload(), 800);
+    } else {
+      showToast(`${failed.length} playlist(s) failed to delete`, 'error');
+      updatePlaylistSelectionUI();
+    }
+  } catch(e) {
+    showToast('An error occurred while deleting playlists', 'error');
+    updatePlaylistSelectionUI();
+  }
 }
 // ====== END PLAYLIST MULTI-SELECT ======
 
@@ -1055,6 +1099,8 @@ function filterPlaylists() {
     const desc = card.querySelector('p').textContent.toLowerCase();
     if (name.includes(searchTerm) || desc.includes(searchTerm)) {
       visibleCards.push(card);
+    } else {
+      card.style.display = 'none';
     }
   });
   
@@ -1096,13 +1142,14 @@ function updatePagination() {
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const start = (currentPage - 1) * itemsPerPage + 1;
   const end = Math.min(currentPage * itemsPerPage, totalItems);
+  const info = document.getElementById('paginationInfo');
   
-  document.getElementById('paginationInfo').textContent = totalItems > 0 
+  if (info) info.textContent = totalItems > 0 
     ? `Showing ${start}-${end} of ${totalItems} playlists` 
     : 'No playlists found';
   
   allPlaylistCards.forEach((card, index) => {
-    card.style.display = (index >= (currentPage - 1) * itemsPerPage && index < currentPage * itemsPerPage) ? 'block' : 'none';
+    card.style.display = (index >= (currentPage - 1) * itemsPerPage && index < currentPage * itemsPerPage) ? 'flex' : 'none';
   });
   
   renderPaginationControls(totalPages);
@@ -1110,6 +1157,7 @@ function updatePagination() {
 
 function renderPaginationControls(totalPages) {
   const container = document.getElementById('paginationControls');
+  if (!container) return;
   container.innerHTML = '';
   
   if (totalPages <= 1) return;
