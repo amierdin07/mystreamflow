@@ -404,6 +404,14 @@
     </div>
 </div>
 
+<!-- Full Image Preview Modal -->
+<div id="imagePreviewModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-[60] hidden flex items-center justify-center p-4">
+    <button type="button" onclick="closeImagePreview()" class="absolute top-6 right-6 text-gray-400 hover:text-white bg-dark-800/50 hover:bg-red-500/80 p-3 rounded-full transition-all border border-gray-700">
+        <i class="ti ti-x text-2xl"></i>
+    </button>
+    <img id="previewModalImage" src="" class="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl border border-gray-700/50" alt="Preview">
+</div>
+
 <style>
     .custom-scrollbar::-webkit-scrollbar { width: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -683,12 +691,9 @@
             
             if (item.thumbnail_path) {
                 const displayName = item.original_thumbnail_path || 'Thumbnail tersimpan';
-                thumbnailInfo = `<button type="button" onclick="toggleThumbnailPreview(${index})" class="text-primary hover:text-blue-400 transition-colors flex items-center gap-1">
+                thumbnailInfo = `<button type="button" onclick="openImagePreview('${item.thumbnail_path}')" class="text-primary hover:text-blue-400 transition-colors flex items-center gap-1">
                                     <i class="ti ti-photo mr-1"></i>${displayName}
                                  </button>`;
-                previewImageHtml = `<div id="thumb-preview-${index}" class="hidden absolute top-full left-10 z-50 mt-2 p-2 bg-dark-800 rounded-xl border border-gray-700 shadow-2xl max-w-[200px]">
-                                        <img src="${item.thumbnail_path}" class="w-full h-auto rounded-lg object-cover" alt="Preview">
-                                    </div>`;
             }
 
             div.innerHTML = `
@@ -699,7 +704,6 @@
                     <div class="text-sm font-medium text-white truncate">${item.title}</div>
                     <div class="text-[10px] text-gray-500 mt-0.5 relative">
                         ${thumbnailInfo}
-                        ${previewImageHtml}
                     </div>
                 </div>
                 <button type="button" onclick="removeItem(${index})" class="p-2 text-gray-500 hover:text-red-500 transition-colors">
@@ -710,11 +714,16 @@
         });
     }
 
-    function toggleThumbnailPreview(index) {
-        const previewEl = document.getElementById(`thumb-preview-${index}`);
-        if (previewEl) {
-            previewEl.classList.toggle('hidden');
-        }
+    function openImagePreview(src) {
+        document.getElementById('previewModalImage').src = src;
+        document.getElementById('imagePreviewModal').classList.remove('hidden');
+    }
+
+    function closeImagePreview() {
+        document.getElementById('imagePreviewModal').classList.add('hidden');
+        setTimeout(() => {
+            document.getElementById('previewModalImage').src = '';
+        }, 300);
     }
 
     function removeItem(index) {
@@ -897,7 +906,14 @@
 
             document.getElementById('bulkTitles').value = currentItems.map(i => i.title).join('\n');
             document.getElementById('bulkThumbnails').value = '';
-            document.getElementById('thumbCount').innerText = 'Belum ada file dipilih';
+            
+            const existingThumbnailsCount = currentItems.filter(i => i.thumbnail_path).length;
+            if (existingThumbnailsCount > 0) {
+                document.getElementById('thumbCount').innerHTML = `<span class="text-primary"><i class="ti ti-photo-check"></i> ${existingThumbnailsCount} thumbnail sudah tersimpan</span>`;
+            } else {
+                document.getElementById('thumbCount').innerText = 'Belum ada file dipilih';
+            }
+            
             renderItemsPreview();
             
             document.getElementById('modalTitle').innerText = 'Edit Seri Autolive';
