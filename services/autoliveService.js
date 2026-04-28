@@ -103,10 +103,11 @@ class AutoliveService {
 
     const sessionEnd = new Date(sessionStart.getTime() + durationMs);
     console.log(`[Autolive] "${series.name}" | now=${now.toISOString()} sessionStart=${sessionStart.toISOString()} sessionEnd=${sessionEnd.toISOString()} status=${series.status}`);
+    const isReadyToStart = this.isReadyToStart(series.status);
 
     // 1. YouTube Pre-Sync (2 Hours before NEXT start)
     const futureStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates);
-    if (series.status === 'offline' && !series.youtube_broadcast_id) {
+    if (isReadyToStart && !series.youtube_broadcast_id) {
       const timeToStart = futureStart - now;
       if (timeToStart > 0 && timeToStart <= 2 * 60 * 60 * 1000) {
         console.log(`[Autolive] Pre-syncing series "${series.name}" to YouTube (2h window)`);
@@ -115,7 +116,7 @@ class AutoliveService {
     }
 
     // 2. Start Live (If we are within a session window)
-    if (series.status === 'offline' && now >= sessionStart && now < sessionEnd) {
+    if (isReadyToStart && now >= sessionStart && now < sessionEnd) {
       console.log(`[Autolive] Starting live for series "${series.name}" (Within window)`);
       await this.startAutoliveStream(series);
     }
@@ -246,6 +247,10 @@ class AutoliveService {
     }
   }
 
+  static isReadyToStart(status) {
+    return !status || status === 'offline' || status === 'scheduled';
+  }
+
   static async syncToYouTube(series) {
     try {
       const items = await Autolive.getItemsBySeriesId(series.id);
@@ -365,6 +370,8 @@ class AutoliveService {
           status: 'live',
           last_metadata_update: new Date().toISOString()
         });
+      } else {
+        console.error(`[Autolive] Start failed for "${series.name}": ${result.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error(`[Autolive] Start failed for "${series.name}":`, error);
