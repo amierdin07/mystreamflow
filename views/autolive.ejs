@@ -374,7 +374,7 @@
                         
                         <button type="button" onclick="generateItemsFromBulk()" class="w-full py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2">
                             <i class="ti ti-refresh"></i>
-                            <span>Generate List Metadata</span>
+                            <span>Generate Judul dan Thumbnail</span>
                         </button>
                     </div>
 
@@ -511,6 +511,9 @@
         document.getElementById('seriesName').value = '';
         resetAutoliveVideoSelector();
         document.getElementById('startTime').value = '';
+        document.getElementById('bulkTitles').value = '';
+        document.getElementById('bulkThumbnails').value = '';
+        document.getElementById('thumbCount').innerText = 'Belum ada file dipilih';
         document.getElementById('itemsPreview').innerHTML = '';
         document.getElementById('customDatesContainer').classList.add('hidden');
         document.getElementById('customDatesList').innerHTML = '';
@@ -528,6 +531,7 @@
 
         currentItems = [];
         selectedDates = [];
+        setAutoliveSaving(false);
         document.getElementById('autoliveModal').classList.remove('hidden');
         document.getElementById('autoliveModal').classList.add('flex');
     }
@@ -603,14 +607,33 @@
 
         const titles = titlesText.split('\n').map(t => t.trim()).filter(t => t);
         const thumbnailFiles = document.getElementById('bulkThumbnails').files;
+        const previousItems = currentItems.slice();
+        const hasExistingItems = previousItems.length > 0;
         
         currentItems = titles.map((title, index) => {
+            const previousItem = previousItems[index] || {};
+            const newItemOffset = index - previousItems.length;
+            const shouldUseUploadedThumbnail = thumbnailFiles.length > 0 && (
+                !hasExistingItems ||
+                newItemOffset >= 0 ||
+                !previousItem.thumbnail_path ||
+                thumbnailFiles.length >= titles.length
+            );
+            const newThumbnailFile = shouldUseUploadedThumbnail
+                ? thumbnailFiles[(newItemOffset >= 0 ? newItemOffset : index) % thumbnailFiles.length]
+                : null;
+            const thumbnailUploadIndex = newThumbnailFile
+                ? (newItemOffset >= 0 ? newItemOffset : index) % thumbnailFiles.length
+                : -1;
+
             return {
                 title: title,
-                description: '',
-                tags: '',
-                thumbnail_file: thumbnailFiles[index % thumbnailFiles.length] || null,
-                thumbnail_upload_index: thumbnailFiles.length > 0 ? (index % thumbnailFiles.length) : -1
+                description: previousItem.description || '',
+                tags: previousItem.tags || '',
+                thumbnail_path: previousItem.thumbnail_path || null,
+                original_thumbnail_path: previousItem.original_thumbnail_path || null,
+                thumbnail_file: newThumbnailFile,
+                thumbnail_upload_index: thumbnailUploadIndex
             };
         });
 
@@ -633,7 +656,7 @@
                 <div class="flex-1 min-w-0">
                     <div class="text-sm font-medium text-white truncate">${item.title}</div>
                     <div class="text-[10px] text-gray-500 mt-0.5">
-                        ${item.thumbnail_file ? `<i class="ti ti-photo mr-1"></i>${item.thumbnail_file.name}` : '<i class="ti ti-photo-off mr-1"></i>No New Thumbnail'}
+                        ${item.thumbnail_file ? `<i class="ti ti-photo mr-1"></i>${item.thumbnail_file.name}` : (item.thumbnail_path ? '<i class="ti ti-photo-check mr-1"></i>Thumbnail tersimpan' : '<i class="ti ti-photo-off mr-1"></i>No New Thumbnail')}
                     </div>
                 </div>
                 <button type="button" onclick="removeItem(${index})" class="p-2 text-gray-500 hover:text-red-500 transition-colors">
@@ -829,6 +852,8 @@
             }));
 
             document.getElementById('bulkTitles').value = currentItems.map(i => i.title).join('\n');
+            document.getElementById('bulkThumbnails').value = '';
+            document.getElementById('thumbCount').innerText = 'Belum ada file dipilih';
             renderItemsPreview();
             
             document.getElementById('modalTitle').innerText = 'Edit Seri Autolive';
