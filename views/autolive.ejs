@@ -632,6 +632,7 @@
         const startTimeISO = startTime ? new Date(startTime).toISOString() : '';
         formData.append('start_time', startTimeISO);
         formData.append('repeat_mode', repeatMode);
+        formData.append('timezone', Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Bangkok');
         formData.append('duration', duration);
         formData.append('youtube_channel_id', channelId);
         formData.append('custom_dates', JSON.stringify(selectedDates));

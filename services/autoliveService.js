@@ -25,6 +25,65 @@ function parseLocalDateTime(dtStr) {
   return new Date(year, month - 1, day, hour, minute, second);
 }
 
+function getSeriesTimeZone(series) {
+  return series.timezone || process.env.APP_TIMEZONE || process.env.TZ || 'Asia/Bangkok';
+}
+
+function getZonedParts(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    weekday: 'short'
+  }).formatToParts(date);
+
+  const map = {};
+  for (const part of parts) {
+    if (part.type !== 'literal') map[part.type] = part.value;
+  }
+
+  const weekdays = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    year: Number(map.year),
+    month: Number(map.month),
+    day: Number(map.day),
+    hour: Number(map.hour),
+    minute: Number(map.minute),
+    second: Number(map.second),
+    weekday: weekdays[map.weekday]
+  };
+}
+
+function getTimeZoneOffsetMs(date, timeZone) {
+  const parts = getZonedParts(date, timeZone);
+  const localAsUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  return localAsUtc - date.getTime();
+}
+
+function makeDateInTimeZone(parts, timeZone) {
+  const utcGuess = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour || 0, parts.minute || 0, parts.second || 0);
+  let result = new Date(utcGuess - getTimeZoneOffsetMs(new Date(utcGuess), timeZone));
+  result = new Date(utcGuess - getTimeZoneOffsetMs(result, timeZone));
+  return result;
+}
+
+function addDaysToZonedParts(parts, days) {
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days, parts.hour, parts.minute, parts.second || 0));
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+    hour: parts.hour,
+    minute: parts.minute,
+    second: parts.second || 0
+  };
+}
+
 class AutoliveService {
   static async init() {
     if (checkInterval) clearInterval(checkInterval);
@@ -71,6 +130,8 @@ class AutoliveService {
       return;
     }
 
+    const timeZone = getSeriesTimeZone(series);
+
     // FIX #2 & #3: Properly calculate which session window 'now' falls into.
     let sessionStart = parseLocalDateTime(series.start_time);
     // FIX #3: durationMs must be at least 1 minute to avoid zero-window. If user set 0, default to 60 min.
@@ -79,21 +140,29 @@ class AutoliveService {
     
     // Find the most recent session start that is <= now (i.e. the session currently active or the last one).
     if (series.repeat_mode !== 'none' && series.repeat_mode !== 'custom') {
-      sessionStart = this.getCurrentSessionStart(series.start_time, series.repeat_mode, now);
+      sessionStart = this.getCurrentSessionStart(series.start_time, series.repeat_mode, now, timeZone);
     } else if (series.repeat_mode === 'custom' && series.custom_dates) {
       try {
         const dates = JSON.parse(series.custom_dates);
         const activeDate = dates.find(d => {
-          const dStart = parseLocalDateTime(series.start_time);
-          dStart.setFullYear(new Date(d).getFullYear(), new Date(d).getMonth(), new Date(d).getDate());
+          const timeParts = getZonedParts(parseLocalDateTime(series.start_time), timeZone);
+          const dateParts = getZonedParts(makeDateInTimeZone({ ...timeParts, year: Number(d.slice(0, 4)), month: Number(d.slice(5, 7)), day: Number(d.slice(8, 10)) }, timeZone), timeZone);
+          const dStart = makeDateInTimeZone({ ...dateParts, hour: timeParts.hour, minute: timeParts.minute, second: 0 }, timeZone);
           const dEnd = new Date(dStart.getTime() + durationMs);
           return now >= dStart && now < dEnd;
         });
         if (activeDate) {
-          sessionStart = parseLocalDateTime(series.start_time);
-          sessionStart.setFullYear(new Date(activeDate).getFullYear(), new Date(activeDate).getMonth(), new Date(activeDate).getDate());
+          const timeParts = getZonedParts(parseLocalDateTime(series.start_time), timeZone);
+          sessionStart = makeDateInTimeZone({
+            year: Number(activeDate.slice(0, 4)),
+            month: Number(activeDate.slice(5, 7)),
+            day: Number(activeDate.slice(8, 10)),
+            hour: timeParts.hour,
+            minute: timeParts.minute,
+            second: 0
+          }, timeZone);
         } else {
-          sessionStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates);
+          sessionStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates, timeZone);
         }
       } catch(e) { console.error('[Autolive] Error parsing custom dates:', e); }
     } else {
@@ -106,7 +175,7 @@ class AutoliveService {
     const isReadyToStart = this.isReadyToStart(series.status);
 
     // 1. YouTube Pre-Sync (2 Hours before NEXT start)
-    const futureStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates);
+    const futureStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates, timeZone);
     if (isReadyToStart && !series.youtube_broadcast_id) {
       const timeToStart = futureStart - now;
       if (timeToStart > 0 && timeToStart <= 2 * 60 * 60 * 1000) {
@@ -138,21 +207,26 @@ class AutoliveService {
     }
   }
 
-  static getNextStartTime(startTimeStr, repeatMode, customDatesStr = null) {
+  static getNextStartTime(startTimeStr, repeatMode, customDatesStr = null, timeZone = 'Asia/Bangkok') {
     if (!startTimeStr) return new Date(8640000000000000); // Far future
-    let nextStart = new Date(startTimeStr);
+    let nextStart = parseLocalDateTime(startTimeStr);
     const now = new Date();
 
     // CUSTOM DATES LOGIC
     if (repeatMode === 'custom' && customDatesStr) {
       try {
         const dates = JSON.parse(customDatesStr);
+        const timeParts = getZonedParts(parseLocalDateTime(startTimeStr), timeZone);
         const futureDates = dates
           .map(d => {
-            const datePart = new Date(d);
-            const timePart = new Date(startTimeStr);
-            datePart.setHours(timePart.getHours(), timePart.getMinutes(), 0, 0);
-            return datePart;
+            return makeDateInTimeZone({
+              year: Number(d.slice(0, 4)),
+              month: Number(d.slice(5, 7)),
+              day: Number(d.slice(8, 10)),
+              hour: timeParts.hour,
+              minute: timeParts.minute,
+              second: 0
+            }, timeZone);
           })
           .filter(d => d > now)
           .sort((a, b) => a - b);
@@ -170,40 +244,17 @@ class AutoliveService {
     // If it's a one-time thing and already passed
     if (repeatMode === 'none' || !repeatMode) return nextStart;
 
-    const dayMap = {
-      'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
-      'thursday': 4, 'friday': 5, 'saturday': 6
-    };
+    const currentStart = this.getCurrentSessionStart(startTimeStr, repeatMode, now, timeZone);
+    if (currentStart > now) return currentStart;
 
-    if (dayMap[repeatMode] !== undefined) {
-      const targetDay = dayMap[repeatMode];
-      // Ensure the first run is on the correct day
-      while (nextStart.getDay() !== targetDay) {
-        nextStart.setDate(nextStart.getDate() + 1);
-      }
-      
-      // If that calculated start is still in the past, move to next week
-      while (nextStart <= now) {
-        nextStart.setDate(nextStart.getDate() + 7);
-      }
-      return nextStart;
-    }
+    const stepDays = this.getRepeatStepDays(repeatMode);
+    if (!stepDays) return nextStart;
 
-    while (nextStart <= now) {
-      switch (repeatMode) {
-        case 'daily': nextStart.setDate(nextStart.getDate() + 1); break;
-        case 'weekly': nextStart.setDate(nextStart.getDate() + 7); break;
-        case 'every_2_days': nextStart.setDate(nextStart.getDate() + 2); break;
-        case 'every_3_days': nextStart.setDate(nextStart.getDate() + 3); break;
-        case 'every_4_days': nextStart.setDate(nextStart.getDate() + 4); break;
-        case 'every_5_days': nextStart.setDate(nextStart.getDate() + 5); break;
-        default: return nextStart;
-      }
-    }
-    return nextStart;
+    const currentParts = getZonedParts(currentStart, timeZone);
+    return makeDateInTimeZone(addDaysToZonedParts(currentParts, stepDays), timeZone);
   }
 
-  static getCurrentSessionStart(startTimeStr, repeatMode, now = new Date()) {
+  static getCurrentSessionStart(startTimeStr, repeatMode, now = new Date(), timeZone = 'Asia/Bangkok') {
     let currentStart = parseLocalDateTime(startTimeStr);
     if (isNaN(currentStart.getTime()) || currentStart > now) return currentStart;
 
@@ -214,36 +265,47 @@ class AutoliveService {
 
     if (dayMap[repeatMode] !== undefined) {
       const targetDay = dayMap[repeatMode];
-      while (currentStart.getDay() !== targetDay) {
-        currentStart.setDate(currentStart.getDate() + 1);
+      let currentParts = getZonedParts(currentStart, timeZone);
+      while (currentParts.weekday !== targetDay) {
+        currentParts = addDaysToZonedParts(currentParts, 1);
+        currentStart = makeDateInTimeZone(currentParts, timeZone);
       }
 
       while (true) {
-        const nextStart = new Date(currentStart);
-        nextStart.setDate(nextStart.getDate() + 7);
+        const nextStart = makeDateInTimeZone(addDaysToZonedParts(getZonedParts(currentStart, timeZone), 7), timeZone);
         if (nextStart > now) return currentStart;
         currentStart = nextStart;
       }
     }
 
-    const advance = (date) => {
-      const nextStart = new Date(date);
-      switch (repeatMode) {
-        case 'daily': nextStart.setDate(nextStart.getDate() + 1); break;
-        case 'weekly': nextStart.setDate(nextStart.getDate() + 7); break;
-        case 'every_2_days': nextStart.setDate(nextStart.getDate() + 2); break;
-        case 'every_3_days': nextStart.setDate(nextStart.getDate() + 3); break;
-        case 'every_4_days': nextStart.setDate(nextStart.getDate() + 4); break;
-        case 'every_5_days': nextStart.setDate(nextStart.getDate() + 5); break;
-        default: return date;
-      }
-      return nextStart;
-    };
+    const stepDays = this.getRepeatStepDays(repeatMode);
+    if (!stepDays) return currentStart;
 
     while (true) {
-      const nextStart = advance(currentStart);
+      const nextStart = makeDateInTimeZone(addDaysToZonedParts(getZonedParts(currentStart, timeZone), stepDays), timeZone);
       if (nextStart <= currentStart || nextStart > now) return currentStart;
       currentStart = nextStart;
+    }
+  }
+
+  static getRepeatStepDays(repeatMode) {
+    switch (repeatMode) {
+      case 'daily': return 1;
+      case 'weekly': return 7;
+      case 'every_2_days': return 2;
+      case 'every_3_days': return 3;
+      case 'every_4_days': return 4;
+      case 'every_5_days': return 5;
+      case 'sunday':
+      case 'monday':
+      case 'tuesday':
+      case 'wednesday':
+      case 'thursday':
+      case 'friday':
+      case 'saturday':
+        return 7;
+      default:
+        return 0;
     }
   }
 
@@ -270,7 +332,7 @@ class AutoliveService {
         youtube_privacy: 'public',
         youtube_channel_id: series.youtube_channel_id,
         youtube_thumbnail: currentItem.thumbnail_path,
-        schedule_time: this.getNextStartTime(series.start_time, series.repeat_mode).toISOString()
+        schedule_time: this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates, getSeriesTimeZone(series)).toISOString()
       };
 
       // We need to temporarily save this dummy stream to the DB so youtubeService can find it

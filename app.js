@@ -5207,7 +5207,7 @@ app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, re
   try {
     const Autolive = require('./models/Autolive');
     const { 
-      name, video_id, internal_playlist_id, start_time, repeat_mode, duration, items, 
+      name, video_id, internal_playlist_id, start_time, repeat_mode, duration, items, timezone,
       youtube_channel_id, custom_dates, privacy, category_id, monetization_enabled, 
       made_for_kids, playlist_id 
     } = req.body;
@@ -5221,6 +5221,7 @@ app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, re
       internal_playlist_id: internal_playlist_id || null,
       start_time,
       repeat_mode,
+      timezone: timezone || 'Asia/Bangkok',
       duration: parseInt(duration),
       youtube_channel_id,
       custom_dates,
@@ -5269,7 +5270,7 @@ app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req,
   try {
     const Autolive = require('./models/Autolive');
     const { 
-      name, video_id, internal_playlist_id, start_time, repeat_mode, duration, items, 
+      name, video_id, internal_playlist_id, start_time, repeat_mode, duration, items, timezone,
       youtube_channel_id, custom_dates, privacy, category_id, monetization_enabled, 
       made_for_kids, playlist_id 
     } = req.body;
@@ -5280,6 +5281,7 @@ app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req,
       internal_playlist_id: internal_playlist_id || null,
       start_time,
       repeat_mode,
+      timezone: timezone || 'Asia/Bangkok',
       duration: parseInt(duration),
       youtube_channel_id,
       custom_dates,

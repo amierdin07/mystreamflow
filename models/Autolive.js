@@ -11,6 +11,7 @@ class Autolive {
       start_time = null,
       repeat_mode = 'none',
       custom_dates = null,
+      timezone = 'Asia/Bangkok',
       duration = 0,
       is_active = 1,
       youtube_channel_id = null,
@@ -24,12 +25,12 @@ class Autolive {
     return new Promise((resolve, reject) => {
       db.run(
         `INSERT INTO autolive_series (
-          id, user_id, name, video_id, start_time, repeat_mode, custom_dates, duration, 
+          id, user_id, name, video_id, start_time, repeat_mode, custom_dates, timezone, duration, 
           is_active, youtube_channel_id, internal_playlist_id, privacy, category_id, 
           monetization_enabled, made_for_kids, playlist_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          id, user_id, name, video_id || '', start_time, repeat_mode, custom_dates, duration,
+          id, user_id, name, video_id || '', start_time, repeat_mode, custom_dates, timezone, duration,
           is_active, youtube_channel_id, seriesData.internal_playlist_id || null,
           privacy, category_id, monetization_enabled, made_for_kids, playlist_id
         ],
