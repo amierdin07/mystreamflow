@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 
 let checkInterval = null;
+const PREPARE_WINDOW_MS = 3 * 60 * 60 * 1000;
 
 // Parse start_time from DB. Handles both:
 // - New ISO UTC strings ("2026-04-27T10:20:00.000Z") - from browser UTC conversion
@@ -185,30 +186,46 @@ class AutoliveService {
     const sessionEnd = new Date(sessionStart.getTime() + durationMs);
     console.log(`[Autolive] "${series.name}" | now=${now.toISOString()} sessionStart=${sessionStart.toISOString()} sessionEnd=${sessionEnd.toISOString()} status=${series.status}`);
     const isReadyToStart = this.isReadyToStart(series.status);
+    const streamId = `autolive_${series.id}`;
+    const linkedStream = await Stream.findById(streamId);
 
-    // 1. YouTube Pre-Sync (2 Hours before NEXT start)
-    const futureStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates, timeZone);
-    if (isReadyToStart && !series.youtube_broadcast_id) {
-      const timeToStart = futureStart - now;
-      if (timeToStart > 0 && timeToStart <= 2 * 60 * 60 * 1000) {
-        console.log(`[Autolive] Pre-syncing series "${series.name}" to YouTube (2h window)`);
-        await this.syncToYouTube(series);
-      }
+    if (linkedStream && linkedStream.status === 'live' && series.status !== 'live') {
+      await Autolive.update(series.id, {
+        status: 'live',
+        last_metadata_update: series.last_metadata_update || new Date().toISOString()
+      });
+      series.status = 'live';
     }
 
-    // 2. Start Live (If we are within a session window)
-    if (isReadyToStart && now >= sessionStart && now < sessionEnd) {
-      console.log(`[Autolive] Starting live for series "${series.name}" (Within window)`);
-      await this.startAutoliveStream(series);
-    }
-
-    // 3. Stop Live
+    // 1. Stop Live
     if (series.status === 'live' && now >= sessionEnd) {
       console.log(`[Autolive] Stopping live for series "${series.name}" (Duration reached)`);
       await this.stopAutoliveStream(series);
+      return;
     }
 
-    // 4. Mid-Stream Auto-Swap (24 Hours+)
+    // 2. Prepare the next/current stream task in the Stream tab 3 hours before start.
+    const futureStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates, timeZone);
+    const targetStart = now < sessionEnd ? sessionStart : futureStart;
+    const targetEnd = new Date(targetStart.getTime() + durationMs);
+    const timeToTarget = targetStart - now;
+    const alreadyQueued = this.isStreamQueuedFor(linkedStream, targetStart);
+
+    if (isReadyToStart && now < targetEnd && timeToTarget <= PREPARE_WINDOW_MS) {
+      if (!alreadyQueued) {
+        console.log(`[Autolive] Queueing stream task for "${series.name}" at ${targetStart.toISOString()}`);
+        await this.syncToYouTube(series, targetStart, targetEnd);
+      }
+
+      if (now >= targetStart) {
+        const schedulerService = require('./schedulerService');
+        schedulerService.checkScheduledStreams().catch(err => {
+          console.error('[Autolive] Error triggering stream scheduler:', err);
+        });
+      }
+    }
+
+    // 3. Mid-Stream Auto-Swap (24 Hours+)
     if (series.status === 'live') {
       const lastUpdate = series.last_metadata_update ? new Date(series.last_metadata_update) : new Date(series.start_time);
       const timeSinceUpdate = now - lastUpdate;
@@ -325,12 +342,21 @@ class AutoliveService {
     return !status || status === 'offline' || status === 'scheduled';
   }
 
-  static async syncToYouTube(series) {
+  static isStreamQueuedFor(stream, targetStart) {
+    if (!stream || stream.status !== 'scheduled' || !stream.schedule_time) return false;
+    const scheduledAt = new Date(stream.schedule_time);
+    if (Math.abs(scheduledAt - targetStart) > 1000) return false;
+    return !!(stream.youtube_broadcast_id && stream.youtube_stream_id && stream.rtmp_url && stream.stream_key);
+  }
+
+  static async syncToYouTube(series, targetStart = null, targetEnd = null) {
     try {
       const items = await Autolive.getItemsBySeriesId(series.id);
       if (items.length === 0) return;
 
       const currentItem = items[series.current_item_index % items.length];
+      const scheduledStart = targetStart || this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates, getSeriesTimeZone(series));
+      const scheduledEnd = targetEnd || new Date(scheduledStart.getTime() + ((series.duration || 60) * 60 * 1000));
       
       // Create a dummy stream object for YouTube service
       const dummyStreamId = `autolive_${series.id}`;
@@ -344,7 +370,7 @@ class AutoliveService {
         youtube_privacy: 'public',
         youtube_channel_id: series.youtube_channel_id,
         youtube_thumbnail: currentItem.thumbnail_path,
-        schedule_time: this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates, getSeriesTimeZone(series)).toISOString()
+        schedule_time: scheduledStart.toISOString()
       };
 
       // We need to temporarily save this dummy stream to the DB so youtubeService can find it
@@ -364,7 +390,11 @@ class AutoliveService {
         youtube_category: series.category_id || '24',
         youtube_monetization: series.monetization_enabled === 1 ? 1 : 0,
         made_for_kids: series.made_for_kids === 1 ? 1 : 0,
-        youtube_playlist_id: series.playlist_id || null
+        youtube_playlist_id: series.playlist_id || null,
+        schedule_time: scheduledStart.toISOString(),
+        end_time: scheduledEnd.toISOString(),
+        duration: series.duration || null,
+        status: streamRecord.status === 'live' ? 'live' : 'scheduled'
       });
 
       const baseUrl = process.env.BASE_URL || 'http://localhost:7575';
@@ -376,7 +406,8 @@ class AutoliveService {
           youtube_broadcast_id: updatedStream.youtube_broadcast_id,
           youtube_stream_id: updatedStream.youtube_stream_id,
           rtmp_url: updatedStream.rtmp_url,
-          stream_key: updatedStream.stream_key
+          stream_key: updatedStream.stream_key,
+          status: updatedStream.status === 'live' ? 'live' : 'scheduled'
         });
       }
     } catch (error) {
