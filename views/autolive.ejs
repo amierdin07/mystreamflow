@@ -833,7 +833,7 @@
                 if (checkbox) checkbox.checked = !checkbox.checked;
             } else {
                 const badge = document.getElementById(`status-badge-${id}`);
-                if (badge && !badge.innerText.includes('LIVE')) {
+                if (badge) {
                     if (result.is_active) {
                         badge.className = 'text-blue-400 text-xs font-bold uppercase tracking-wider';
                         badge.innerText = 'SCHEDULED';

@@ -337,6 +337,9 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
       }
     } catch (thumbError) {
       console.log('[YouTubeService] Note: Could not upload thumbnail:', thumbError.message);
+      if (thumbError.response && thumbError.response.data) {
+        console.log('[YouTubeService] Thumbnail Error Details:', JSON.stringify(thumbError.response.data, null, 2));
+      }
     }
   }
 
