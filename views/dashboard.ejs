@@ -1478,7 +1478,7 @@
     let initialDataUsed = false;
     window.streamHealthData = {};
 
-    function showToast(type, message) {
+    function showToast(type, message, duration = 3000) {
       const toast = document.getElementById('toast');
       const toastIcon = document.getElementById('toast-icon');
       const toastMessage = document.getElementById('toast-message');
@@ -1502,7 +1502,7 @@
       
       setTimeout(() => {
         toast.classList.add('hidden');
-      }, 3000);
+      }, duration);
     }
 
     function toggleChannelSelector() {
@@ -1574,7 +1574,7 @@
       const theme = themes[options.type || 'info'];
       
       dialog.innerHTML = `
-        <div class="transform transition-all duration-300 opacity-0 scale-95 modal-content max-w-md w-full mx-4">
+        <div class="transform transition-all duration-300 opacity-0 scale-95 modal-content ${options.maxWidthClass || 'max-w-md'} w-full mx-4">
           <div class="bg-dark-800 rounded-lg shadow-xl border ${theme.border} overflow-hidden">
             <div class="px-6 py-5 flex items-center">
               <div class="w-12 h-12 rounded-full ${theme.bg} flex items-center justify-center mr-4 shrink-0">
@@ -1582,14 +1582,16 @@
               </div>
               <div class="flex-1">
                 <h3 class="text-lg font-medium text-white">${options.title}</h3>
-                <p class="text-gray-400 text-sm mt-1">${options.message}</p>
+                <div class="text-gray-400 text-sm mt-1">${options.message}</div>
               </div>
             </div>
             <div class="px-6 py-4 flex justify-end space-x-3 border-t border-gray-600/50">
-              <button id="modal-cancel-btn" class="px-4 py-2.5 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-lg transition-colors text-sm font-medium flex items-center">
-                <i class="ti ti-x mr-1.5"></i>
-                ${options.cancelText || 'Cancel'}
-              </button>
+              ${options.cancelText === '' ? '' : `
+                <button id="modal-cancel-btn" class="px-4 py-2.5 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-lg transition-colors text-sm font-medium flex items-center">
+                  <i class="ti ti-x mr-1.5"></i>
+                  ${options.cancelText || 'Cancel'}
+                </button>
+              `}
               <button id="modal-confirm-btn" class="${options.confirmClass || theme.button} px-4 py-2.5 text-white rounded-lg transition-colors text-sm font-medium flex items-center">
                 <i class="ti ${theme.buttonIcon} mr-1.5"></i>
                 ${options.confirmText || 'Confirm'}
@@ -1615,9 +1617,12 @@
           closeModalWithAnimation(true);
         });
         
-        document.getElementById('modal-cancel-btn').addEventListener('click', () => {
-          closeModalWithAnimation(false);
-        });
+        const cancelBtn = document.getElementById('modal-cancel-btn');
+        if (cancelBtn) {
+          cancelBtn.addEventListener('click', () => {
+            closeModalWithAnimation(false);
+          });
+        }
         
         document.addEventListener('keydown', function escapeHandler(e) {
           if (e.key === 'Escape') {
@@ -2974,6 +2979,62 @@
         confirmClass: issues.length > 0 ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600'
       });
     }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function showStreamStartFailureDetails(data) {
+      const reason = data.error || 'Stream gagal dimulai';
+      const details = data.details && data.details !== reason ? data.details : '';
+      const suggestion = data.suggestion || 'Cek konfigurasi stream dan log FFmpeg, lalu coba start ulang.';
+      const logs = Array.isArray(data.logs) ? data.logs : [];
+
+      let message = `
+        <div class="space-y-4">
+          <div class="rounded-lg border border-red-500/20 bg-red-500/10 p-3">
+            <div class="text-xs font-semibold uppercase text-red-300">Penyebab</div>
+            <div class="mt-1 text-sm text-gray-100 break-words">${escapeHtml(reason)}</div>
+            ${details ? `<div class="mt-2 text-xs text-gray-400 break-words">${escapeHtml(details)}</div>` : ''}
+          </div>
+          <div class="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
+            <div class="text-xs font-semibold uppercase text-yellow-300">Saran perbaikan</div>
+            <div class="mt-1 text-sm text-gray-200 break-words">${escapeHtml(suggestion)}</div>
+          </div>`;
+
+      if (logs.length > 0) {
+        message += `
+          <div>
+            <div class="text-xs font-semibold uppercase text-gray-400 mb-2">Log terakhir</div>
+            <div class="max-h-48 overflow-y-auto rounded-lg bg-black/30 border border-gray-700/60 p-3 font-mono text-[11px] leading-relaxed text-gray-300 space-y-1">`;
+
+        logs.forEach(log => {
+          const time = log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : '';
+          message += `<div><span class="text-gray-500">${escapeHtml(time)}</span> ${escapeHtml(log.message)}</div>`;
+        });
+
+        message += `</div></div>`;
+      }
+
+      message += `</div>`;
+
+      createModalDialog({
+        type: 'danger',
+        icon: 'ti-alert-triangle',
+        title: 'Stream Gagal Dimulai',
+        message,
+        confirmText: 'Mengerti',
+        cancelText: '',
+        confirmClass: 'bg-red-500 hover:bg-red-600',
+        maxWidthClass: 'max-w-2xl'
+      });
+    }
+
     function startStream(streamId) {
       if (!streamId) return;
       
@@ -3042,13 +3103,21 @@
             showToast('success', `Stream started successfully! (${streamMode})`);
             refreshStreamsView();
           } else {
-            showToast('error', data.error || 'Failed to start stream');
+            showToast('error', data.error || 'Failed to start stream', 8000);
+            showStreamStartFailureDetails(data);
             restoreButtons();
           }
         })
         .catch(error => {
           console.error('Error starting stream:', error);
-          showToast('error', `An error occurred while starting the stream: ${error.message}`);
+          const fallbackData = {
+            error: 'Browser tidak bisa membaca respons start stream.',
+            details: error.message,
+            suggestion: 'Refresh halaman, pastikan server masih berjalan, lalu coba start ulang.',
+            logs: []
+          };
+          showToast('error', fallbackData.error, 8000);
+          showStreamStartFailureDetails(fallbackData);
           restoreButtons();
         });
     }

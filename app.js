@@ -4461,7 +4461,11 @@ app.post('/api/streams/:id/status', isAuthenticated, [
       } else {
         return res.status(500).json({
           success: false,
-          error: result.error || 'Failed to start stream'
+          error: result.error || 'Failed to start stream',
+          details: result.details || null,
+          suggestion: result.suggestion || null,
+          logs: result.logs || [],
+          code: result.code || null
         });
       }
     } else if (newStatus === 'offline') {

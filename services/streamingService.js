@@ -186,6 +186,65 @@ function buildStartupFailureMessage(startupState, fallbackMessage = null) {
   return 'FFmpeg gagal memulai stream';
 }
 
+function sanitizeDiagnosticLog(message) {
+  const text = String(message || '').trim();
+  if (!text || text.startsWith('Starting FFmpeg process with args:')) {
+    return null;
+  }
+
+  return text.replace(/(rtmps?:\/\/[^/\s]+\/[^/\s]+\/)[^\s]+/gi, '$1[stream-key-hidden]');
+}
+
+function getRecentDiagnosticLogs(streamId, limit = 8) {
+  return getStreamLogs(streamId)
+    .map(log => ({
+      timestamp: log.timestamp,
+      message: sanitizeDiagnosticLog(log.message)
+    }))
+    .filter(log => log.message)
+    .slice(-limit);
+}
+
+function buildFailureDiagnostics(streamId, error) {
+  const message = (error && error.message ? error.message : String(error || '')).trim();
+  const lower = message.toLowerCase();
+  let reason = message || 'Penyebab belum diketahui';
+  let suggestion = 'Cek log FFmpeg terbaru di bawah, lalu coba start ulang setelah penyebabnya diperbaiki.';
+
+  if (/missing rtmp url|stream key/i.test(message)) {
+    reason = 'RTMP URL atau stream key belum diisi.';
+    suggestion = 'Buka edit stream, pastikan RTMP URL dan stream key sudah benar.';
+  } else if (/no video attached|video not found|playlist is empty|video file not found|missing media filepath/i.test(message)) {
+    reason = 'Video atau playlist sumber tidak siap.';
+    suggestion = 'Pilih video/playlist yang masih ada di Gallery, dan pastikan playlist tidak kosong.';
+  } else if (/unsupported_copy_mode_media|tidak kompatibel|codec|pixel format|frame rate/i.test(`${error && error.code ? error.code : ''} ${message}`)) {
+    reason = 'Format video/audio tidak cocok untuk copy mode YouTube.';
+    suggestion = 'Aktifkan Advanced Settings agar stream di-encode ulang, atau gunakan media H.264 + AAC dengan pixel format yuv420p.';
+  } else if (/connection refused|connection reset|timed out|timeout|network is unreachable|could not resolve|name or service not known|no route to host/i.test(message)) {
+    reason = 'Koneksi ke server RTMP gagal.';
+    suggestion = 'Periksa internet/VPS, RTMP URL, firewall, dan apakah endpoint tujuan sedang aktif.';
+  } else if (/403|401|unauthorized|forbidden|authentication|permission|invalid stream key/i.test(lower)) {
+    reason = 'RTMP tujuan menolak koneksi, biasanya karena stream key salah atau tidak punya izin.';
+    suggestion = 'Ambil ulang stream key dari platform tujuan, tempel ulang, lalu coba start lagi.';
+  } else if (/broken pipe|input\/output error|could not write header|server returned|av_interleaved_write_frame/i.test(lower)) {
+    reason = 'Server RTMP menolak data stream saat FFmpeg mulai mengirim.';
+    suggestion = 'Cek stream key, status live room di platform tujuan, dan pengaturan format output.';
+  } else if (/no such file|invalid data found|moov atom not found|error opening input|permission denied/i.test(lower)) {
+    reason = 'File media tidak bisa dibaca oleh FFmpeg.';
+    suggestion = 'Pastikan file masih ada, tidak rusak, dan dapat diputar dari Gallery.';
+  } else if (/spawn .*enoent|enoent/i.test(lower)) {
+    reason = 'Binary FFmpeg tidak ditemukan atau tidak bisa dijalankan.';
+    suggestion = 'Pastikan dependency FFmpeg terpasang dan path FFmpeg valid di server.';
+  }
+
+  return {
+    reason,
+    suggestion,
+    rawError: message,
+    logs: getRecentDiagnosticLogs(streamId)
+  };
+}
+
 function runFFprobe(filePath) {
   return new Promise((resolve, reject) => {
     const ffprobeProcess = spawn(ffprobePath, [
@@ -1026,7 +1085,15 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
     };
   } catch (error) {
     addStreamLog(streamId, `Start failed: ${error.message}`);
-    return { success: false, error: error.message, code: error.code || null };
+    const diagnostics = buildFailureDiagnostics(streamId, error);
+    return {
+      success: false,
+      error: diagnostics.reason || error.message,
+      details: diagnostics.rawError,
+      suggestion: diagnostics.suggestion,
+      logs: diagnostics.logs,
+      code: error.code || null
+    };
   } finally {
     startingStreams.delete(streamId);
   }
