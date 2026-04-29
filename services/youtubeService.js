@@ -626,6 +626,10 @@ async function updateLiveMetadata(userId, channelId, broadcastId, metadata) {
       console.warn('[YouTubeService] Could not fetch current category, using default');
     }
 
+    const tagsArray = metadata.tags
+      ? metadata.tags.split(',').map(tag => tag.trim()).filter(Boolean)
+      : [];
+
     await youtube.videos.update({
       part: 'snippet',
       requestBody: {
@@ -633,7 +637,8 @@ async function updateLiveMetadata(userId, channelId, broadcastId, metadata) {
         snippet: {
           title: metadata.title,
           description: metadata.description || '',
-          categoryId: categoryId
+          categoryId: categoryId,
+          tags: tagsArray.length > 0 ? tagsArray : undefined
         }
       }
     });

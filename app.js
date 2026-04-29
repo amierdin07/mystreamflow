@@ -5417,6 +5417,9 @@ app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req,
     require('./services/autoliveService').checkAutoliveSeries().catch(err => {
       console.error('Error triggering autolive check after update:', err);
     });
+    require('./services/autoliveService').syncCurrentMetadataNow(req.params.id).catch(err => {
+      console.error('Error syncing autolive metadata after update:', err);
+    });
 
     res.json({ success: true });
   } catch (error) {

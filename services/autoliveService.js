@@ -618,6 +618,56 @@ class AutoliveService {
       console.error(`[Autolive] Mid-stream swap failed for "${series.name}":`, error);
     }
   }
+
+  static async syncCurrentMetadataNow(seriesId) {
+    try {
+      const series = await Autolive.findById(seriesId);
+      if (!series) return { success: false, error: 'Series not found' };
+
+      const items = await Autolive.getItemsBySeriesId(series.id);
+      if (items.length === 0) return { success: false, error: 'No metadata items' };
+
+      const currentItem = items[(series.current_item_index || 0) % items.length];
+      const streamId = `autolive_${series.id}`;
+      const stream = await Stream.findById(streamId);
+
+      if (!stream) {
+        return { success: true, skipped: true, message: 'Linked stream task has not been created yet' };
+      }
+
+      const sourceSettings = await getAutoliveSourceSettings(series);
+      await Stream.update(streamId, {
+        title: currentItem.title,
+        youtube_description: currentItem.description || '',
+        youtube_tags: currentItem.tags || '',
+        youtube_thumbnail: currentItem.thumbnail_path || '',
+        resolution: sourceSettings.resolution || stream.resolution || null,
+        bitrate: sourceSettings.bitrate || stream.bitrate || 2500,
+        fps: sourceSettings.fps || stream.fps || 30,
+        youtube_privacy: series.privacy || 'public',
+        youtube_category: series.category_id || '10',
+        youtube_monetization: series.monetization_enabled === 1 ? 1 : 0,
+        made_for_kids: series.made_for_kids === 1 ? 1 : 0,
+        youtube_playlist_id: series.playlist_id || null
+      });
+
+      if (stream.youtube_broadcast_id) {
+        await youtubeService.updateLiveMetadata(series.user_id, series.youtube_channel_id, stream.youtube_broadcast_id, {
+          title: currentItem.title,
+          description: currentItem.description || '',
+          tags: currentItem.tags || '',
+          category: series.category_id || '10',
+          thumbnail_path: currentItem.thumbnail_path
+        });
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error(`[Autolive] Immediate metadata sync failed for series ${seriesId}:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
   static getUpcomingSchedule(series, items, count = 5) {
     if (!items || items.length === 0) return [];
     

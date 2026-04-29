@@ -402,7 +402,11 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-400 mb-1.5">Tag Live (Untuk Semua Judul)</label>
-                                <input type="text" id="bulkTags" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="music, live, chill">
+                                <input type="hidden" id="bulkTags">
+                                <div id="tagChipBox" class="min-h-[48px] w-full bg-dark-900 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent transition-all flex flex-wrap items-center gap-2 cursor-text" onclick="document.getElementById('bulkTagsInput').focus()">
+                                    <div id="tagChips" class="flex flex-wrap items-center gap-2"></div>
+                                    <input type="text" id="bulkTagsInput" class="flex-1 min-w-[140px] bg-transparent border-0 outline-none text-white placeholder-gray-500 py-1" placeholder="ketik tag, lalu koma" onkeydown="handleTagInputKeydown(event)" oninput="handleTagInput(event)" onblur="addTagFromInput()">
+                                </div>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-400 mb-1.5">Upload Thumbnail (Banyak file)</label>
@@ -419,7 +423,7 @@
                         
                         <button type="button" onclick="generateItemsFromBulk()" class="w-full py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2">
                             <i class="ti ti-refresh"></i>
-                            <span>Generate Judul dan Thumbnail</span>
+                            <span>Generate SEO</span>
                         </button>
                     </div>
 
@@ -483,6 +487,7 @@
     let currentItems = [];
     let selectedDates = [];
     let uploadedThumbnailPaths = [];
+    let sharedTags = [];
 
     document.getElementById('repeatMode').addEventListener('change', function() {
         const container = document.getElementById('customDatesContainer');
@@ -583,7 +588,7 @@
         document.getElementById('startTime').value = '';
         document.getElementById('bulkTitles').value = '';
         document.getElementById('bulkDescriptions').value = '';
-        document.getElementById('bulkTags').value = '';
+        setSharedTags('');
         document.getElementById('bulkThumbnails').value = '';
         document.getElementById('thumbCount').innerText = 'Belum ada file dipilih';
         document.getElementById('itemsPreview').innerHTML = '';
@@ -709,6 +714,80 @@
             .replace(/'/g, '&#39;');
     }
 
+    function parseTags(value) {
+        return String(value || '')
+            .split(',')
+            .map(tag => tag.trim())
+            .filter(Boolean);
+    }
+
+    function syncSharedTagsInput() {
+        document.getElementById('bulkTags').value = sharedTags.join(', ');
+    }
+
+    function setSharedTags(value) {
+        sharedTags = [];
+        parseTags(value).forEach(addSharedTag);
+        document.getElementById('bulkTagsInput').value = '';
+        renderTagChips();
+        syncSharedTagsInput();
+    }
+
+    function addSharedTag(tag) {
+        const normalized = String(tag || '').trim();
+        if (!normalized) return;
+        const exists = sharedTags.some(existing => existing.toLowerCase() === normalized.toLowerCase());
+        if (!exists) sharedTags.push(normalized);
+    }
+
+    function removeSharedTag(index) {
+        sharedTags.splice(index, 1);
+        renderTagChips();
+        syncSharedTagsInput();
+    }
+
+    function renderTagChips() {
+        const container = document.getElementById('tagChips');
+        container.innerHTML = sharedTags.map((tag, index) => `
+            <span class="inline-flex items-center gap-1 bg-primary/15 text-primary border border-primary/30 rounded-lg px-2 py-1 text-xs font-medium">
+                ${escapeHtml(tag)}
+                <button type="button" onclick="removeSharedTag(${index})" class="hover:text-white transition-colors">
+                    <i class="ti ti-x text-[11px]"></i>
+                </button>
+            </span>
+        `).join('');
+    }
+
+    function addTagFromInput() {
+        const input = document.getElementById('bulkTagsInput');
+        parseTags(input.value).forEach(addSharedTag);
+        input.value = '';
+        renderTagChips();
+        syncSharedTagsInput();
+    }
+
+    function handleTagInputKeydown(event) {
+        if (event.key === 'Enter' || event.key === ',') {
+            event.preventDefault();
+            addTagFromInput();
+        } else if (event.key === 'Backspace' && !event.target.value && sharedTags.length > 0) {
+            sharedTags.pop();
+            renderTagChips();
+            syncSharedTagsInput();
+        }
+    }
+
+    function handleTagInput(event) {
+        if (event.target.value.includes(',')) {
+            addTagFromInput();
+        }
+    }
+
+    function getSharedTagsString() {
+        addTagFromInput();
+        return sharedTags.join(', ');
+    }
+
     function generateItemsFromBulk() {
         const titlesText = document.getElementById('bulkTitles').value.trim();
         if (!titlesText) {
@@ -718,7 +797,7 @@
 
         const titles = titlesText.split('\n').map(t => t.trim()).filter(t => t);
         const sharedDescription = document.getElementById('bulkDescriptions').value.trim();
-        const sharedTags = document.getElementById('bulkTags').value.trim();
+        const sharedTagsValue = getSharedTagsString();
         const previousItems = currentItems.slice();
         const hasExistingItems = previousItems.length > 0;
         
@@ -739,7 +818,7 @@
             return {
                 title: title,
                 description: sharedDescription,
-                tags: sharedTags,
+                tags: sharedTagsValue,
                 thumbnail_path: newThumbnailData ? newThumbnailData.path : (previousItem.thumbnail_path || null),
                 original_thumbnail_path: newThumbnailData ? newThumbnailData.originalName : (previousItem.original_thumbnail_path || null),
                 thumbnail_file: null,
@@ -903,13 +982,13 @@
         formData.append('playlist_id', playlistId);
 
         const sharedDescription = document.getElementById('bulkDescriptions').value.trim();
-        const sharedTags = document.getElementById('bulkTags').value.trim();
+        const sharedTagsValue = getSharedTagsString();
 
         // Add items metadata
         formData.append('items', JSON.stringify(currentItems.map((item, idx) => ({
             title: item.title,
             description: sharedDescription,
-            tags: sharedTags,
+            tags: sharedTagsValue,
             thumbnail_upload_index: -1,
             thumbnail_path: item.thumbnail_path, // for edits and new
             original_thumbnail_path: item.original_thumbnail_path // for edits and new
@@ -1043,7 +1122,7 @@
 
             document.getElementById('bulkTitles').value = currentItems.map(i => i.title).join('\n');
             document.getElementById('bulkDescriptions').value = currentItems.find(i => i.description)?.description || '';
-            document.getElementById('bulkTags').value = currentItems.find(i => i.tags)?.tags || '';
+            setSharedTags(currentItems.find(i => i.tags)?.tags || '');
             document.getElementById('bulkThumbnails').value = '';
             
             const existingThumbnailsCount = currentItems.filter(i => i.thumbnail_path).length;
