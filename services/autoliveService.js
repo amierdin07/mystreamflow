@@ -382,13 +382,14 @@ class AutoliveService {
       });
       
       // Update stream record with current item metadata and series settings
+      console.log(`[Autolive] Updating stream metadata for ${streamRecord.id}. Thumbnail: ${currentItem.thumbnail_path}`);
       await Stream.update(streamRecord.id, {
         title: currentItem.title,
         video_id: series.internal_playlist_id || series.video_id,
         youtube_description: currentItem.description || '',
         youtube_tags: currentItem.tags || '',
-        youtube_thumbnail: currentItem.thumbnail_path,
-        schedule_time: dummyStream.schedule_time,
+        youtube_thumbnail: currentItem.thumbnail_path || '',
+        schedule_time: scheduledStart.toISOString(),
         youtube_privacy: series.privacy || 'public',
         youtube_category: series.category_id || '24',
         youtube_monetization: series.monetization_enabled === 1 ? 1 : 0,
@@ -474,11 +475,12 @@ class AutoliveService {
       const items = await Autolive.getItemsBySeriesId(series.id);
       if (items.length > 0) {
         const currentItem = items[series.current_item_index % items.length];
+        console.log(`[Autolive] Starting stream ${streamRecord.id} with metadata. Thumbnail: ${currentItem.thumbnail_path}`);
         await Stream.update(streamRecord.id, {
           title: currentItem.title,
           youtube_description: currentItem.description || '',
           youtube_tags: currentItem.tags || '',
-          youtube_thumbnail: currentItem.thumbnail_path || null,
+          youtube_thumbnail: currentItem.thumbnail_path || '',
           youtube_privacy: series.privacy || 'public',
           youtube_category: series.category_id || '10',
           youtube_monetization: series.monetization_enabled === 1 ? 1 : 0,
