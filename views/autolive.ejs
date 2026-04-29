@@ -140,7 +140,9 @@
                       <% } %>
                     </div>
                     <div class="flex-1 min-w-0">
-                      <div class="text-[11px] font-medium text-gray-200 truncate group-hover/item:text-primary transition-colors" title="<%= sched.title %>">
+                      <div class="text-[11px] font-medium text-gray-200 truncate group-hover/item:text-primary transition-colors cursor-pointer" 
+                           onclick="openSchedulePreview('<%= sched.thumbnail %>', '<%= sched.title.replace(/'/g, "\\'") %>', '<%= helpers.formatDateTime(sched.startTime.toISOString()) %>')"
+                           title="Klik untuk lihat thumbnail">
                         <%= sched.title %>
                       </div>
                       <div class="flex items-center gap-1.5 mt-0.5">
@@ -439,12 +441,27 @@
     </div>
 </div>
 
-<!-- Full Image Preview Modal -->
-<div id="imagePreviewModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-[60] hidden flex items-center justify-center p-4">
-    <button type="button" onclick="closeImagePreview()" class="absolute top-6 right-6 text-gray-400 hover:text-white bg-dark-800/50 hover:bg-red-500/80 p-3 rounded-full transition-all border border-gray-700">
-        <i class="ti ti-x text-2xl"></i>
-    </button>
-    <img id="previewModalImage" src="" class="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl border border-gray-700/50" alt="Preview">
+<!-- Schedule Thumbnail Preview Modal -->
+<div id="schedulePreviewModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] hidden flex items-center justify-center p-4" onclick="closeSchedulePreview()">
+    <div class="bg-dark-800 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden max-w-[400px] w-full transform transition-all duration-300 scale-95 opacity-0" id="schedulePreviewContent" onclick="event.stopPropagation()">
+        <div class="relative group">
+            <img id="schedulePreviewImage" src="" class="w-full aspect-video object-cover" alt="Schedule Thumbnail">
+            <div class="absolute inset-0 bg-gradient-to-t from-dark-800 via-transparent to-transparent opacity-60"></div>
+            <button onclick="closeSchedulePreview()" class="absolute top-3 right-3 bg-black/50 hover:bg-red-500 text-white p-2 rounded-full transition-all border border-gray-700/50">
+                <i class="ti ti-x text-lg"></i>
+            </button>
+        </div>
+        <div class="p-5">
+            <h4 id="schedulePreviewTitle" class="text-white font-bold text-sm leading-relaxed mb-3"></h4>
+            <div class="flex items-center justify-between">
+                <div id="schedulePreviewTime" class="text-amber-400 font-mono text-[11px] flex items-center gap-2 bg-amber-400/10 px-2.5 py-1.5 rounded-lg border border-amber-400/20">
+                    <i class="ti ti-clock"></i>
+                    <span></span>
+                </div>
+                <span class="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Autolive Schedule</span>
+            </div>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -758,6 +775,41 @@
         document.getElementById('imagePreviewModal').classList.add('hidden');
         setTimeout(() => {
             document.getElementById('previewModalImage').src = '';
+        }, 300);
+    }
+
+    function openSchedulePreview(src, title, time) {
+        const modal = document.getElementById('schedulePreviewModal');
+        const content = document.getElementById('schedulePreviewContent');
+        const img = document.getElementById('schedulePreviewImage');
+        const titleEl = document.getElementById('schedulePreviewTitle');
+        const timeEl = document.getElementById('schedulePreviewTime').querySelector('span');
+
+        img.src = src || '/images/default-thumbnail.jpg';
+        titleEl.innerText = title;
+        timeEl.innerText = time;
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        
+        // Trigger animation
+        setTimeout(() => {
+            content.classList.remove('scale-95', 'opacity-0');
+            content.classList.add('scale-100', 'opacity-100');
+        }, 10);
+    }
+
+    function closeSchedulePreview() {
+        const modal = document.getElementById('schedulePreviewModal');
+        const content = document.getElementById('schedulePreviewContent');
+
+        content.classList.remove('scale-100', 'opacity-100');
+        content.classList.add('scale-95', 'opacity-0');
+
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.getElementById('schedulePreviewImage').src = '';
         }, 300);
     }
 
