@@ -4754,15 +4754,10 @@ app.put('/api/playlists/:id', isAuthenticated, [
     };
 
     console.log('UPDATING PLAYLIST:', req.params.id, updateData);
-    await Playlist.update(req.params.id, updateData);
+    const updatedPlaylist = await Playlist.update(req.params.id, updateData);
     
     if (req.body.videos && Array.isArray(req.body.videos)) {
-      const existingVideos = await Playlist.findByIdWithVideos(req.params.id);
-      if (existingVideos && existingVideos.videos) {
-        for (const video of existingVideos.videos) {
-          await Playlist.removeVideo(req.params.id, video.id);
-        }
-      }
+      await Playlist.clearVideos(req.params.id);
       
       for (let i = 0; i < req.body.videos.length; i++) {
         await Playlist.addVideo(req.params.id, req.body.videos[i], i + 1);

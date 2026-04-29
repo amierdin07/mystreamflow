@@ -280,6 +280,21 @@ class Playlist {
       );
     });
   }
+
+  static clearVideos(playlistId) {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'DELETE FROM playlist_videos WHERE playlist_id = ?',
+        [playlistId],
+        function (err) {
+          if (err) {
+            return reject(err);
+          }
+          resolve({ deleted: this.changes });
+        }
+      );
+    });
+  }
 }
 
 module.exports = Playlist;
