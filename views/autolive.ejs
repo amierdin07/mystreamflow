@@ -385,7 +385,7 @@
                     <div class="flex items-center justify-between">
                         <h4 class="text-lg font-bold flex items-center gap-2">
                             <i class="ti ti-list-details text-primary"></i>
-                            <span>Rotasi Metadata (Judul & Thumbnail)</span>
+                            <span>Rotasi Metadata (Judul, Deskripsi, Tag & Thumbnail)</span>
                         </h4>
                         <span class="text-xs bg-primary/10 text-primary px-2 py-1 rounded">Auto-Swap 24 Jam Aktif</span>
                     </div>
@@ -395,6 +395,14 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-400 mb-1.5">Daftar Judul (Satu per baris)</label>
                                 <textarea id="bulkTitles" rows="6" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white font-mono text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="Judul Episode 1&#10;Judul Episode 2&#10;Judul Episode 3..."></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Daftar Deskripsi (Opsional, satu per baris)</label>
+                                <textarea id="bulkDescriptions" rows="6" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white font-mono text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="Deskripsi Episode 1&#10;Deskripsi Episode 2&#10;Deskripsi Episode 3..."></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Daftar Tag (Opsional, pisahkan dengan koma)</label>
+                                <textarea id="bulkTags" rows="5" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white font-mono text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="music, live, chill&#10;gaming, livestream&#10;lofi, radio"></textarea>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-400 mb-1.5">Upload Thumbnail (Banyak file)</label>
@@ -569,10 +577,13 @@
 
     function openCreateSeriesModal() {
         document.getElementById('seriesId').value = '';
+        document.getElementById('modalTitle').innerHTML = '<i class="ti ti-bolt text-primary"></i><span>Buat Autolive Baru</span>';
         document.getElementById('seriesName').value = '';
         resetAutoliveVideoSelector();
         document.getElementById('startTime').value = '';
         document.getElementById('bulkTitles').value = '';
+        document.getElementById('bulkDescriptions').value = '';
+        document.getElementById('bulkTags').value = '';
         document.getElementById('bulkThumbnails').value = '';
         document.getElementById('thumbCount').innerText = 'Belum ada file dipilih';
         document.getElementById('itemsPreview').innerHTML = '';
@@ -689,6 +700,15 @@
         });
     }
 
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     function generateItemsFromBulk() {
         const titlesText = document.getElementById('bulkTitles').value.trim();
         if (!titlesText) {
@@ -697,6 +717,12 @@
         }
 
         const titles = titlesText.split('\n').map(t => t.trim()).filter(t => t);
+        const descriptions = document.getElementById('bulkDescriptions').value
+            .split('\n')
+            .map(t => t.trim());
+        const tags = document.getElementById('bulkTags').value
+            .split('\n')
+            .map(t => t.trim());
         const previousItems = currentItems.slice();
         const hasExistingItems = previousItems.length > 0;
         
@@ -716,8 +742,8 @@
 
             return {
                 title: title,
-                description: previousItem.description || '',
-                tags: previousItem.tags || '',
+                description: descriptions[index] || previousItem.description || '',
+                tags: tags[index] || previousItem.tags || '',
                 thumbnail_path: newThumbnailData ? newThumbnailData.path : (previousItem.thumbnail_path || null),
                 original_thumbnail_path: newThumbnailData ? newThumbnailData.originalName : (previousItem.original_thumbnail_path || null),
                 thumbnail_file: null,
@@ -736,34 +762,49 @@
 
         currentItems.forEach((item, index) => {
             const div = document.createElement('div');
-            div.className = 'flex items-center gap-4 bg-dark-900/50 p-3 rounded-xl border border-gray-700/50 relative group';
+            div.className = 'grid grid-cols-[2rem_1fr_auto] gap-4 bg-dark-900/50 p-4 rounded-xl border border-gray-700/50 relative group';
             
             let thumbnailInfo = '<i class="ti ti-photo-off mr-1"></i>No Thumbnail';
-            let previewImageHtml = '';
             
             if (item.thumbnail_path) {
-                const displayName = item.original_thumbnail_path || 'Thumbnail tersimpan';
-                thumbnailInfo = `<button type="button" onclick="openImagePreview('${item.thumbnail_path}')" class="text-primary hover:text-blue-400 transition-colors flex items-center gap-1">
+                const displayName = escapeHtml(item.original_thumbnail_path || 'Thumbnail tersimpan');
+                thumbnailInfo = `<button type="button" onclick="openImagePreview('${escapeHtml(item.thumbnail_path)}')" class="text-primary hover:text-blue-400 transition-colors flex items-center gap-1">
                                     <i class="ti ti-photo mr-1"></i>${displayName}
                                  </button>`;
             }
 
             div.innerHTML = `
-                <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-400">
+                <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-400 mt-1">
                     ${index + 1}
                 </div>
-                <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium text-white truncate">${item.title}</div>
-                    <div class="text-[10px] text-gray-500 mt-0.5 relative">
+                <div class="min-w-0 space-y-3">
+                    <div>
+                        <label class="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Judul</label>
+                        <input type="text" value="${escapeHtml(item.title)}" oninput="updateItemField(${index}, 'title', this.value)" class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Deskripsi</label>
+                        <textarea rows="3" oninput="updateItemField(${index}, 'description', this.value)" class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all resize-y" placeholder="Deskripsi untuk live ini">${escapeHtml(item.description)}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Tag</label>
+                        <input type="text" value="${escapeHtml(item.tags)}" oninput="updateItemField(${index}, 'tags', this.value)" class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="music, live, radio">
+                    </div>
+                    <div class="text-[10px] text-gray-500 relative">
                         ${thumbnailInfo}
                     </div>
                 </div>
-                <button type="button" onclick="removeItem(${index})" class="p-2 text-gray-500 hover:text-red-500 transition-colors">
+                <button type="button" onclick="removeItem(${index})" class="p-2 text-gray-500 hover:text-red-500 transition-colors self-start">
                     <i class="ti ti-trash"></i>
                 </button>
             `;
             container.appendChild(div);
         });
+    }
+
+    function updateItemField(index, field, value) {
+        if (!currentItems[index]) return;
+        currentItems[index][field] = value;
     }
 
     function openImagePreview(src) {
@@ -1010,6 +1051,8 @@
             }));
 
             document.getElementById('bulkTitles').value = currentItems.map(i => i.title).join('\n');
+            document.getElementById('bulkDescriptions').value = currentItems.map(i => i.description || '').join('\n');
+            document.getElementById('bulkTags').value = currentItems.map(i => i.tags || '').join('\n');
             document.getElementById('bulkThumbnails').value = '';
             
             const existingThumbnailsCount = currentItems.filter(i => i.thumbnail_path).length;
@@ -1021,7 +1064,7 @@
             
             renderItemsPreview();
             
-            document.getElementById('modalTitle').innerText = 'Edit Seri Autolive';
+            document.getElementById('modalTitle').innerHTML = '<i class="ti ti-bolt text-primary"></i><span>Edit Seri Autolive</span>';
             document.getElementById('autoliveModal').classList.remove('hidden');
             document.getElementById('autoliveModal').classList.add('flex');
         } catch (e) {
