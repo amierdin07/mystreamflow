@@ -1,5 +1,7 @@
 const Autolive = require('../models/Autolive');
 const Stream = require('../models/Stream');
+const Video = require('../models/Video');
+const Playlist = require('../models/Playlist');
 const youtubeService = require('./youtubeService');
 const streamingService = require('./streamingService');
 const { db } = require('../db/database');
@@ -83,6 +85,34 @@ function addDaysToZonedParts(parts, days) {
     minute: parts.minute,
     second: parts.second || 0
   };
+}
+
+async function getAutoliveSourceSettings(series) {
+  const sourceId = series.internal_playlist_id || series.video_id;
+  if (!sourceId) {
+    return {};
+  }
+
+  if (series.internal_playlist_id) {
+    const playlist = await Playlist.findByIdWithVideos(series.internal_playlist_id);
+    const firstVideo = playlist && playlist.videos && playlist.videos.find(video => video.resolution);
+    return firstVideo
+      ? {
+          resolution: firstVideo.resolution,
+          bitrate: firstVideo.bitrate || null,
+          fps: firstVideo.fps || null
+        }
+      : {};
+  }
+
+  const video = await Video.findById(series.video_id);
+  return video
+    ? {
+        resolution: video.resolution || null,
+        bitrate: video.bitrate || null,
+        fps: video.fps || null
+      }
+    : {};
 }
 
 class AutoliveService {
@@ -355,6 +385,7 @@ class AutoliveService {
       const currentItem = items[series.current_item_index % items.length];
       const scheduledStart = targetStart || this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates, getSeriesTimeZone(series));
       const scheduledEnd = targetEnd || new Date(scheduledStart.getTime() + ((series.duration || 60) * 60 * 1000));
+      const sourceSettings = await getAutoliveSourceSettings(series);
       
       // Create a dummy stream object for YouTube service
       const dummyStreamId = `autolive_${series.id}`;
@@ -378,8 +409,20 @@ class AutoliveService {
         title: currentItem.title,
         schedule_time: scheduledStart.toISOString(),
         end_time: scheduledEnd.toISOString(),
-        duration: series.duration || null
+        duration: series.duration || null,
+        ...sourceSettings
       });
+
+      if (
+        streamRecord.status === 'scheduled' &&
+        streamRecord.youtube_stream_id &&
+        sourceSettings.resolution &&
+        streamRecord.resolution !== sourceSettings.resolution
+      ) {
+        console.log(`[Autolive] Source resolution changed for ${streamRecord.id}: ${streamRecord.resolution} -> ${sourceSettings.resolution}. Recreating scheduled YouTube broadcast.`);
+        await youtubeService.deleteYouTubeBroadcast(streamRecord.id);
+        streamRecord = await Stream.findById(streamRecord.id);
+      }
       
       // Update stream record with current item metadata and series settings
       console.log(`[Autolive] Updating stream metadata for ${streamRecord.id}. Thumbnail: ${currentItem.thumbnail_path}`);
@@ -390,6 +433,9 @@ class AutoliveService {
         youtube_tags: currentItem.tags || '',
         youtube_thumbnail: currentItem.thumbnail_path || '',
         schedule_time: scheduledStart.toISOString(),
+        resolution: sourceSettings.resolution || streamRecord.resolution || null,
+        bitrate: sourceSettings.bitrate || streamRecord.bitrate || 2500,
+        fps: sourceSettings.fps || streamRecord.fps || 30,
         youtube_privacy: series.privacy || 'public',
         youtube_category: series.category_id || '24',
         youtube_monetization: series.monetization_enabled === 1 ? 1 : 0,
@@ -432,8 +478,9 @@ class AutoliveService {
         db.run(
           `INSERT INTO streams (
             id, user_id, title, video_id, rtmp_url, stream_key, platform, status,
-            is_youtube_api, youtube_channel_id, schedule_time, end_time, duration
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            is_youtube_api, youtube_channel_id, schedule_time, end_time, duration,
+            resolution, bitrate, fps
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             streamId,
             series.user_id,
@@ -447,7 +494,10 @@ class AutoliveService {
             series.youtube_channel_id,
             defaults.schedule_time || null,
             defaults.end_time || null,
-            defaults.duration || null
+            defaults.duration || null,
+            defaults.resolution || null,
+            defaults.bitrate || 2500,
+            defaults.fps || 30
           ],
           function(err) {
             if (err) {
@@ -469,7 +519,8 @@ class AutoliveService {
       const baseUrl = process.env.BASE_URL || 'http://localhost:7575';
       
       // Ensure stream record exists
-      let streamRecord = await this.getOrCreateStreamRecord(series);
+      const sourceSettings = await getAutoliveSourceSettings(series);
+      let streamRecord = await this.getOrCreateStreamRecord(series, sourceSettings);
 
       // Get current item metadata and update stream record BEFORE starting
       const items = await Autolive.getItemsBySeriesId(series.id);
@@ -481,6 +532,9 @@ class AutoliveService {
           youtube_description: currentItem.description || '',
           youtube_tags: currentItem.tags || '',
           youtube_thumbnail: currentItem.thumbnail_path || '',
+          resolution: sourceSettings.resolution || streamRecord.resolution || null,
+          bitrate: sourceSettings.bitrate || streamRecord.bitrate || 2500,
+          fps: sourceSettings.fps || streamRecord.fps || 30,
           youtube_privacy: series.privacy || 'public',
           youtube_category: series.category_id || '10',
           youtube_monetization: series.monetization_enabled === 1 ? 1 : 0,

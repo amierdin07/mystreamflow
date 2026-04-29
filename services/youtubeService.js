@@ -43,7 +43,22 @@ function mapResolutionToYouTube(resolution) {
     return cleanRes;
   }
 
-  return mapping[cleanRes] || '1080p';
+  const dimensionMatch = cleanRes.match(/^(\d+)x(\d+)$/);
+  if (dimensionMatch) {
+    const width = Number(dimensionMatch[1]);
+    const height = Number(dimensionMatch[2]);
+    const qualitySide = Math.min(width, height);
+
+    if (qualitySide >= 2160) return '2160p';
+    if (qualitySide > 1080) return '1440p';
+    if (qualitySide >= 1080) return '1080p';
+    if (qualitySide >= 720) return '720p';
+    if (qualitySide >= 480) return '480p';
+    if (qualitySide >= 360) return '360p';
+    return '240p';
+  }
+
+  return '1080p';
 }
 
 function getThumbnailMimeType(filePath) {
