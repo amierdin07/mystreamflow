@@ -398,6 +398,12 @@ function createTables() {
         }
       });
 
+      db.run(`ALTER TABLE streams ADD COLUMN made_for_kids INTEGER DEFAULT 0`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+          console.error('Error adding made_for_kids column to streams:', err.message);
+        }
+      });
+
       db.run(`ALTER TABLE autolive_series ADD COLUMN internal_playlist_id TEXT`, (err) => {
         if (err && !err.message.includes('duplicate column name')) console.error(err.message);
       });
