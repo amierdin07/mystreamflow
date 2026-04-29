@@ -119,6 +119,41 @@
                 <%= helpers.formatDateTime(item.start_time) %>
               </span>
             </div>
+
+            <!-- Video Schedule List -->
+            <% if (item.schedule && item.schedule.length > 0) { %>
+            <div class="mt-4 pt-4 border-t border-gray-700/50">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Daftar Jadwal Video</span>
+                <span class="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20">Next 5</span>
+              </div>
+              <div class="space-y-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
+                <% item.schedule.forEach((sched, idx) => { %>
+                  <div class="flex items-center gap-3 p-2 rounded-lg bg-dark-900/30 border border-gray-700/30 hover:border-primary/30 transition-colors group/item">
+                    <div class="w-10 h-6 rounded overflow-hidden bg-gray-800 flex-shrink-0 border border-gray-700/50">
+                      <% if (sched.thumbnail) { %>
+                        <img src="<%= sched.thumbnail %>" class="w-full h-full object-cover group-hover/item:scale-110 transition-transform duration-500">
+                      <% } else { %>
+                        <div class="w-full h-full flex items-center justify-center bg-gray-700/30">
+                          <i class="ti ti-photo text-[10px] text-gray-600"></i>
+                        </div>
+                      <% } %>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="text-[11px] font-medium text-gray-200 truncate group-hover/item:text-primary transition-colors" title="<%= sched.title %>">
+                        <%= sched.title %>
+                      </div>
+                      <div class="flex items-center gap-1.5 mt-0.5">
+                        <span class="text-[9px] text-amber-400/80 font-mono"><%= helpers.formatDateTime(sched.startTime.toISOString()) %></span>
+                        <span class="text-[9px] text-gray-600">•</span>
+                        <span class="text-[9px] text-gray-500">Video <%= sched.index %></span>
+                      </div>
+                    </div>
+                  </div>
+                <% }) %>
+              </div>
+            </div>
+            <% } %>
           </div>
         </div>
         

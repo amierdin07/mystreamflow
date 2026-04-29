@@ -5203,7 +5203,16 @@ app.get('/autolive', isAuthenticated, async (req, res) => {
     });
     
     const Autolive = require('./models/Autolive');
-    const series = await Autolive.findAll(req.session.userId);
+    const AutoliveService = require('./services/autoliveService');
+    let series = await Autolive.findAll(req.session.userId);
+    
+    // Fetch items and schedule for each series
+    series = await Promise.all(series.map(async (s) => {
+      const items = await Autolive.getItemsBySeriesId(s.id);
+      const schedule = AutoliveService.getUpcomingSchedule(s, items, 5);
+      return { ...s, items, schedule };
+    }));
+    
     const YoutubeChannel = require('./models/YoutubeChannel');
     const youtubeChannels = await YoutubeChannel.findAll(req.session.userId);
     const playlists = await Playlist.findAll(req.session.userId);

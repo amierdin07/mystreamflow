@@ -552,6 +552,72 @@ class AutoliveService {
       console.error(`[Autolive] Mid-stream swap failed for "${series.name}":`, error);
     }
   }
+  static getUpcomingSchedule(series, items, count = 5) {
+    if (!items || items.length === 0) return [];
+    
+    const schedule = [];
+    const timeZone = getSeriesTimeZone(series);
+    const durationMs = (series.duration || 60) * 60 * 1000;
+    const now = new Date();
+    
+    let currentStart = this.getCurrentSessionStart(series.start_time, series.repeat_mode, now, timeZone);
+    let itemIndex = series.current_item_index || 0;
+    
+    // If the current session is already in the past (finished), move to next
+    if (new Date(currentStart.getTime() + durationMs) < now) {
+      currentStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates, timeZone);
+      // itemIndex remains the same because it only increments after a successful stop
+    }
+    
+    for (let i = 0; i < count; i++) {
+      const item = items[itemIndex % items.length];
+      schedule.push({
+        startTime: new Date(currentStart),
+        endTime: new Date(currentStart.getTime() + durationMs),
+        title: item.title,
+        thumbnail: item.thumbnail_path,
+        index: (itemIndex % items.length) + 1
+      });
+      
+      // Calculate next start
+      const stepDays = this.getRepeatStepDays(series.repeat_mode);
+      if (series.repeat_mode === 'none' || !stepDays) {
+        if (series.repeat_mode === 'custom' && series.custom_dates) {
+             // For custom dates, we'd need to find the next date in the list
+             // This is a bit complex for a simple helper, so we'll just stop after 1 or do a simple search
+             try {
+                 const dates = JSON.parse(series.custom_dates);
+                 const timeParts = getZonedParts(parseLocalDateTime(series.start_time), timeZone);
+                 const sortedDates = dates
+                     .map(d => makeDateInTimeZone({
+                         year: Number(d.slice(0, 4)),
+                         month: Number(d.slice(5, 7)),
+                         day: Number(d.slice(8, 10)),
+                         hour: timeParts.hour,
+                         minute: timeParts.minute,
+                         second: 0
+                     }, timeZone))
+                     .sort((a, b) => a - b);
+                 
+                 const currentIndex = sortedDates.findIndex(d => d.getTime() === currentStart.getTime());
+                 if (currentIndex !== -1 && currentIndex + 1 < sortedDates.length) {
+                     currentStart = sortedDates[currentIndex + 1];
+                 } else {
+                     break; // No more dates
+                 }
+             } catch(e) { break; }
+        } else {
+            break; 
+        }
+      } else {
+        const currentParts = getZonedParts(currentStart, timeZone);
+        currentStart = makeDateInTimeZone(addDaysToZonedParts(currentParts, stepDays), timeZone);
+      }
+      itemIndex++;
+    }
+    
+    return schedule;
+  }
 }
 
 module.exports = AutoliveService;
