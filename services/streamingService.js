@@ -1379,11 +1379,6 @@ async function gracefulShutdown() {
       manuallyStoppingStreams.add(streamId);
       await killFFmpegProcess(streamId, streamData);
 
-      const stream = await Stream.findById(streamId);
-      if (stream) {
-        await Stream.updateStatus(streamId, 'offline', stream.user_id);
-      }
-
       activeStreams.delete(streamId);
       cleanupStreamData(streamId);
     } catch (e) { }

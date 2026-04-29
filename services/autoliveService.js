@@ -89,19 +89,6 @@ class AutoliveService {
   static async init() {
     if (checkInterval) clearInterval(checkInterval);
 
-    // FIX #1: Reset any autolive series still stuck in 'live' state on server restart.
-    // When server crashes/restarts, the stream is gone but status stays 'live', blocking re-start.
-    try {
-      await new Promise((resolve, reject) => {
-        const { db } = require('../db/database');
-        db.run(`UPDATE autolive_series SET status = 'offline' WHERE status = 'live'`, [], function(err) {
-          if (err) { console.error('[Autolive] Failed to reset stale live statuses:', err.message); }
-          else if (this.changes > 0) { console.log(`[Autolive] Reset ${this.changes} stale 'live' series to 'offline'`); }
-          resolve();
-        });
-      });
-    } catch (e) { console.error('[Autolive] Error resetting stale statuses:', e); }
-
     checkInterval = setInterval(() => this.checkAutoliveSeries(), 60000);
     console.log('Autolive Service initialized');
     this.checkAutoliveSeries(); // Run once immediately
