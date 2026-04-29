@@ -78,7 +78,14 @@ function resolveThumbnailPath(thumbnailPath) {
     candidates.push(path.join(projectRoot, 'public', 'uploads', 'thumbnails', relPath));
   }
 
-  return candidates.find(candidate => fs.existsSync(candidate)) || candidates[0];
+  const found = candidates.find(candidate => fs.existsSync(candidate));
+  if (found) {
+    return found;
+  }
+  
+  // Log candidates if not found for debugging
+  console.warn(`[YouTubeService] Could not resolve thumbnail path. Checked candidates:`, candidates);
+  return candidates[0];
 }
 
 function handleYoutubeError(error, context = '') {
@@ -320,9 +327,11 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
   }
 
   if (stream.youtube_thumbnail) {
+    console.log(`[YouTubeService] Attempting thumbnail upload for ${broadcastId}: ${stream.youtube_thumbnail}`);
     try {
       const thumbnailPath = resolveThumbnailPath(stream.youtube_thumbnail);
       if (fs.existsSync(thumbnailPath)) {
+        console.log(`[YouTubeService] Found thumbnail file at: ${thumbnailPath}`);
         const thumbnailStream = fs.createReadStream(thumbnailPath);
         await youtube.thumbnails.set({
           videoId: broadcastId,
@@ -333,7 +342,7 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
         });
         console.log(`[YouTubeService] Uploaded thumbnail for broadcast ${broadcastId}`);
       } else {
-        console.warn(`[YouTubeService] Thumbnail file not found, skipping upload: ${stream.youtube_thumbnail}`);
+        console.warn(`[YouTubeService] Thumbnail file not found at any resolved path: ${stream.youtube_thumbnail}`);
       }
     } catch (thumbError) {
       console.log('[YouTubeService] Note: Could not upload thumbnail:', thumbError.message);

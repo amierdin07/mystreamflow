@@ -207,16 +207,19 @@ class AutoliveService {
         });
       }
 
-      if (!alreadyQueued) {
-        console.log(`[Autolive] Queueing stream task for "${series.name}" at ${targetStart.toISOString()}`);
+      if (isReadyToStart && now < targetEnd && timeToTarget <= PREPARE_WINDOW_MS) {
+        // ALWAYS update metadata for the linked stream to ensure it matches the current Autolive item
+        // even if it was already queued before. This fixes the issue where thumbnail changes
+        // in Autolive items don't reflect in the scheduled stream tasks.
+        console.log(`[Autolive] Synchronizing metadata for "${series.name}"...`);
         await this.syncToYouTube(series, targetStart, targetEnd);
-      }
 
-      if (now >= targetStart) {
-        const schedulerService = require('./schedulerService');
-        schedulerService.checkScheduledStreams().catch(err => {
-          console.error('[Autolive] Error triggering stream scheduler:', err);
-        });
+        if (now >= targetStart) {
+          const schedulerService = require('./schedulerService');
+          schedulerService.checkScheduledStreams().catch(err => {
+            console.error('[Autolive] Error triggering stream scheduler:', err);
+          });
+        }
       }
     }
 
@@ -536,11 +539,18 @@ class AutoliveService {
       
       if (user && channel) {
         // Use the existing logic from app.js or youtubeService to update metadata
-        // For simplicity, we'll implement a call to a new helper in youtubeService
         await youtubeService.updateLiveMetadata(series.user_id, series.youtube_channel_id, stream.youtube_broadcast_id, {
           title: nextItem.title,
           description: nextItem.description || '',
           thumbnail_path: nextItem.thumbnail_path
+        });
+
+        // FIX: Also update the local streams record so the UI reflects the change
+        const Stream = require('../models/Stream');
+        await Stream.update(streamId, {
+          title: nextItem.title,
+          youtube_description: nextItem.description || '',
+          youtube_thumbnail: nextItem.thumbnail_path
         });
 
         await Autolive.update(series.id, {
