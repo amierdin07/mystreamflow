@@ -5491,16 +5491,30 @@ const server = app.listen(port, '0.0.0.0', async () => {
   } else {
     console.log(`  http://localhost:${port}`);
   }
+  // Auto-resume streams that were live before restart
   try {
     const streams = await Stream.findAll(null, 'live');
     if (streams && streams.length > 0) {
-      console.log(`Resetting ${streams.length} live streams to offline state...`);
+      console.log(`[Startup] Detected ${streams.length} streams in 'live' state. Attempting to resume...`);
+      const now = new Date();
       for (const stream of streams) {
-        await Stream.updateStatus(stream.id, 'offline');
+        // Skip streams whose end time has already passed
+        if (stream.end_time && new Date(stream.end_time) < now) {
+          console.log(`[Startup] Stream "${stream.title}" (${stream.id}) has ended. Setting to offline.`);
+          await Stream.updateStatus(stream.id, 'offline');
+          continue;
+        }
+
+        console.log(`[Startup] Resuming stream: "${stream.title}" (${stream.id})`);
+        // Start asynchronously to not block server startup
+        streamingService.startStream(stream.id).catch(err => {
+          console.error(`[Startup] Failed to resume stream ${stream.id}:`, err.message);
+          Stream.updateStatus(stream.id, 'offline').catch(() => {});
+        });
       }
     }
   } catch (error) {
-    console.error('Error resetting stream statuses:', error);
+    console.error('[Startup] Error during stream resumption:', error);
   }
   const autoliveService = require('./services/autoliveService');
   autoliveService.init();
