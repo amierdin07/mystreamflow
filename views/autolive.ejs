@@ -385,7 +385,7 @@
                     <div class="flex items-center justify-between">
                         <h4 class="text-lg font-bold flex items-center gap-2">
                             <i class="ti ti-list-details text-primary"></i>
-                            <span>Rotasi Metadata (Judul, Deskripsi, Tag & Thumbnail)</span>
+                            <span>Rotasi Metadata (Judul & Thumbnail)</span>
                         </h4>
                         <span class="text-xs bg-primary/10 text-primary px-2 py-1 rounded">Auto-Swap 24 Jam Aktif</span>
                     </div>
@@ -397,12 +397,12 @@
                                 <textarea id="bulkTitles" rows="6" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white font-mono text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="Judul Episode 1&#10;Judul Episode 2&#10;Judul Episode 3..."></textarea>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Daftar Deskripsi (Opsional, satu per baris)</label>
-                                <textarea id="bulkDescriptions" rows="6" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white font-mono text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="Deskripsi Episode 1&#10;Deskripsi Episode 2&#10;Deskripsi Episode 3..."></textarea>
+                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Deskripsi Live (Untuk Semua Judul)</label>
+                                <textarea id="bulkDescriptions" rows="6" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="Deskripsi yang sama untuk semua live dalam task ini..."></textarea>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Daftar Tag (Opsional, pisahkan dengan koma)</label>
-                                <textarea id="bulkTags" rows="5" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white font-mono text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="music, live, chill&#10;gaming, livestream&#10;lofi, radio"></textarea>
+                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Tag Live (Untuk Semua Judul)</label>
+                                <input type="text" id="bulkTags" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="music, live, chill">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-400 mb-1.5">Upload Thumbnail (Banyak file)</label>
@@ -717,12 +717,8 @@
         }
 
         const titles = titlesText.split('\n').map(t => t.trim()).filter(t => t);
-        const descriptions = document.getElementById('bulkDescriptions').value
-            .split('\n')
-            .map(t => t.trim());
-        const tags = document.getElementById('bulkTags').value
-            .split('\n')
-            .map(t => t.trim());
+        const sharedDescription = document.getElementById('bulkDescriptions').value.trim();
+        const sharedTags = document.getElementById('bulkTags').value.trim();
         const previousItems = currentItems.slice();
         const hasExistingItems = previousItems.length > 0;
         
@@ -742,8 +738,8 @@
 
             return {
                 title: title,
-                description: descriptions[index] || previousItem.description || '',
-                tags: tags[index] || previousItem.tags || '',
+                description: sharedDescription,
+                tags: sharedTags,
                 thumbnail_path: newThumbnailData ? newThumbnailData.path : (previousItem.thumbnail_path || null),
                 original_thumbnail_path: newThumbnailData ? newThumbnailData.originalName : (previousItem.original_thumbnail_path || null),
                 thumbnail_file: null,
@@ -781,14 +777,6 @@
                     <div>
                         <label class="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Judul</label>
                         <input type="text" value="${escapeHtml(item.title)}" oninput="updateItemField(${index}, 'title', this.value)" class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Deskripsi</label>
-                        <textarea rows="3" oninput="updateItemField(${index}, 'description', this.value)" class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all resize-y" placeholder="Deskripsi untuk live ini">${escapeHtml(item.description)}</textarea>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Tag</label>
-                        <input type="text" value="${escapeHtml(item.tags)}" oninput="updateItemField(${index}, 'tags', this.value)" class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="music, live, radio">
                     </div>
                     <div class="text-[10px] text-gray-500 relative">
                         ${thumbnailInfo}
@@ -914,11 +902,14 @@
         formData.append('made_for_kids', madeForKids);
         formData.append('playlist_id', playlistId);
 
+        const sharedDescription = document.getElementById('bulkDescriptions').value.trim();
+        const sharedTags = document.getElementById('bulkTags').value.trim();
+
         // Add items metadata
         formData.append('items', JSON.stringify(currentItems.map((item, idx) => ({
             title: item.title,
-            description: item.description,
-            tags: item.tags,
+            description: sharedDescription,
+            tags: sharedTags,
             thumbnail_upload_index: -1,
             thumbnail_path: item.thumbnail_path, // for edits and new
             original_thumbnail_path: item.original_thumbnail_path // for edits and new
@@ -1051,8 +1042,8 @@
             }));
 
             document.getElementById('bulkTitles').value = currentItems.map(i => i.title).join('\n');
-            document.getElementById('bulkDescriptions').value = currentItems.map(i => i.description || '').join('\n');
-            document.getElementById('bulkTags').value = currentItems.map(i => i.tags || '').join('\n');
+            document.getElementById('bulkDescriptions').value = currentItems.find(i => i.description)?.description || '';
+            document.getElementById('bulkTags').value = currentItems.find(i => i.tags)?.tags || '';
             document.getElementById('bulkThumbnails').value = '';
             
             const existingThumbnailsCount = currentItems.filter(i => i.thumbnail_path).length;
