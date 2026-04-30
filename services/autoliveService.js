@@ -164,7 +164,11 @@ class AutoliveService {
     }
 
     // FIX #3: durationMs must be at least 1 minute to avoid zero-window. If user set 0, default to 60 min.
-    const rawDurationMs = (series.duration || 0) * 60 * 1000;
+    let rawDurationMs = (series.duration || 0) * 60 * 1000;
+    if (series.repeat_mode === 'nonstop') {
+        // For nonstop, set a massive duration (10 years)
+        rawDurationMs = 10 * 365 * 24 * 60 * 60 * 1000; 
+    }
     const durationMs = rawDurationMs > 0 ? rawDurationMs : 60 * 60 * 1000;
     
     // Find the most recent session start that is <= now (i.e. the session currently active or the last one).
@@ -194,6 +198,9 @@ class AutoliveService {
           sessionStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates, timeZone);
         }
       } catch(e) { console.error('[Autolive] Error parsing custom dates:', e); }
+    } else if (series.repeat_mode === 'nonstop') {
+      // Nonstop mode always starts from original start_time and never ends
+      sessionStart = parseLocalDateTime(series.start_time);
     } else {
       // One-time session
       sessionStart = parseLocalDateTime(series.start_time);
@@ -227,7 +234,10 @@ class AutoliveService {
     const timeToTarget = targetStart - now;
     const alreadyQueued = this.isStreamQueuedFor(linkedStream, targetStart);
 
-    if (isReadyToStart && now < targetEnd && timeToTarget <= PREPARE_WINDOW_MS) {
+    // NONSTOP Logic: If it's nonstop and NOT live, we should always be in the "prepare" window
+    const isNonstopAndOffline = series.repeat_mode === 'nonstop' && series.status !== 'live';
+
+    if (isReadyToStart && now < targetEnd && (timeToTarget <= PREPARE_WINDOW_MS || isNonstopAndOffline)) {
       if (linkedStream && linkedStream.status === 'scheduled' && !linkedStream.schedule_time) {
         console.log(`[Autolive] Repairing missing schedule_time for "${series.name}" at ${targetStart.toISOString()}`);
         await Stream.update(streamId, {
@@ -305,7 +315,7 @@ class AutoliveService {
     if (nextStart > now) return nextStart;
 
     // If it's a one-time thing and already passed
-    if (repeatMode === 'none' || !repeatMode) return nextStart;
+    if (repeatMode === 'none' || repeatMode === 'nonstop' || !repeatMode) return nextStart;
 
     const currentStart = this.getCurrentSessionStart(startTimeStr, repeatMode, now, timeZone);
     if (currentStart > now) return currentStart;
