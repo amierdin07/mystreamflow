@@ -237,19 +237,25 @@ class AutoliveService {
         });
       }
 
-      if (isReadyToStart && now < targetEnd && timeToTarget <= PREPARE_WINDOW_MS) {
-        // ALWAYS update metadata for the linked stream to ensure it matches the current Autolive item
-        // even if it was already queued before. This fixes the issue where thumbnail changes
-        // in Autolive items don't reflect in the scheduled stream tasks.
+      // Optimization: Only sync metadata if it's new OR if it's been more than 30 mins since last sync
+      // or if it's very close to starting (within 5 mins)
+      const lastSync = series.last_metadata_update ? new Date(series.last_metadata_update).getTime() : 0;
+      const shouldSync = !series.last_metadata_update || (now.getTime() - lastSync > 30 * 60 * 1000) || timeToTarget < 5 * 60 * 1000;
+
+      if (shouldSync) {
         console.log(`[Autolive] Synchronizing metadata for "${series.name}"...`);
         await this.syncToYouTube(series, targetStart, targetEnd);
+        
+        await Autolive.update(series.id, {
+            last_metadata_update: now.toISOString()
+        });
+      }
 
-        if (now >= targetStart) {
-          const schedulerService = require('./schedulerService');
-          schedulerService.checkScheduledStreams().catch(err => {
-            console.error('[Autolive] Error triggering stream scheduler:', err);
-          });
-        }
+      if (now >= targetStart) {
+        const schedulerService = require('./schedulerService');
+        schedulerService.checkScheduledStreams().catch(err => {
+          console.error('[Autolive] Error triggering stream scheduler:', err);
+        });
       }
     }
 
@@ -379,7 +385,24 @@ class AutoliveService {
 
   static async syncToYouTube(series, targetStart = null, targetEnd = null) {
     try {
-      const items = await Autolive.getItemsBySeriesId(series.id);
+      let items = await Autolive.getItemsBySeriesId(series.id);
+      
+      // FIX: If no local items, try to fetch from YouTube Playlist
+      if (items.length === 0 && series.playlist_id) {
+          console.log(`[Autolive] No local items, fetching from YouTube Playlist: ${series.playlist_id}`);
+          try {
+              const ytItems = await youtubeService.getPlaylistItems(series.user_id, series.youtube_channel_id, series.playlist_id);
+              items = ytItems.map((yt, idx) => ({
+                  title: yt.title,
+                  description: yt.description,
+                  thumbnail_path: yt.thumbnail,
+                  order_index: idx
+              }));
+          } catch (e) {
+              console.error(`[Autolive] Failed to fetch YouTube playlist items:`, e.message);
+          }
+      }
+
       if (items.length === 0) return;
 
       const currentItem = items[series.current_item_index % items.length];
@@ -413,13 +436,18 @@ class AutoliveService {
         ...sourceSettings
       });
 
+      // FIX: Better resolution check to avoid redundant deletion
+      const sourceRes = sourceSettings.resolution || null;
+      const dbRes = streamRecord.resolution || null;
+      
       if (
         streamRecord.status === 'scheduled' &&
         streamRecord.youtube_stream_id &&
-        sourceSettings.resolution &&
-        streamRecord.resolution !== sourceSettings.resolution
+        sourceRes && 
+        dbRes && 
+        dbRes !== sourceRes
       ) {
-        console.log(`[Autolive] Source resolution changed for ${streamRecord.id}: ${streamRecord.resolution} -> ${sourceSettings.resolution}. Recreating scheduled YouTube broadcast.`);
+        console.log(`[Autolive] Source resolution changed for ${streamRecord.id}: ${dbRes} -> ${sourceRes}. Recreating scheduled YouTube broadcast.`);
         await youtubeService.deleteYouTubeBroadcast(streamRecord.id);
         streamRecord = await Stream.findById(streamRecord.id);
       }
@@ -433,7 +461,7 @@ class AutoliveService {
         youtube_tags: currentItem.tags || '',
         youtube_thumbnail: currentItem.thumbnail_path || '',
         schedule_time: scheduledStart.toISOString(),
-        resolution: sourceSettings.resolution || streamRecord.resolution || null,
+        resolution: sourceRes || dbRes || null,
         bitrate: sourceSettings.bitrate || streamRecord.bitrate || 2500,
         fps: sourceSettings.fps || streamRecord.fps || 30,
         youtube_privacy: series.privacy || 'public',

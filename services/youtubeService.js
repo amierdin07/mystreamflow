@@ -203,17 +203,15 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
     return { success: true, message: 'Not a YouTube API stream' };
   }
 
-    // If broadcast exists, we still want to refresh metadata below
-    const existingBroadcastId = stream.youtube_broadcast_id;
-    const existingStreamId = stream.youtube_stream_id;
-    const existingRtmpUrl = stream.rtmp_url;
-    const existingStreamKey = stream.stream_key;
-    
     if (existingBroadcastId && existingRtmpUrl && existingStreamKey) {
         if (!loggedAlreadyHasBroadcast.has(streamId)) {
-            console.log(`[YouTubeService] Stream ${streamId} has existing broadcast, refreshing metadata...`);
+            console.log(`[YouTubeService] Stream ${streamId} already has broadcast ${existingBroadcastId}. Reusing.`);
             loggedAlreadyHasBroadcast.add(streamId);
         }
+        broadcastId = existingBroadcastId;
+        youtubeStreamId = existingStreamId;
+        rtmpUrl = existingRtmpUrl;
+        streamKey = existingStreamKey;
     }
   
   const user = await User.findById(stream.user_id);
@@ -314,27 +312,43 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
 
   if (tagsArray.length > 0 || stream.youtube_category) {
     try {
-      const videoResponse = await youtube.videos.list({
-        part: 'snippet',
-        id: broadcastId
-      });
+      // Optimization: Only update if it's a new broadcast or if metadata changed
+      // For Autolive, we skip redundant updates if it was updated in the last 10 minutes
+      const lastUpdate = stream.updated_at ? new Date(stream.updated_at).getTime() : 0;
+      const now = Date.now();
+      const needsUpdate = !existingBroadcastId || (now - lastUpdate < 600000); // 10 minutes
 
-      if (videoResponse.data.items && videoResponse.data.items.length > 0) {
-        const currentSnippet = videoResponse.data.items[0].snippet;
-        await youtube.videos.update({
+      if (needsUpdate) {
+        const videoResponse = await youtube.videos.list({
           part: 'snippet',
-          requestBody: {
-            id: broadcastId,
-            snippet: {
-              title: stream.title,
-              description: stream.youtube_description || '',
-              categoryId: stream.youtube_category || '22',
-              tags: tagsArray.length > 0 ? tagsArray : currentSnippet.tags,
-              defaultLanguage: currentSnippet.defaultLanguage,
-              defaultAudioLanguage: currentSnippet.defaultAudioLanguage
-            }
-          }
+          id: broadcastId
         });
+
+        if (videoResponse.data.items && videoResponse.data.items.length > 0) {
+          const currentSnippet = videoResponse.data.items[0].snippet;
+          
+          // Check if actually changed to save quota
+          if (currentSnippet.title !== stream.title || 
+              currentSnippet.description !== (stream.youtube_description || '') ||
+              currentSnippet.categoryId !== (stream.youtube_category || '22')) {
+            
+            await youtube.videos.update({
+              part: 'snippet',
+              requestBody: {
+                id: broadcastId,
+                snippet: {
+                  title: stream.title,
+                  description: stream.youtube_description || '',
+                  categoryId: stream.youtube_category || '22',
+                  tags: tagsArray.length > 0 ? tagsArray : currentSnippet.tags,
+                  defaultLanguage: currentSnippet.defaultLanguage,
+                  defaultAudioLanguage: currentSnippet.defaultAudioLanguage
+                }
+              }
+            });
+            console.log(`[YouTubeService] Updated metadata for video ${broadcastId}`);
+          }
+        }
       }
     } catch (updateError) {
       console.log('[YouTubeService] Note: Could not update video metadata:', updateError.message);
@@ -421,6 +435,29 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
       rtmp_url: rtmpUrl,
       stream_key: streamKey
     });
+  }
+
+  // CRITICAL FIX: Always ensure binding even if reusing IDs
+  // This prevents the "Ghost Stream" / Double Thumbnail issue
+  if (broadcastId && youtubeStreamId) {
+      try {
+          const checkBroadcast = await youtube.liveBroadcasts.list({
+              part: 'contentDetails',
+              id: broadcastId
+          });
+          
+          const boundId = checkBroadcast.data.items?.[0]?.contentDetails?.boundStreamId;
+          if (boundId !== youtubeStreamId) {
+              console.log(`[YouTubeService] Re-binding broadcast ${broadcastId} to stream ${youtubeStreamId}`);
+              await youtube.liveBroadcasts.bind({
+                  part: 'id,contentDetails',
+                  id: broadcastId,
+                  streamId: youtubeStreamId
+              });
+          }
+      } catch (bindError) {
+          console.warn(`[YouTubeService] Binding check/re-bind failed:`, bindError.message);
+      }
   }
 
   // Handle Playlist Assignment
@@ -547,6 +584,39 @@ async function getStreamHealth(userId, channelId, youtubeStreamId) {
   try {
     const youtube = await getYoutubeInstance(userId, channelId);
     if (!youtube) return null;
+    
+    const res = await youtube.liveStreams.list({
+        part: 'status',
+        id: youtubeStreamId
+    });
+    return res.data.items?.[0]?.status;
+  } catch (e) {
+      return null;
+  }
+}
+
+async function getPlaylistItems(userId, channelId, playlistId) {
+  try {
+    const youtube = await getYoutubeInstance(userId, channelId);
+    if (!youtube) throw new Error('Could not get YouTube instance');
+
+    const response = await youtube.playlistItems.list({
+      part: 'snippet,contentDetails',
+      playlistId: playlistId,
+      maxResults: 50
+    });
+
+    return response.data.items.map(item => ({
+      title: item.snippet.title,
+      description: item.snippet.description,
+      videoId: item.contentDetails.videoId,
+      thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url
+    }));
+  } catch (error) {
+    console.error('[YouTubeService] Error fetching playlist items:', error.message);
+    throw handleYoutubeError(error, `(Playlist: ${playlistId})`);
+  }
+}
 
     const res = await youtube.liveStreams.list({
       part: 'status',
@@ -719,5 +789,6 @@ module.exports = {
   uploadVideoToYoutube,
   mapResolutionToYouTube,
   updateLiveMetadata,
-  getPlaylists
+  getPlaylists,
+  getPlaylistItems
 };
