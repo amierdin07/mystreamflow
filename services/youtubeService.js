@@ -203,16 +203,17 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
     return { success: true, message: 'Not a YouTube API stream' };
   }
 
-    if (existingBroadcastId && existingRtmpUrl && existingStreamKey) {
-        if (!loggedAlreadyHasBroadcast.has(streamId)) {
-            console.log(`[YouTubeService] Stream ${streamId} already has broadcast ${existingBroadcastId}. Reusing.`);
-            loggedAlreadyHasBroadcast.add(streamId);
-        }
-        broadcastId = existingBroadcastId;
-        youtubeStreamId = existingStreamId;
-        rtmpUrl = existingRtmpUrl;
-        streamKey = existingStreamKey;
-    }
+  let broadcastId = stream.youtube_broadcast_id;
+  let youtubeStreamId = stream.youtube_stream_id;
+  let rtmpUrl = stream.rtmp_url;
+  let streamKey = stream.stream_key;
+
+  if (broadcastId && rtmpUrl && streamKey) {
+      if (!loggedAlreadyHasBroadcast.has(streamId)) {
+          console.log(`[YouTubeService] Stream ${streamId} already has broadcast ${broadcastId}. Reusing.`);
+          loggedAlreadyHasBroadcast.add(streamId);
+      }
+  }
   
   const user = await User.findById(stream.user_id);
   if (!user || !user.youtube_client_id || !user.youtube_client_secret) {
