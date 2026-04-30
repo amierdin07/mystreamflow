@@ -586,12 +586,17 @@ async function getStreamHealth(userId, channelId, youtubeStreamId) {
     if (!youtube) return null;
     
     const res = await youtube.liveStreams.list({
-        part: 'status',
-        id: youtubeStreamId
+      part: 'status',
+      id: youtubeStreamId
     });
-    return res.data.items?.[0]?.status;
+
+    if (res.data.items && res.data.items.length > 0) {
+      return res.data.items[0].status.healthStatus || { status: 'nodata' };
+    }
+    return { status: 'nodata' };
   } catch (e) {
-      return null;
+    console.error('[YouTubeService] Error getting stream health:', e.message);
+    return null;
   }
 }
 
@@ -615,21 +620,6 @@ async function getPlaylistItems(userId, channelId, playlistId) {
   } catch (error) {
     console.error('[YouTubeService] Error fetching playlist items:', error.message);
     throw handleYoutubeError(error, `(Playlist: ${playlistId})`);
-  }
-}
-
-    const res = await youtube.liveStreams.list({
-      part: 'status',
-      id: youtubeStreamId
-    });
-
-    if (res.data.items && res.data.items.length > 0) {
-      return res.data.items[0].status.healthStatus || { status: 'nodata' };
-    }
-    return { status: 'nodata' };
-  } catch (e) {
-    console.error('[YouTubeService] Error getting stream health:', e.message);
-    return null;
   }
 }
 
