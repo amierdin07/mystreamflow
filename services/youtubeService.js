@@ -262,7 +262,7 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
   const tagsArray = stream.youtube_tags ? stream.youtube_tags.split(',').map(t => t.trim()).filter(t => t) : [];
 
   let broadcast;
-  let broadcastId = stream.youtube_broadcast_id;
+  // broadcastId is already declared at the top
 
   if (!broadcastId) {
     const broadcastSnippet = {
@@ -384,9 +384,7 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
     }
   }
 
-  let rtmpUrl = stream.rtmp_url;
-  let streamKey = stream.stream_key;
-  let youtubeStreamId = stream.youtube_stream_id;
+  // rtmpUrl, streamKey, youtubeStreamId are already declared at the top
 
   if (!youtubeStreamId || !rtmpUrl || !streamKey) {
     const streamResponse = await youtube.liveStreams.insert({
