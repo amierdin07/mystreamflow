@@ -250,9 +250,11 @@ const csrfProtection = function (req, res, next) {
 };
 app.use(csrfProtection);
 const isAuthenticated = (req, res, next) => {
+  console.log(`[DEBUG AUTH] Path: ${req.path}, SessionID: ${req.sessionID}, UserID: ${req.session.userId}`);
   if (req.session.userId) {
     return next();
   }
+  console.log(`[DEBUG AUTH] No UserID, redirecting to /login from ${req.path}`);
   res.redirect('/login');
 };
 
@@ -319,7 +321,9 @@ const loginDelayMiddleware = async (req, res, next) => {
   next();
 };
 app.get('/login', async (req, res) => {
+  console.log(`[DEBUG LOGIN] GET /login, UserID in session: ${req.session.userId}`);
   if (req.session.userId) {
+    console.log(`[DEBUG LOGIN] User already logged in, redirecting to /dashboard`);
     return res.redirect('/dashboard');
   }
   try {
@@ -410,6 +414,7 @@ app.post('/login', loginDelayMiddleware, loginLimiter, async (req, res) => {
     req.session.username = user.username;
     req.session.avatar_path = user.avatar_path;
     req.session.user_role = user.user_role;
+    console.log(`[DEBUG LOGIN] POST /login SUCCESS, UserID set: ${user.id}, redirecting to /dashboard`);
     res.redirect('/dashboard');
   } catch (error) {
     console.error('Login error:', error);
@@ -763,9 +768,11 @@ app.get('/api/youtube/live-viewers/:channelId/:broadcastId', isAuthenticated, as
 });
 
 app.get('/dashboard', isAuthenticated, async (req, res) => {
+  console.log(`[DEBUG DASHBOARD] GET /dashboard, UserID: ${req.session.userId}`);
   try {
     const user = await User.findById(req.session.userId);
     if (!user) {
+      console.log(`[DEBUG DASHBOARD] User not found in DB for ID: ${req.session.userId}, destroying session`);
       req.session.destroy();
       return res.redirect('/login');
     }
