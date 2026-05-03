@@ -352,6 +352,7 @@ class Stream {
             updated_at = CURRENT_TIMESTAMP
            WHERE id = ?`;
         params = [status, status_updated_at, id];
+        }
       } else if (status === 'done') {
         const done_at = new Date().toISOString();
         query = `UPDATE streams SET 
