@@ -978,7 +978,7 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
           addStreamLog(streamId, 'Stream ended - scheduled end time reached');
           if (wasActive) {
             try {
-              await Stream.updateStatus(streamId, 'offline', currentStream.user_id);
+              await Stream.updateStatus(streamId, 'done', currentStream.user_id);
               if (schedulerService) {
                 schedulerService.handleStreamStopped(streamId);
               }
@@ -1009,14 +1009,14 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
                   const endTime = new Date(latestStream.end_time);
                   const now = new Date();
                   if (endTime.getTime() <= now.getTime()) {
-                    await Stream.updateStatus(streamId, 'offline', latestStream.user_id);
+                    await Stream.updateStatus(streamId, 'done', latestStream.user_id);
                     cleanupStreamData(streamId);
                     return;
                   }
                 }
                 const result = await startStream(streamId, true, baseUrl);
                 if (!result.success) {
-                  await Stream.updateStatus(streamId, 'offline', latestStream.user_id);
+                  await Stream.updateStatus(streamId, 'done', latestStream.user_id);
                   cleanupStreamData(streamId);
                 }
               } else {
@@ -1034,7 +1034,7 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
 
       if (wasActive && currentStream) {
         try {
-          await Stream.updateStatus(streamId, 'offline', currentStream.user_id);
+          await Stream.updateStatus(streamId, 'done', currentStream.user_id);
           if (schedulerService) {
             schedulerService.handleStreamStopped(streamId);
           }
@@ -1113,7 +1113,7 @@ async function stopStream(streamId) {
 
     if (!streamData) {
       if (stream && stream.status === 'live') {
-        await Stream.updateStatus(streamId, 'offline', stream.user_id);
+        await Stream.updateStatus(streamId, 'done', stream.user_id);
         if (schedulerService) {
           schedulerService.handleStreamStopped(streamId);
         }
@@ -1140,7 +1140,7 @@ async function stopStream(streamId) {
       }
 
       await saveStreamHistory(stream);
-      await Stream.updateStatus(streamId, 'offline', stream.user_id);
+      await Stream.updateStatus(streamId, 'done', stream.user_id);
     }
 
     if (schedulerService) {
@@ -1318,7 +1318,8 @@ async function healthCheckStreams() {
                 await notificationService.sendPoorSignalNotification(
                   stream.user_id,
                   stream.title,
-                  status
+                  status,
+                  health.configurationIssues || []
                 );
                 poorSignalNotified.set(streamId, now);
               }
@@ -1361,9 +1362,39 @@ async function healthCheckStreams() {
               }
             } catch (e) { }
           }, 3000);
-        }
-      }
     }
+    
+    // Auto-cleanup done streams (1 hour after completion)
+    await cleanupDoneStreams();
+  } catch (error) { }
+}
+
+async function cleanupDoneStreams() {
+  try {
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - (60 * 60 * 1000)).toISOString();
+    
+    return new Promise((resolve) => {
+      db.all(
+        "SELECT id, user_id FROM streams WHERE status = 'done' AND done_at < ?",
+        [oneHourAgo],
+        async (err, rows) => {
+          if (err) {
+            console.error('[StreamingService] Cleanup fetch error:', err.message);
+            return resolve();
+          }
+          
+          if (rows && rows.length > 0) {
+            for (const row of rows) {
+              try {
+                await Stream.delete(row.id, row.user_id);
+              } catch (e) { }
+            }
+          }
+          resolve();
+        }
+      );
+    });
   } catch (error) { }
 }
 

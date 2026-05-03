@@ -41,8 +41,15 @@ class NotificationService {
    * @param {string} streamTitle - The stream title
    * @param {string} status - The signal status
    */
-  static async sendPoorSignalNotification(userId, streamTitle, status) {
-    const message = `⚠️ <b>Streaming Alert!</b>\n\nSignal untuk stream <b>${streamTitle}</b> saat ini berstatus: <b>${status.toUpperCase()}</b>.\n\nSegera cek koneksi internet atau server Anda!`;
+  static async sendPoorSignalNotification(userId, streamTitle, status, issues = []) {
+    let issueText = '';
+    if (issues && issues.length > 0) {
+      issueText = '\n\n<b>Masalah Terdeteksi:</b>';
+      issues.forEach(issue => {
+        issueText += `\n• ${issue.reason || issue.type}${issue.description ? ` (${issue.description})` : ''}`;
+      });
+    }
+    const message = `⚠️ <b>Streaming Alert!</b>\n\nSignal untuk stream <b>${streamTitle}</b> saat ini berstatus: <b>${status.toUpperCase()}</b>.${issueText}\n\nSegera cek koneksi internet atau server Anda!`;
     return this.sendTelegramMessage(userId, message);
   }
 }

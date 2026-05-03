@@ -2172,6 +2172,7 @@
       syncStreamSelectionUI();
     }
 
+
     function updateStreamCounters(streams) {
       const liveStreams = streams.filter(stream => stream.status === 'live').length;
       const desktopCounter = document.querySelector('.hidden.md\\:grid .bg-gray-800:nth-child(1) p.text-3xl');
@@ -2247,6 +2248,16 @@
             </span>` : ''}
           </div>
         `;
+        case 'done':
+          return `
+          <div class="flex flex-col gap-1">
+            <span class="flex items-center bg-green-500/10 text-green-500 rounded-full px-2.5 py-1 w-fit">
+              <i class="ti ti-check text-xs mr-1.5"></i>
+              <span class="text-xs font-medium">Selesai</span>
+            </span>
+            <span class="text-[9px] text-gray-500 ml-1">Auto-delete in 1h</span>
+          </div>
+        `;
         case 'offline':
         default:
           return `
@@ -2260,19 +2271,9 @@
 
     function getSourceBadgeHTML(streamId) {
       if (!streamId) return '';
-      
-      let config = {
-        label: 'MANUAL',
-        icon: 'broadcast',
-        color: 'blue'
-      };
-
-      if (streamId.startsWith('autolive_')) {
-        config = { label: 'AUTOLIVE', icon: 'bolt', color: 'purple' };
-      } else if (streamId.startsWith('rotation_')) {
-        config = { label: 'ROTATION', icon: 'rotate', color: 'green' };
-      }
-
+      let config = { label: 'MANUAL', icon: 'broadcast', color: 'blue' };
+      if (streamId.startsWith('autolive_')) config = { label: 'AUTOLIVE', icon: 'bolt', color: 'purple' };
+      else if (streamId.startsWith('rotation_')) config = { label: 'ROTATION', icon: 'rotate', color: 'green' };
       return `
         <div class="flex items-center">
             <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border bg-${config.color}-400/10 text-${config.color}-400 border-${config.color}-400/20 uppercase tracking-tighter mb-1.5">
@@ -2282,7 +2283,6 @@
         </div>
       `;
     }
-
     function getSignalBadgeHTML(healthStatus, streamId) {
       if (!healthStatus) return '<span class="text-gray-500 text-[10px] animate-pulse">Waiting for signal...</span>';
       

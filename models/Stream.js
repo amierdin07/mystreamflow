@@ -181,7 +181,7 @@ class Stream {
         } else if (filter === 'scheduled') {
           conditions.push("s.status = 'scheduled'");
         } else if (filter === 'offline') {
-          conditions.push("s.status = 'offline'");
+          conditions.push("(s.status = 'offline' OR s.status = 'done')");
         }
       }
       if (search) {
@@ -229,14 +229,15 @@ class Stream {
                 WHEN 'live' THEN 1 
                 WHEN 'scheduled' THEN 2 
                 WHEN 'offline' THEN 3 
-                ELSE 4 
+                WHEN 'done' THEN 4
+                ELSE 5 
               END ASC,
             ` : `
-              CASE s.status 
                 WHEN 'live' THEN 1 
                 WHEN 'scheduled' THEN 2 
                 WHEN 'offline' THEN 3 
-                ELSE 4 
+                WHEN 'done' THEN 4 
+                ELSE 5 
               END ASC,
             `}
             s.created_at DESC
@@ -343,15 +344,24 @@ class Stream {
           params = [status, status_updated_at, id];
         } else {
           query = `UPDATE streams SET 
-              status = ?, 
-              status_updated_at = ?,
-              schedule_time = NULL,
-              end_time = NULL,
-              start_time = NULL,
-              updated_at = CURRENT_TIMESTAMP
-             WHERE id = ?`;
-          params = [status, status_updated_at, id];
-        }
+            status = ?, 
+            status_updated_at = ?,
+            schedule_time = NULL,
+            end_time = NULL,
+            start_time = NULL,
+            updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`;
+        params = [status, status_updated_at, id];
+      } else if (status === 'done') {
+        const done_at = new Date().toISOString();
+        query = `UPDATE streams SET 
+            status = ?, 
+            status_updated_at = ?,
+            done_at = ?,
+            schedule_time = NULL,
+            updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`;
+        params = [status, status_updated_at, done_at, id];
       } else {
         query = `UPDATE streams SET 
             status = ?, 

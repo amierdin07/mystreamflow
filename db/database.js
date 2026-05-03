@@ -75,6 +75,7 @@ function createTables() {
         status_updated_at TIMESTAMP,
         start_time TIMESTAMP,
         end_time TIMESTAMP,
+        done_at TIMESTAMP,
         use_advanced_settings BOOLEAN DEFAULT 0,
         youtube_monetization BOOLEAN DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -401,6 +402,12 @@ function createTables() {
       db.run(`ALTER TABLE streams ADD COLUMN made_for_kids INTEGER DEFAULT 0`, (err) => {
         if (err && !err.message.includes('duplicate column name')) {
           console.error('Error adding made_for_kids column to streams:', err.message);
+        }
+      });
+      
+      db.run(`ALTER TABLE streams ADD COLUMN done_at TIMESTAMP`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+          console.error('Error adding done_at column to streams:', err.message);
         }
       });
 
