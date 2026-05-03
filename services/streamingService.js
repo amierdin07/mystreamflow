@@ -1362,6 +1362,8 @@ async function healthCheckStreams() {
               }
             } catch (e) { }
           }, 3000);
+        }
+      }
     }
     
     // Auto-cleanup done streams (1 hour after completion)
