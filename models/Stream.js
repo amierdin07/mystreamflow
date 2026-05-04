@@ -233,12 +233,13 @@ class Stream {
                 ELSE 5 
               END ASC,
             ` : `
-                WHEN 'live' THEN 1 
-                WHEN 'scheduled' THEN 2 
-                WHEN 'offline' THEN 3 
-                WHEN 'done' THEN 4 
-                ELSE 5 
-              END ASC,
+               CASE s.status 
+                 WHEN 'live' THEN 1 
+                 WHEN 'scheduled' THEN 2 
+                 WHEN 'offline' THEN 3 
+                 WHEN 'done' THEN 4 
+                 ELSE 5 
+               END ASC,
             `}
             s.created_at DESC
           LIMIT ? OFFSET ?
