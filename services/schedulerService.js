@@ -77,9 +77,15 @@ async function checkStreamDurations() {
         scheduledTerminations.delete(stream.id);
 
         try {
-          await streamingService.stopStream(stream.id);
+          await streamingService.stopStream(stream.id, {
+            reason: 'scheduled_end',
+            message: 'Live berhenti karena end time pada jadwal sudah tercapai.'
+          });
         } catch (e) {
-          await Stream.updateStatus(stream.id, 'offline', stream.user_id);
+          await Stream.updateStatus(stream.id, 'offline', stream.user_id, {
+            stopReason: 'scheduled_end',
+            stopMessage: 'Live berhenti karena end time pada jadwal sudah tercapai.'
+          });
         }
       } else if (timeUntilEnd <= 60000 && !scheduledTerminations.has(stream.id)) {
         scheduleStreamTermination(stream.id, timeUntilEnd / 60000, stream.user_id);
@@ -117,7 +123,10 @@ function scheduleStreamTermination(streamId, durationMinutes, userId = null) {
         return;
       }
 
-      await streamingService.stopStream(streamId);
+      await streamingService.stopStream(streamId, {
+        reason: 'scheduled_end',
+        message: 'Live berhenti karena end time pada jadwal sudah tercapai.'
+      });
       scheduledTerminations.delete(streamId);
     } catch (error) {
       scheduledTerminations.delete(streamId);
@@ -129,6 +138,12 @@ function scheduleStreamTermination(streamId, durationMinutes, userId = null) {
     targetEndTime,
     userId
   });
+}
+
+function scheduleStreamTerminationByEndTime(streamId, endTime, userId = null) {
+  const target = new Date(endTime);
+  const durationMinutes = (target.getTime() - Date.now()) / 60000;
+  scheduleStreamTermination(streamId, durationMinutes, userId);
 }
 
 function cancelStreamTermination(streamId) {
@@ -177,6 +192,7 @@ function shutdown() {
 module.exports = {
   init,
   scheduleStreamTermination,
+  scheduleStreamTerminationByEndTime,
   cancelStreamTermination,
   getScheduledTermination,
   handleStreamStopped,

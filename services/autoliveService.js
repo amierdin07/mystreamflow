@@ -599,7 +599,10 @@ class AutoliveService {
   static async stopAutoliveStream(series) {
     try {
       const streamId = `autolive_${series.id}`;
-      await streamingService.stopStream(streamId);
+      await streamingService.stopStream(streamId, {
+        reason: 'scheduled_end',
+        message: 'Autolive berhenti karena durasi atau jadwal item sudah selesai.'
+      });
       
       await Autolive.update(series.id, { 
         status: 'offline',

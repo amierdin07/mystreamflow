@@ -245,6 +245,42 @@ function buildFailureDiagnostics(streamId, error) {
   };
 }
 
+function buildStopOptions(reason, message = null) {
+  return {
+    stopReason: reason || 'unknown',
+    stopMessage: message || getDefaultStopMessage(reason)
+  };
+}
+
+function getDefaultStopMessage(reason) {
+  switch (reason) {
+    case 'user_stop':
+      return 'Live dihentikan oleh user dari aplikasi.';
+    case 'scheduled_end':
+      return 'Live berhenti karena jadwal selesai.';
+    case 'schedule_cancelled':
+      return 'Jadwal live dibatalkan oleh user.';
+    case 'ffmpeg_exit':
+      return 'Proses FFmpeg berhenti di luar perintah stop.';
+    case 'ffmpeg_max_retries':
+      return 'Proses FFmpeg gagal terus dan mencapai batas retry.';
+    case 'app_process_missing':
+      return 'Aplikasi tidak menemukan proses FFmpeg untuk live ini.';
+    case 'youtube_ended':
+      return 'YouTube melaporkan live sudah berhenti, sementara proses lokal masih terdeteksi.';
+    case 'startup_resume_expired':
+      return 'Aplikasi restart setelah jadwal live selesai.';
+    case 'start_failed':
+      return 'Live gagal dimulai.';
+    default:
+      return 'Live berhenti, penyebab detail belum diketahui.';
+  }
+}
+
+function buildFfmpegStopMessage(code, signal) {
+  return `FFmpeg berhenti tanpa perintah stop. code=${code === null ? 'null' : code}, signal=${signal || 'none'}.`;
+}
+
 function runFFprobe(filePath) {
   return new Promise((resolve, reject) => {
     const ffprobeProcess = spawn(ffprobePath, [
@@ -978,7 +1014,7 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
           addStreamLog(streamId, 'Stream ended - scheduled end time reached');
           if (wasActive) {
             try {
-              await Stream.updateStatus(streamId, 'done', currentStream.user_id);
+              await Stream.updateStatus(streamId, 'done', currentStream.user_id, buildStopOptions('scheduled_end'));
               if (schedulerService) {
                 schedulerService.handleStreamStopped(streamId);
               }
@@ -1009,14 +1045,14 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
                   const endTime = new Date(latestStream.end_time);
                   const now = new Date();
                   if (endTime.getTime() <= now.getTime()) {
-                    await Stream.updateStatus(streamId, 'done', latestStream.user_id);
+                    await Stream.updateStatus(streamId, 'done', latestStream.user_id, buildStopOptions('scheduled_end'));
                     cleanupStreamData(streamId);
                     return;
                   }
                 }
                 const result = await startStream(streamId, true, baseUrl);
                 if (!result.success) {
-                  await Stream.updateStatus(streamId, 'done', latestStream.user_id);
+                  await Stream.updateStatus(streamId, 'done', latestStream.user_id, buildStopOptions('start_failed', result.error || 'Retry start stream gagal.'));
                   cleanupStreamData(streamId);
                 }
               } else {
@@ -1034,7 +1070,9 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
 
       if (wasActive && currentStream) {
         try {
-          await Stream.updateStatus(streamId, 'done', currentStream.user_id);
+          const retryCount = streamRetryCount.get(streamId) || 0;
+          const reason = retryCount >= MAX_RETRY_ATTEMPTS ? 'ffmpeg_max_retries' : 'ffmpeg_exit';
+          await Stream.updateStatus(streamId, 'done', currentStream.user_id, buildStopOptions(reason, buildFfmpegStopMessage(code, signal)));
           if (schedulerService) {
             schedulerService.handleStreamStopped(streamId);
           }
@@ -1051,7 +1089,7 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
       }
       activeStreams.delete(streamId);
       try {
-        await Stream.updateStatus(streamId, 'offline', stream.user_id);
+        await Stream.updateStatus(streamId, 'offline', stream.user_id, buildStopOptions('ffmpeg_exit', `Process error: ${err.message}`));
       } catch (e) { }
       cleanupStreamData(streamId);
     });
@@ -1106,14 +1144,15 @@ function updateStreamActivity(streamId) {
   }
 }
 
-async function stopStream(streamId) {
+async function stopStream(streamId, options = {}) {
   try {
+    const stopOptions = buildStopOptions(options.reason || 'user_stop', options.message || null);
     const streamData = activeStreams.get(streamId);
     const stream = await Stream.findById(streamId);
 
     if (!streamData) {
       if (stream && stream.status === 'live') {
-        await Stream.updateStatus(streamId, 'done', stream.user_id);
+        await Stream.updateStatus(streamId, 'done', stream.user_id, buildStopOptions(options.reason || 'app_process_missing', options.message || null));
         if (schedulerService) {
           schedulerService.handleStreamStopped(streamId);
         }
@@ -1140,7 +1179,7 @@ async function stopStream(streamId) {
       }
 
       await saveStreamHistory(stream);
-      await Stream.updateStatus(streamId, 'done', stream.user_id);
+      await Stream.updateStatus(streamId, 'done', stream.user_id, stopOptions);
     }
 
     if (schedulerService) {
@@ -1233,13 +1272,16 @@ async function syncStreamStatuses() {
         if (stream.end_time) {
           const endTime = new Date(stream.end_time);
           if (endTime.getTime() <= Date.now()) {
-            await Stream.updateStatus(stream.id, 'offline', stream.user_id);
+            await Stream.updateStatus(stream.id, 'offline', stream.user_id, buildStopOptions('scheduled_end'));
             cleanupStreamData(stream.id);
             continue;
           }
         }
 
-        await Stream.updateStatus(stream.id, 'offline', stream.user_id, { preserveEndTime: true });
+        await Stream.updateStatus(stream.id, 'offline', stream.user_id, {
+          preserveEndTime: true,
+          ...buildStopOptions('app_process_missing')
+        });
         cleanupStreamData(stream.id);
       }
     }
@@ -1265,7 +1307,7 @@ async function syncStreamStatuses() {
 
       if (streamData.process && streamData.process.exitCode !== null) {
         activeStreams.delete(streamId);
-        await Stream.updateStatus(streamId, 'offline', stream.user_id);
+        await Stream.updateStatus(streamId, 'offline', stream.user_id, buildStopOptions('ffmpeg_exit'));
         cleanupStreamData(streamId);
       }
     }
@@ -1289,18 +1331,49 @@ async function healthCheckStreams() {
           if (stream.end_time) {
             const endTime = new Date(stream.end_time);
             if (endTime.getTime() <= Date.now()) {
-              await Stream.updateStatus(streamId, 'offline', stream.user_id);
+              await Stream.updateStatus(streamId, 'offline', stream.user_id, buildStopOptions('scheduled_end'));
               cleanupStreamData(streamId);
               continue;
             }
           }
-          await Stream.updateStatus(streamId, 'offline', stream.user_id, { preserveEndTime: true });
+          await Stream.updateStatus(streamId, 'offline', stream.user_id, {
+            preserveEndTime: true,
+            ...buildStopOptions('ffmpeg_exit')
+          });
         }
         cleanupStreamData(streamId);
         continue;
       }
 
       const stream = await Stream.findById(streamId);
+      if (stream && stream.is_youtube_api && stream.youtube_broadcast_id) {
+        try {
+          const lifecycleStatus = await youtubeService.getBroadcastLifecycleStatus(
+            stream.user_id,
+            stream.youtube_channel_id,
+            stream.youtube_broadcast_id
+          );
+
+          if (lifecycleStatus && ['complete', 'revoked'].includes(lifecycleStatus.toLowerCase())) {
+            addStreamLog(streamId, `YouTube broadcast lifecycle is ${lifecycleStatus}; stopping local FFmpeg.`);
+            manuallyStoppingStreams.add(streamId);
+            await killFFmpegProcess(streamId, streamData);
+            activeStreams.delete(streamId);
+            manuallyStoppingStreams.delete(streamId);
+            await Stream.updateStatus(
+              streamId,
+              'done',
+              stream.user_id,
+              buildStopOptions('youtube_ended', `YouTube broadcast status: ${lifecycleStatus}.`)
+            );
+            cleanupStreamData(streamId);
+            continue;
+          }
+        } catch (youtubeStatusError) {
+          console.error(`[StreamingService] Failed YouTube lifecycle check for stream ${streamId}:`, youtubeStatusError.message);
+        }
+      }
+
       if (stream && stream.is_youtube_api && stream.youtube_stream_id) {
         try {
           const health = await youtubeService.getStreamHealth(
@@ -1343,7 +1416,7 @@ async function healthCheckStreams() {
               await killFFmpegProcess(streamId, streamData);
               activeStreams.delete(streamId);
               manuallyStoppingStreams.delete(streamId);
-              await Stream.updateStatus(streamId, 'offline', stream.user_id);
+              await Stream.updateStatus(streamId, 'offline', stream.user_id, buildStopOptions('scheduled_end'));
               cleanupStreamData(streamId);
               continue;
             }

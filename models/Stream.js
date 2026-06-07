@@ -319,7 +319,23 @@ class Stream {
   }
   static updateStatus(id, status, userId = null, options = {}) {
     const status_updated_at = new Date().toISOString();
-    const { startTimeOverride = null, preserveEndTime = false } = options;
+    const {
+      startTimeOverride = null,
+      preserveEndTime = false,
+      stopReason = null,
+      stopMessage = null
+    } = options;
+
+    const appendStopReasonFields = (fields, params) => {
+      if (stopReason !== null || stopMessage !== null) {
+        fields.push('last_stop_reason = ?');
+        params.push(stopReason);
+        fields.push('last_stop_message = ?');
+        params.push(stopMessage);
+        fields.push('last_stop_at = ?');
+        params.push(status_updated_at);
+      }
+    };
     
     return new Promise((resolve, reject) => {
       let query;
@@ -331,39 +347,51 @@ class Stream {
             status = ?, 
             status_updated_at = ?, 
             start_time = ?,
+            last_stop_reason = NULL,
+            last_stop_message = NULL,
+            last_stop_at = NULL,
             updated_at = CURRENT_TIMESTAMP
            WHERE id = ?`;
         params = [status, status_updated_at, start_time, id];
       } else if (status === 'offline') {
         if (preserveEndTime) {
-          query = `UPDATE streams SET 
-              status = ?, 
-              status_updated_at = ?,
-              schedule_time = NULL,
-              updated_at = CURRENT_TIMESTAMP
-             WHERE id = ?`;
-          params = [status, status_updated_at, id];
+          const fields = [
+            'status = ?',
+            'status_updated_at = ?',
+            'schedule_time = NULL'
+          ];
+          params = [status, status_updated_at];
+          appendStopReasonFields(fields, params);
+          fields.push('updated_at = CURRENT_TIMESTAMP');
+          query = `UPDATE streams SET ${fields.join(', ')} WHERE id = ?`;
+          params.push(id);
         } else {
-          query = `UPDATE streams SET 
-            status = ?, 
-            status_updated_at = ?,
-            schedule_time = NULL,
-            end_time = NULL,
-            start_time = NULL,
-            updated_at = CURRENT_TIMESTAMP
-           WHERE id = ?`;
-        params = [status, status_updated_at, id];
+          const fields = [
+            'status = ?',
+            'status_updated_at = ?',
+            'schedule_time = NULL',
+            'end_time = NULL',
+            'start_time = NULL'
+          ];
+          params = [status, status_updated_at];
+          appendStopReasonFields(fields, params);
+          fields.push('updated_at = CURRENT_TIMESTAMP');
+          query = `UPDATE streams SET ${fields.join(', ')} WHERE id = ?`;
+          params.push(id);
         }
       } else if (status === 'done') {
         const done_at = new Date().toISOString();
-        query = `UPDATE streams SET 
-            status = ?, 
-            status_updated_at = ?,
-            done_at = ?,
-            schedule_time = NULL,
-            updated_at = CURRENT_TIMESTAMP
-           WHERE id = ?`;
-        params = [status, status_updated_at, done_at, id];
+        const fields = [
+          'status = ?',
+          'status_updated_at = ?',
+          'done_at = ?',
+          'schedule_time = NULL'
+        ];
+        params = [status, status_updated_at, done_at];
+        appendStopReasonFields(fields, params);
+        fields.push('updated_at = CURRENT_TIMESTAMP');
+        query = `UPDATE streams SET ${fields.join(', ')} WHERE id = ?`;
+        params.push(id);
       } else {
         query = `UPDATE streams SET 
             status = ?, 

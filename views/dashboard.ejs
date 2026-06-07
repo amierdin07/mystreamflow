@@ -2269,6 +2269,43 @@
       }
     }
 
+    function getStopReasonHTML(stream, compact = false) {
+      if (!stream || stream.status === 'live' || stream.status === 'scheduled' || (!stream.last_stop_reason && !stream.last_stop_message)) {
+        return '';
+      }
+
+      const reasonMap = {
+        user_stop: { label: 'Dihentikan user', icon: 'ti-hand-stop', color: 'text-blue-300', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+        scheduled_end: { label: 'Jadwal selesai', icon: 'ti-calendar-check', color: 'text-green-300', bg: 'bg-green-500/10', border: 'border-green-500/20' },
+        schedule_cancelled: { label: 'Jadwal dibatalkan', icon: 'ti-calendar-x', color: 'text-yellow-300', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20' },
+        youtube_ended: { label: 'YouTube berhenti duluan', icon: 'ti-brand-youtube', color: 'text-red-300', bg: 'bg-red-500/10', border: 'border-red-500/20' },
+        ffmpeg_exit: { label: 'FFmpeg berhenti', icon: 'ti-alert-triangle', color: 'text-orange-300', bg: 'bg-orange-500/10', border: 'border-orange-500/20' },
+        ffmpeg_max_retries: { label: 'Retry habis', icon: 'ti-alert-octagon', color: 'text-red-300', bg: 'bg-red-500/10', border: 'border-red-500/20' },
+        app_process_missing: { label: 'Proses tidak ditemukan', icon: 'ti-activity-heartbeat', color: 'text-orange-300', bg: 'bg-orange-500/10', border: 'border-orange-500/20' },
+        startup_resume_expired: { label: 'Lewat jadwal saat restart', icon: 'ti-clock-exclamation', color: 'text-yellow-300', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20' },
+        start_failed: { label: 'Gagal mulai', icon: 'ti-alert-triangle', color: 'text-red-300', bg: 'bg-red-500/10', border: 'border-red-500/20' }
+      };
+
+      const config = reasonMap[stream.last_stop_reason] || { label: 'Berhenti', icon: 'ti-info-circle', color: 'text-gray-300', bg: 'bg-gray-500/10', border: 'border-gray-600/30' };
+      const stoppedAt = stream.last_stop_at ? new Date(stream.last_stop_at) : null;
+      const timePlain = stoppedAt && !Number.isNaN(stoppedAt.getTime()) ? ` - ${formatDate(stoppedAt)} ${formatTime(stoppedAt)}` : '';
+      const timeText = timePlain ? timePlain.replace(' - ', ' &middot; ') : '';
+      const message = stream.last_stop_message || config.label;
+      const detailClass = compact ? 'text-[10px] max-w-[220px]' : 'text-xs max-w-[280px]';
+
+      return `
+        <div class="mt-1.5 inline-flex items-start gap-1.5 rounded border ${config.border} ${config.bg} px-2 py-1 ${config.color} ${detailClass}"
+             title="${escapeHtml(message + timePlain)}">
+          <i class="ti ${config.icon} mt-0.5 flex-shrink-0"></i>
+          <span class="min-w-0">
+            <span class="font-medium">${config.label}</span>
+            <span class="text-gray-400">${timeText}</span>
+            ${message && message !== config.label ? `<span class="block truncate text-gray-400">${escapeHtml(message)}</span>` : ''}
+          </span>
+        </div>
+      `;
+    }
+
     function getSourceBadgeHTML(streamId) {
       if (!streamId) return '';
       let config = { label: 'MANUAL', icon: 'broadcast', color: 'blue' };
@@ -2517,6 +2554,7 @@
       <div class="border-t border-gray-700 px-3 py-1.5 flex items-center justify-between">
         <div class="flex flex-col gap-1">
           ${statusBadge}
+          ${getStopReasonHTML(stream, true)}
           <div class="signal-container" data-stream-id="${stream.id}">${signalHTML}</div>
         </div>
         <div class="flex items-center gap-1.5">
@@ -2680,8 +2718,9 @@
         })()}
       </td>
       <td class="px-6 py-4 whitespace-nowrap min-w-[150px]">
-        <div class="flex items-center">
+        <div class="flex flex-col items-start">
           ${statusBadge}
+          ${getStopReasonHTML(stream)}
         </div>
       </td>
       <td class="px-6 py-4 whitespace-nowrap">

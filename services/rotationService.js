@@ -524,7 +524,10 @@ async function stopRotationStream(rotation, item) {
     );
 
     if (rotationStream) {
-      await streamingService.stopStream(rotationStream.id);
+      await streamingService.stopStream(rotationStream.id, {
+        reason: 'scheduled_end',
+        message: 'Rotation menghentikan live untuk berpindah ke item berikutnya.'
+      });
       
       // Note: We intentionally DO NOT complete the broadcast here for rotations,
       // as we want to reuse the same broadcast ID for the next item in the rotation cycle.

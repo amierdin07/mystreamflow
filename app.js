@@ -4477,7 +4477,10 @@ app.post('/api/streams/:id/status', isAuthenticated, [
       }
     } else if (newStatus === 'offline') {
       if (stream.status === 'live') {
-        const result = await streamingService.stopStream(streamId);
+        const result = await streamingService.stopStream(streamId, {
+          reason: 'user_stop',
+          message: 'Live dihentikan oleh user dari tab Stream.'
+        });
         if (!result.success) {
           console.warn('Failed to stop FFmpeg process:', result.error);
         }
@@ -4485,10 +4488,18 @@ app.post('/api/streams/:id/status', isAuthenticated, [
         await Stream.update(streamId, {
           schedule_time: null,
           end_time: null,
-          status: 'offline'
+          status: 'offline',
+          last_stop_reason: 'schedule_cancelled',
+          last_stop_message: 'Jadwal live dibatalkan oleh user dari tab Stream.',
+          last_stop_at: new Date().toISOString()
         });
       }
-      const result = await Stream.updateStatus(streamId, 'offline', req.session.userId);
+      const result = await Stream.updateStatus(streamId, 'offline', req.session.userId, {
+        stopReason: stream.status === 'scheduled' ? 'schedule_cancelled' : 'user_stop',
+        stopMessage: stream.status === 'scheduled'
+          ? 'Jadwal live dibatalkan oleh user dari tab Stream.'
+          : 'Live dihentikan oleh user dari tab Stream.'
+      });
       if (!result.updated) {
         return res.status(404).json({
           success: false,
@@ -5452,7 +5463,10 @@ app.delete('/api/autolive/:id', isAuthenticated, async (req, res) => {
     if (linkedStream && linkedStream.user_id === req.session.userId) {
       if (linkedStream.status === 'live') {
         try {
-          const stopResult = await streamingService.stopStream(streamId);
+          const stopResult = await streamingService.stopStream(streamId, {
+            reason: 'user_stop',
+            message: 'Live dihentikan karena seri Autolive dihapus oleh user.'
+          });
           if (!stopResult.success && stopResult.error !== 'Stream is not active') {
             console.error('Error stopping linked autolive stream before delete:', stopResult.error);
           }
@@ -5524,7 +5538,10 @@ const server = app.listen(port, '0.0.0.0', async () => {
         // Skip streams whose end time has already passed
         if (stream.end_time && new Date(stream.end_time) < now) {
           console.log(`[Startup] Stream "${stream.title}" (${stream.id}) has ended. Setting to offline.`);
-          await Stream.updateStatus(stream.id, 'offline');
+          await Stream.updateStatus(stream.id, 'offline', null, {
+            stopReason: 'startup_resume_expired',
+            stopMessage: 'Aplikasi restart setelah jadwal live ini sudah selesai.'
+          });
           continue;
         }
 
@@ -5532,7 +5549,10 @@ const server = app.listen(port, '0.0.0.0', async () => {
         // Start asynchronously to not block server startup
         streamingService.startStream(stream.id).catch(err => {
           console.error(`[Startup] Failed to resume stream ${stream.id}:`, err.message);
-          Stream.updateStatus(stream.id, 'offline').catch(() => {});
+          Stream.updateStatus(stream.id, 'offline', null, {
+            stopReason: 'start_failed',
+            stopMessage: `Gagal resume live setelah aplikasi restart: ${err.message}`
+          }).catch(() => {});
         });
       }
     }

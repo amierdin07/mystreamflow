@@ -601,6 +601,24 @@ async function getStreamHealth(userId, channelId, youtubeStreamId) {
   }
 }
 
+async function getBroadcastLifecycleStatus(userId, channelId, broadcastId) {
+  try {
+    const youtube = await getYoutubeInstance(userId, channelId);
+    if (!youtube) return null;
+
+    const res = await youtube.liveBroadcasts.list({
+      part: 'status',
+      id: broadcastId
+    });
+
+    const broadcast = res.data.items && res.data.items[0];
+    return broadcast && broadcast.status ? broadcast.status.lifeCycleStatus || null : null;
+  } catch (e) {
+    console.error('[YouTubeService] Error getting broadcast lifecycle:', e.message);
+    return null;
+  }
+}
+
 async function getPlaylistItems(userId, channelId, playlistId) {
   try {
     const youtube = await getYoutubeInstance(userId, channelId);
@@ -775,6 +793,7 @@ module.exports = {
   getChannelStats,
   getLiveStreamMetrics,
   getStreamHealth,
+  getBroadcastLifecycleStatus,
   handleYoutubeError,
   getYoutubeInstance,
   uploadVideoToYoutube,
