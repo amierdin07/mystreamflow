@@ -309,17 +309,25 @@
                   <div id="availableAudios" class="p-2 space-y-1 max-h-64 overflow-y-auto custom-scrollbar">
                     <% if (audios && audios.length > 0) { %>
                       <% audios.forEach(function(audio) { %>
-                        <button type="button" class="w-full flex items-center gap-2 p-2 rounded hover:bg-dark-600 transition-colors text-left" 
-                                data-audio-id="<%= audio.id %>" onclick="addAudioToPlaylist('<%= audio.id %>')">
-                          <div class="w-10 h-10 bg-dark-800 rounded-full flex-shrink-0 flex items-center justify-center">
-                            <i class="ti ti-music text-gray-400"></i>
+                        <div class="w-full flex items-center justify-between p-2 rounded hover:bg-dark-600/50 transition-colors text-left" data-audio-id="<%= audio.id %>">
+                          <div class="flex items-center gap-2 flex-1 min-w-0">
+                            <div class="w-8 h-8 bg-dark-800 rounded-full flex-shrink-0 flex items-center justify-center">
+                              <i class="ti ti-music text-gray-400 text-sm"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                              <p class="text-sm font-medium text-white truncate" title="<%= audio.title %>"><%= audio.title %></p>
+                              <p class="text-xs text-gray-400"><%= audio.duration ? Math.floor(audio.duration / 60) + ':' + String(Math.floor(audio.duration % 60)).padStart(2, '0') : '0:00' %></p>
+                            </div>
                           </div>
-                          <div class="flex-1 min-w-0">
-                            <p class="text-sm font-medium text-white truncate"><%= audio.title %></p>
-                            <p class="text-xs text-gray-400"><%= audio.duration ? Math.floor(audio.duration / 60) + ':' + String(Math.floor(audio.duration % 60)).padStart(2, '0') : '0:00' %></p>
+                          <div class="flex items-center gap-1 flex-shrink-0 ml-2">
+                            <button type="button" onclick="addAudioToPlaylist('<%= audio.id %>', 1)" class="px-1.5 py-0.5 text-[10px] bg-primary/20 hover:bg-primary/40 text-primary rounded transition-colors flex items-center gap-0.5" title="Add to Track 1 (Music)">
+                              <i class="ti ti-music-bell-ring"></i> T1
+                            </button>
+                            <button type="button" onclick="addAudioToPlaylist('<%= audio.id %>', 2)" class="px-1.5 py-0.5 text-[10px] bg-green-500/20 hover:bg-green-500/40 text-green-400 rounded transition-colors flex items-center gap-0.5" title="Add to Track 2 (Ambient/Rain)">
+                              <i class="ti ti-cloud-rain"></i> T2
+                            </button>
                           </div>
-                          <i class="ti ti-plus text-gray-400"></i>
-                        </button>
+                        </div>
                       <% }); %>
                     <% } else { %>
                       <div class="text-center py-8 text-gray-400">
@@ -332,18 +340,58 @@
                 </div>
               </div>
               
-              <div>
-                <div class="flex items-center justify-between mb-2">
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
                   <h4 class="text-sm font-medium text-gray-300">Selected Background Music</h4>
                   <button type="button" onclick="clearAllAudios()" class="text-xs text-red-400 hover:text-red-300">Clear all</button>
                 </div>
-                <div class="bg-dark-700 rounded-lg border border-gray-600 border-dashed" id="selectedAudiosContainer">
-                  <div id="selectedAudios" class="p-2 space-y-1 max-h-64 overflow-y-auto custom-scrollbar min-h-[200px]">
-                    <div id="noAudiosMessage" class="text-center py-8 text-gray-400">
-                      <i class="ti ti-music text-3xl mb-2"></i>
-                      <p class="text-sm">No background music selected</p>
-                      <p class="text-xs text-gray-500 mt-1">This is optional</p>
+                
+                <!-- Track 1: Music -->
+                <div class="bg-dark-700/60 rounded-lg border border-gray-600/70 p-3">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-primary flex items-center gap-1">
+                      <i class="ti ti-music-bell-ring"></i> Track 1 (e.g. Jazz Music)
+                    </span>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs text-gray-400">Vol: <span id="vol-lbl-t1">100%</span></span>
+                      <input type="range" id="volume-t1" min="0" max="1" step="0.05" value="1" 
+                             class="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-primary" 
+                             oninput="onTrackVolumeChange(1, this.value)">
                     </div>
+                  </div>
+                  <div id="selectedAudiosT1" class="space-y-1 min-h-[60px] max-h-36 overflow-y-auto custom-scrollbar">
+                    <!-- Track 1 selected audios will render here -->
+                  </div>
+                </div>
+
+                <!-- Track 2: Ambient / Effects -->
+                <div class="bg-dark-700/60 rounded-lg border border-gray-600/70 p-3">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-green-400 flex items-center gap-1">
+                      <i class="ti ti-cloud-rain"></i> Track 2 (e.g. Rain Ambient)
+                    </span>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs text-gray-400">Vol: <span id="vol-lbl-t2">100%</span></span>
+                      <input type="range" id="volume-t2" min="0" max="1" step="0.05" value="1" 
+                             class="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-green-500" 
+                             oninput="onTrackVolumeChange(2, this.value)">
+                    </div>
+                  </div>
+                  <div id="selectedAudiosT2" class="space-y-1 min-h-[60px] max-h-36 overflow-y-auto custom-scrollbar">
+                    <!-- Track 2 selected audios will render here -->
+                  </div>
+                </div>
+
+                <!-- Preview Mix Control Section -->
+                <div id="previewMixSection" class="p-3 bg-dark-600/50 rounded-lg border border-gray-700 hidden">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <div class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse hidden" id="previewPlayingIndicator"></div>
+                      <span class="text-xs font-medium text-gray-300" id="previewStatusText">Mix Preview (Web Playback)</span>
+                    </div>
+                    <button type="button" id="btnPreviewMix" onclick="togglePreviewMix()" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-primary hover:bg-blue-600 text-white rounded transition-colors">
+                      <i class="ti ti-player-play" id="previewMixIcon"></i> <span id="previewMixBtnText">Play Preview</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -417,6 +465,8 @@
 <script>
 let selectedVideos = [];
 let selectedAudios = [];
+let track1Volume = 1.0;
+let track2Volume = 1.0;
 let currentPlaylistId = null;
 let allVideos = <%- JSON.stringify(videos || []) %>;
 let allAudios = <%- JSON.stringify(audios || []) %>;
@@ -615,9 +665,22 @@ function updateBadges() {
 }
 
 function openCreatePlaylistModal() {
+  stopPreviewMix();
   currentPlaylistId = null;
   selectedVideos = [];
   selectedAudios = [];
+  track1Volume = 1.0;
+  track2Volume = 1.0;
+  
+  const vol1Input = document.getElementById('volume-t1');
+  const vol2Input = document.getElementById('volume-t2');
+  const vol1Lbl = document.getElementById('vol-lbl-t1');
+  const vol2Lbl = document.getElementById('vol-lbl-t2');
+  if (vol1Input) vol1Input.value = 1.0;
+  if (vol2Input) vol2Input.value = 1.0;
+  if (vol1Lbl) vol1Lbl.textContent = '100%';
+  if (vol2Lbl) vol2Lbl.textContent = '100%';
+
   document.getElementById('modalTitle').textContent = 'Create New Playlist';
   document.getElementById('submitButtonText').textContent = 'Create Playlist';
   document.getElementById('playlistForm').reset();
@@ -635,6 +698,7 @@ function openCreatePlaylistModal() {
 }
 
 function closePlaylistModal() {
+  stopPreviewMix();
   const modal = document.getElementById('playlistModal');
   modal.classList.remove('active');
   setTimeout(() => {
@@ -676,10 +740,14 @@ function clearAllVideos() {
   updateBadges();
 }
 
-function addAudioToPlaylist(audioId) {
+function addAudioToPlaylist(audioId, trackNumber = 1) {
   const audio = allAudios.find(a => a.id == audioId);
   if (audio && !selectedAudios.find(a => a.id == audioId)) {
-    selectedAudios.push(audio);
+    stopPreviewMix();
+    selectedAudios.push({
+      ...audio,
+      track_number: trackNumber
+    });
     updateSelectedAudiosDisplay();
     updateAvailableAudiosDisplay();
     updateBadges();
@@ -687,6 +755,7 @@ function addAudioToPlaylist(audioId) {
 }
 
 function removeAudioFromPlaylist(audioId) {
+  stopPreviewMix();
   selectedAudios = selectedAudios.filter(a => a.id != audioId);
   updateSelectedAudiosDisplay();
   updateAvailableAudiosDisplay();
@@ -694,6 +763,7 @@ function removeAudioFromPlaylist(audioId) {
 }
 
 function clearAllAudios() {
+  stopPreviewMix();
   selectedAudios = [];
   updateSelectedAudiosDisplay();
   updateAvailableAudiosDisplay();
@@ -766,22 +836,31 @@ function updateAvailableAudiosDisplay() {
     }
   } else {
     container.innerHTML = available.map(audio => `
-      <button type="button" class="w-full flex items-center gap-2 p-2 rounded hover:bg-dark-600 transition-colors text-left" 
-              data-audio-id="${audio.id}" onclick="addAudioToPlaylist('${audio.id}')">
-        <div class="w-10 h-10 bg-dark-800 rounded-full flex-shrink-0 flex items-center justify-center">
-          <i class="ti ti-music text-gray-400"></i>
+      <div class="w-full flex items-center justify-between p-2 rounded hover:bg-dark-600/50 transition-colors text-left" data-audio-id="${audio.id}">
+        <div class="flex items-center gap-2 flex-1 min-w-0">
+          <div class="w-8 h-8 bg-dark-800 rounded-full flex-shrink-0 flex items-center justify-center">
+            <i class="ti ti-music text-gray-400 text-sm"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-white truncate" title="${audio.title}">${audio.title}</p>
+            <p class="text-xs text-gray-400">${formatDuration(audio.duration)}</p>
+          </div>
         </div>
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium text-white truncate">${audio.title}</p>
-          <p class="text-xs text-gray-400">${formatDuration(audio.duration)}</p>
+        <div class="flex items-center gap-1 flex-shrink-0 ml-2">
+          <button type="button" onclick="addAudioToPlaylist('${audio.id}', 1)" class="px-1.5 py-0.5 text-[10px] bg-primary/20 hover:bg-primary/40 text-primary rounded transition-colors flex items-center gap-0.5" title="Add to Track 1 (Music)">
+            <i class="ti ti-music-bell-ring"></i> T1
+          </button>
+          <button type="button" onclick="addAudioToPlaylist('${audio.id}', 2)" class="px-1.5 py-0.5 text-[10px] bg-green-500/20 hover:bg-green-500/40 text-green-400 rounded transition-colors flex items-center gap-0.5" title="Add to Track 2 (Ambient/Rain)">
+            <i class="ti ti-cloud-rain"></i> T2
+          </button>
         </div>
-        <i class="ti ti-plus text-gray-400"></i>
-      </button>
+      </div>
     `).join('');
   }
 }
 
 function editPlaylist(playlistId) {
+  stopPreviewMix();
   fetch(`/api/playlists/${playlistId}`)
     .then(response => response.json())
     .then(data => {
@@ -789,7 +868,22 @@ function editPlaylist(playlistId) {
         const playlist = data.playlist;
         currentPlaylistId = playlistId;
         selectedVideos = playlist.videos || [];
-        selectedAudios = playlist.audios || [];
+        selectedAudios = (playlist.audios || []).map(a => ({
+          ...a,
+          track_number: a.track_number !== undefined && a.track_number !== null ? a.track_number : 1
+        }));
+        
+        track1Volume = playlist.audio_track1_volume !== undefined && playlist.audio_track1_volume !== null ? playlist.audio_track1_volume : 1.0;
+        track2Volume = playlist.audio_track2_volume !== undefined && playlist.audio_track2_volume !== null ? playlist.audio_track2_volume : 1.0;
+        
+        const vol1Input = document.getElementById('volume-t1');
+        const vol2Input = document.getElementById('volume-t2');
+        const vol1Lbl = document.getElementById('vol-lbl-t1');
+        const vol2Lbl = document.getElementById('vol-lbl-t2');
+        if (vol1Input) vol1Input.value = track1Volume;
+        if (vol2Input) vol2Input.value = track2Volume;
+        if (vol1Lbl) vol1Lbl.textContent = Math.round(track1Volume * 100) + '%';
+        if (vol2Lbl) vol2Lbl.textContent = Math.round(track2Volume * 100) + '%';
         
         document.getElementById('modalTitle').textContent = 'Edit Playlist';
         document.getElementById('submitButtonText').textContent = 'Update Playlist';
@@ -856,18 +950,30 @@ function viewPlaylist(playlistId) {
         const audiosContainer = document.getElementById('playlistAudios');
         if (audios.length > 0) {
           audiosSection.classList.remove('hidden');
-          audiosContainer.innerHTML = audios.map((audio, index) => `
-            <div class="flex items-center gap-3 p-3 bg-gray-700 rounded">
-              <span class="text-gray-400 text-sm w-6">${index + 1}</span>
-              <div class="w-10 h-10 bg-dark-800 rounded-full flex items-center justify-center">
-                <i class="ti ti-music text-gray-400"></i>
+          audiosContainer.innerHTML = audios.map((audio, index) => {
+            const trackNum = audio.track_number || 1;
+            const trackVol = trackNum === 1 
+              ? (playlist.audio_track1_volume !== undefined && playlist.audio_track1_volume !== null ? playlist.audio_track1_volume : 1.0)
+              : (playlist.audio_track2_volume !== undefined && playlist.audio_track2_volume !== null ? playlist.audio_track2_volume : 1.0);
+            const trackText = trackNum === 1 ? 'Track 1 (Music)' : 'Track 2 (Ambient)';
+            const volPercent = Math.round(trackVol * 100);
+            return `
+              <div class="flex items-center gap-3 p-3 bg-gray-700 rounded">
+                <span class="text-gray-400 text-sm w-6">${index + 1}</span>
+                <div class="w-10 h-10 bg-dark-800 rounded-full flex items-center justify-center flex-shrink-0">
+                  <i class="ti ti-${trackNum === 1 ? 'music' : 'cloud-rain'} ${trackNum === 1 ? 'text-primary' : 'text-green-400'}"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="font-medium truncate text-white">${audio.title}</p>
+                  <div class="flex items-center gap-4 text-xs text-gray-400 mt-1">
+                    <span>${formatDuration(audio.duration)}</span>
+                    <span class="px-1.5 py-0.5 rounded text-[10px] ${trackNum === 1 ? 'bg-primary/20 text-primary' : 'bg-green-500/20 text-green-400'}">${trackText}</span>
+                    <span>Volume: ${volPercent}%</span>
+                  </div>
+                </div>
               </div>
-              <div class="flex-1 min-w-0">
-                <p class="font-medium truncate">${audio.title}</p>
-                <p class="text-xs text-gray-400">${formatDuration(audio.duration)}</p>
-              </div>
-            </div>
-          `).join('');
+            `;
+          }).join('');
         } else {
           audiosSection.classList.add('hidden');
         }
@@ -925,7 +1031,9 @@ function submitPlaylist() {
     description: document.getElementById('playlistDescription').value.trim(),
     shuffle: document.getElementById('playlistShuffle').value === 'true',
     videos: selectedVideos.map(v => v.id),
-    audios: selectedAudios.map(a => a.id),
+    audios: selectedAudios.map(a => ({ id: a.id, track_number: a.track_number || 1 })),
+    audio_track1_volume: track1Volume,
+    audio_track2_volume: track2Volume,
     youtube_channel_id: currentChannelIdJS
   };
   
@@ -1006,24 +1114,54 @@ function initializeDragAndDrop() {
   }
 }
 
+let audioSortableT1 = null;
+let audioSortableT2 = null;
+
 function initializeAudioDragAndDrop() {
-  const container = document.getElementById('selectedAudios');
-  if (!container) return;
+  const containerT1 = document.getElementById('selectedAudiosT1');
+  const containerT2 = document.getElementById('selectedAudiosT2');
   
-  if (audioSortable) {
-    audioSortable.destroy();
-    audioSortable = null;
+  if (audioSortableT1) {
+    audioSortableT1.destroy();
+    audioSortableT1 = null;
+  }
+  if (audioSortableT2) {
+    audioSortableT2.destroy();
+    audioSortableT2 = null;
   }
   
-  if (selectedAudios.length > 0) {
-    audioSortable = new Sortable(container, {
+  const t1Audios = selectedAudios.filter(a => (a.track_number || 1) === 1);
+  if (t1Audios.length > 0 && containerT1) {
+    audioSortableT1 = new Sortable(containerT1, {
       animation: 150,
       ghostClass: 'sortable-ghost',
-      handle: '.cursor-move',
       onEnd: function(evt) {
         if (evt.oldIndex !== evt.newIndex) {
-          const moved = selectedAudios.splice(evt.oldIndex, 1)[0];
-          selectedAudios.splice(evt.newIndex, 0, moved);
+          const t1Items = selectedAudios.filter(a => (a.track_number || 1) === 1);
+          const moved = t1Items.splice(evt.oldIndex, 1)[0];
+          t1Items.splice(evt.newIndex, 0, moved);
+          
+          const t2Items = selectedAudios.filter(a => a.track_number === 2);
+          selectedAudios = [...t1Items, ...t2Items];
+          renderSelectedAudios();
+        }
+      }
+    });
+  }
+
+  const t2Audios = selectedAudios.filter(a => a.track_number === 2);
+  if (t2Audios.length > 0 && containerT2) {
+    audioSortableT2 = new Sortable(containerT2, {
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      onEnd: function(evt) {
+        if (evt.oldIndex !== evt.newIndex) {
+          const t2Items = selectedAudios.filter(a => a.track_number === 2);
+          const moved = t2Items.splice(evt.oldIndex, 1)[0];
+          t2Items.splice(evt.newIndex, 0, moved);
+          
+          const t1Items = selectedAudios.filter(a => (a.track_number || 1) === 1);
+          selectedAudios = [...t1Items, ...t2Items];
           renderSelectedAudios();
         }
       }
@@ -1059,32 +1197,61 @@ function renderSelectedVideos() {
 }
 
 function renderSelectedAudios() {
-  const container = document.getElementById('selectedAudios');
-  if (!container) return;
-  
-  if (selectedAudios.length === 0) {
-    container.innerHTML = `<div id="noAudiosMessage" class="text-center py-8 text-gray-400">
-      <i class="ti ti-music text-3xl mb-2"></i>
-      <p class="text-sm">No background music selected</p>
-      <p class="text-xs text-gray-500 mt-1">This is optional</p>
-    </div>`;
+  const containerT1 = document.getElementById('selectedAudiosT1');
+  const containerT2 = document.getElementById('selectedAudiosT2');
+  if (!containerT1 || !containerT2) return;
+
+  const t1Audios = selectedAudios.filter(a => (a.track_number || 1) === 1);
+  const t2Audios = selectedAudios.filter(a => a.track_number === 2);
+
+  // Render T1
+  if (t1Audios.length === 0) {
+    containerT1.innerHTML = `<div class="text-center py-4 text-gray-500 text-xs">No music selected (Track 1)</div>`;
   } else {
-    container.innerHTML = selectedAudios.map((audio, index) => `
-      <div class="flex items-center gap-2 p-2 bg-gray-600/50 rounded group" data-audio-id="${audio.id}">
-        <div class="cursor-move text-gray-500 hover:text-gray-300"><i class="ti ti-grip-vertical"></i></div>
-        <span class="text-xs text-gray-500 w-5">${index + 1}</span>
-        <div class="w-8 h-8 bg-dark-800 rounded-full flex-shrink-0 flex items-center justify-center">
-          <i class="ti ti-music text-gray-400 text-sm"></i>
+    containerT1.innerHTML = t1Audios.map((audio, index) => `
+      <div class="flex items-center gap-2 p-1.5 bg-gray-600/30 rounded group text-xs" data-audio-id="${audio.id}">
+        <span class="text-gray-500 w-4 text-center">${index + 1}</span>
+        <div class="w-6 h-6 bg-dark-800 rounded-full flex-shrink-0 flex items-center justify-center">
+          <i class="ti ti-music text-gray-400 text-[10px]"></i>
         </div>
         <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium truncate">${audio.title}</p>
-          <p class="text-xs text-gray-400">${formatDuration(audio.duration)}</p>
+          <p class="font-medium truncate text-gray-200" title="${audio.title}">${audio.title}</p>
         </div>
-        <button type="button" onclick="removeAudioFromPlaylist('${audio.id}')" class="text-gray-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+        <span class="text-[10px] text-gray-400 mr-1">${formatDuration(audio.duration)}</span>
+        <button type="button" onclick="removeAudioFromPlaylist('${audio.id}')" class="text-gray-400 hover:text-red-400 transition-colors">
           <i class="ti ti-x"></i>
         </button>
       </div>
     `).join('');
+  }
+
+  // Render T2
+  if (t2Audios.length === 0) {
+    containerT2.innerHTML = `<div class="text-center py-4 text-gray-500 text-xs">No ambient sound selected (Track 2)</div>`;
+  } else {
+    containerT2.innerHTML = t2Audios.map((audio, index) => `
+      <div class="flex items-center gap-2 p-1.5 bg-gray-600/30 rounded group text-xs" data-audio-id="${audio.id}">
+        <span class="text-gray-500 w-4 text-center">${index + 1}</span>
+        <div class="w-6 h-6 bg-dark-800 rounded-full flex-shrink-0 flex items-center justify-center">
+          <i class="ti ti-cloud-rain text-green-400 text-[10px]"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="font-medium truncate text-gray-200" title="${audio.title}">${audio.title}</p>
+        </div>
+        <span class="text-[10px] text-gray-400 mr-1">${formatDuration(audio.duration)}</span>
+        <button type="button" onclick="removeAudioFromPlaylist('${audio.id}')" class="text-gray-400 hover:text-red-400 transition-colors">
+          <i class="ti ti-x"></i>
+        </button>
+      </div>
+    `).join('');
+  }
+
+  // Show/hide preview section
+  const previewSection = document.getElementById('previewMixSection');
+  if (selectedAudios.length > 0) {
+    previewSection.classList.remove('hidden');
+  } else {
+    previewSection.classList.add('hidden');
   }
 }
 
@@ -1203,6 +1370,131 @@ function goToPage(page) {
   if (page >= 1 && page <= totalPages) {
     currentPage = page;
     updatePagination();
+  }
+}
+
+class TrackPlayer {
+  constructor(trackNumber) {
+    this.trackNumber = trackNumber;
+    this.audioElements = [];
+    this.currentIndex = 0;
+    this.isPlaying = false;
+    this.volume = 1.0;
+  }
+
+  setVolume(volume) {
+    this.volume = parseFloat(volume);
+    this.audioElements.forEach(el => {
+      el.volume = this.volume;
+    });
+  }
+
+  start(audios) {
+    this.stop();
+    if (audios.length === 0) return;
+    
+    this.isPlaying = true;
+    this.currentIndex = 0;
+    this.playCurrent(audios);
+  }
+
+  playCurrent(audios) {
+    if (!this.isPlaying) return;
+    
+    this.audioElements.forEach(el => {
+      el.pause();
+      el.src = '';
+    });
+    this.audioElements = [];
+
+    const audioData = audios[this.currentIndex];
+    let audioUrl = audioData.filepath;
+    if (!audioUrl.startsWith('/')) {
+      audioUrl = '/' + audioUrl;
+    }
+    
+    const el = new Audio(audioUrl);
+    el.volume = this.volume;
+    this.audioElements.push(el);
+
+    el.play().catch(err => console.error(`Error playing track ${this.trackNumber}:`, err));
+
+    el.onended = () => {
+      if (!this.isPlaying) return;
+      this.currentIndex = (this.currentIndex + 1) % audios.length;
+      this.playCurrent(audios);
+    };
+  }
+
+  stop() {
+    this.isPlaying = false;
+    this.audioElements.forEach(el => {
+      el.pause();
+      el.src = '';
+    });
+    this.audioElements = [];
+    this.currentIndex = 0;
+  }
+}
+
+const trackPlayer1 = new TrackPlayer(1);
+const trackPlayer2 = new TrackPlayer(2);
+let isPreviewing = false;
+
+function togglePreviewMix() {
+  if (isPreviewing) {
+    stopPreviewMix();
+  } else {
+    startPreviewMix();
+  }
+}
+
+function startPreviewMix() {
+  if (selectedAudios.length === 0) return;
+  
+  stopPreviewMix();
+  
+  isPreviewing = true;
+  document.getElementById('previewPlayingIndicator').classList.remove('hidden');
+  document.getElementById('previewMixIcon').className = 'ti ti-player-stop';
+  document.getElementById('previewMixBtnText').textContent = 'Stop Preview';
+  document.getElementById('previewStatusText').textContent = 'Playing Mix Preview...';
+  
+  trackPlayer1.setVolume(track1Volume);
+  trackPlayer1.start(selectedAudios.filter(a => (a.track_number || 1) === 1));
+
+  trackPlayer2.setVolume(track2Volume);
+  trackPlayer2.start(selectedAudios.filter(a => a.track_number === 2));
+}
+
+function stopPreviewMix() {
+  isPreviewing = false;
+  
+  trackPlayer1.stop();
+  trackPlayer2.stop();
+  
+  const indicator = document.getElementById('previewPlayingIndicator');
+  if (indicator) indicator.classList.add('hidden');
+  
+  const icon = document.getElementById('previewMixIcon');
+  if (icon) icon.className = 'ti ti-player-play';
+  
+  const btnText = document.getElementById('previewMixBtnText');
+  if (btnText) btnText.textContent = 'Play Preview';
+  
+  const statusText = document.getElementById('previewStatusText');
+  if (statusText) statusText.textContent = 'Mix Preview (Web Playback)';
+}
+
+function onTrackVolumeChange(trackNum, val) {
+  const percent = Math.round(val * 100);
+  document.getElementById(`vol-lbl-t${trackNum}`).textContent = percent + '%';
+  if (trackNum === 1) {
+    track1Volume = parseFloat(val);
+    trackPlayer1.setVolume(track1Volume);
+  } else {
+    track2Volume = parseFloat(val);
+    trackPlayer2.setVolume(track2Volume);
   }
 }
 

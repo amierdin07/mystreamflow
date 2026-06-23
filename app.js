@@ -4705,7 +4705,9 @@ app.post('/api/playlists', isAuthenticated, [
       description: req.body.description || null,
       is_shuffle: req.body.shuffle === 'true' || req.body.shuffle === true,
       user_id: req.session.userId,
-      youtube_channel_id: channelId
+      youtube_channel_id: channelId,
+      audio_track1_volume: req.body.audio_track1_volume !== undefined ? parseFloat(req.body.audio_track1_volume) : 1.0,
+      audio_track2_volume: req.body.audio_track2_volume !== undefined ? parseFloat(req.body.audio_track2_volume) : 1.0
     };
 
     const playlist = await Playlist.create(playlistData);
@@ -4718,7 +4720,12 @@ app.post('/api/playlists', isAuthenticated, [
 
     if (req.body.audios && Array.isArray(req.body.audios) && req.body.audios.length > 0) {
       for (let i = 0; i < req.body.audios.length; i++) {
-        await Playlist.addAudio(playlist.id, req.body.audios[i], i + 1);
+        const audioItem = req.body.audios[i];
+        if (typeof audioItem === 'object' && audioItem !== null) {
+          await Playlist.addAudio(playlist.id, audioItem.id, i + 1, audioItem.track_number || 1);
+        } else {
+          await Playlist.addAudio(playlist.id, audioItem, i + 1, 1);
+        }
       }
     }
 
@@ -4772,7 +4779,9 @@ app.put('/api/playlists/:id', isAuthenticated, [
       name: req.body.name,
       description: req.body.description || null,
       is_shuffle: req.body.shuffle === 'true' || req.body.shuffle === true,
-      youtube_channel_id: req.body.youtube_channel_id === 'general' ? null : (req.body.youtube_channel_id || playlist.youtube_channel_id)
+      youtube_channel_id: req.body.youtube_channel_id === 'general' ? null : (req.body.youtube_channel_id || playlist.youtube_channel_id),
+      audio_track1_volume: req.body.audio_track1_volume !== undefined ? parseFloat(req.body.audio_track1_volume) : 1.0,
+      audio_track2_volume: req.body.audio_track2_volume !== undefined ? parseFloat(req.body.audio_track2_volume) : 1.0
     };
 
     console.log('UPDATING PLAYLIST:', req.params.id, updateData);
@@ -4789,7 +4798,12 @@ app.put('/api/playlists/:id', isAuthenticated, [
     if (req.body.audios && Array.isArray(req.body.audios)) {
       await Playlist.clearAudios(req.params.id);
       for (let i = 0; i < req.body.audios.length; i++) {
-        await Playlist.addAudio(req.params.id, req.body.audios[i], i + 1);
+        const audioItem = req.body.audios[i];
+        if (typeof audioItem === 'object' && audioItem !== null) {
+          await Playlist.addAudio(req.params.id, audioItem.id, i + 1, audioItem.track_number || 1);
+        } else {
+          await Playlist.addAudio(req.params.id, audioItem, i + 1, 1);
+        }
       }
     }
     

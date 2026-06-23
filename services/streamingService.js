@@ -447,14 +447,28 @@ async function validateCopyModeCompatibilityForInput({
       }
     }
 
-    for (let index = 0; index < (playlist.audios || []).length; index++) {
-      const audio = playlist.audios[index];
-      const probeData = await runFFprobe(resolvePublicFilePath(audio.filepath));
-      const label = buildMediaLabel(audio, index, 'Audio');
-      const compatibilityError = validateYouTubeCopyAudioProbe(probeData, label);
+    const track1Audios = (playlist.audios || []).filter(a => (a.track_number || 1) === 1);
+    const track2Audios = (playlist.audios || []).filter(a => a.track_number === 2);
+    
+    const hasTrack1 = track1Audios.length > 0;
+    const hasTrack2 = track2Audios.length > 0;
+    const vol1 = playlist.audio_track1_volume !== undefined ? playlist.audio_track1_volume : 1.0;
+    const vol2 = playlist.audio_track2_volume !== undefined ? playlist.audio_track2_volume : 1.0;
 
-      if (compatibilityError) {
-        throw createUnsupportedCopyModeError(compatibilityError);
+    const needsAudioProcessing = (hasTrack1 && hasTrack2) || 
+                                 (hasTrack1 && vol1 !== 1.0) || 
+                                 (hasTrack2 && vol2 !== 1.0);
+
+    if (!needsAudioProcessing) {
+      for (let index = 0; index < (playlist.audios || []).length; index++) {
+        const audio = playlist.audios[index];
+        const probeData = await runFFprobe(resolvePublicFilePath(audio.filepath));
+        const label = buildMediaLabel(audio, index, 'Audio');
+        const compatibilityError = validateYouTubeCopyAudioProbe(probeData, label);
+
+        if (compatibilityError) {
+          throw createUnsupportedCopyModeError(compatibilityError);
+        }
       }
     }
 
@@ -613,29 +627,99 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
     ];
   }
 
-  let audioPaths = [];
-  const audios = playlist.is_shuffle ? shuffleArray(playlist.audios) : playlist.audios;
+  const track1Audios = (playlist.audios || []).filter(a => (a.track_number || 1) === 1);
+  const track2Audios = (playlist.audios || []).filter(a => a.track_number === 2);
+  
+  const hasTrack1 = track1Audios.length > 0;
+  const hasTrack2 = track2Audios.length > 0;
+  const vol1 = playlist.audio_track1_volume !== undefined && playlist.audio_track1_volume !== null ? playlist.audio_track1_volume : 1.0;
+  const vol2 = playlist.audio_track2_volume !== undefined && playlist.audio_track2_volume !== null ? playlist.audio_track2_volume : 1.0;
 
-  for (const audio of audios) {
-    const relPath = audio.filepath.startsWith('/') ? audio.filepath.substring(1) : audio.filepath;
-    const fullPath = path.join(projectRoot, 'public', relPath);
-    if (!fs.existsSync(fullPath)) {
-      throw new Error(`Audio file not found: ${fullPath}`);
+  const needsAudioProcessing = (hasTrack1 && hasTrack2) || 
+                               (hasTrack1 && vol1 !== 1.0) || 
+                               (hasTrack2 && vol2 !== 1.0);
+
+  let audioConcatFiles = [];
+  let currentInputIndex = 1;
+
+  if (hasTrack1) {
+    const audioConcatFile1 = path.join(tempDir, `playlist_audio_${stream.id}_t1.txt`);
+    let audioContent1 = '';
+    const t1Audios = playlist.is_shuffle ? shuffleArray(track1Audios) : track1Audios;
+    for (let i = 0; i < 10000; i++) {
+      for (const audio of t1Audios) {
+        const relPath = audio.filepath.startsWith('/') ? audio.filepath.substring(1) : audio.filepath;
+        const fullPath = path.join(projectRoot, 'public', relPath);
+        if (!fs.existsSync(fullPath)) {
+          throw new Error(`Track 1 Audio file not found: ${fullPath}`);
+        }
+        audioContent1 += `file '${fullPath.replace(/\\/g, '/')}'\n`;
+      }
     }
-    audioPaths.push(fullPath);
+    fs.writeFileSync(audioConcatFile1, audioContent1);
+    audioConcatFiles.push({
+      filePath: audioConcatFile1,
+      inputIndex: currentInputIndex++,
+      volume: vol1
+    });
   }
 
-  const audioConcatFile = path.join(tempDir, `playlist_audio_${stream.id}.txt`);
-  let audioContent = '';
-  for (let i = 0; i < 10000; i++) {
-    for (const ap of audioPaths) {
-      audioContent += `file '${ap.replace(/\\/g, '/')}'\n`;
+  if (hasTrack2) {
+    const audioConcatFile2 = path.join(tempDir, `playlist_audio_${stream.id}_t2.txt`);
+    let audioContent2 = '';
+    const t2Audios = playlist.is_shuffle ? shuffleArray(track2Audios) : track2Audios;
+    for (let i = 0; i < 10000; i++) {
+      for (const audio of t2Audios) {
+        const relPath = audio.filepath.startsWith('/') ? audio.filepath.substring(1) : audio.filepath;
+        const fullPath = path.join(projectRoot, 'public', relPath);
+        if (!fs.existsSync(fullPath)) {
+          throw new Error(`Track 2 Audio file not found: ${fullPath}`);
+        }
+        audioContent2 += `file '${fullPath.replace(/\\/g, '/')}'\n`;
+      }
     }
+    fs.writeFileSync(audioConcatFile2, audioContent2);
+    audioConcatFiles.push({
+      filePath: audioConcatFile2,
+      inputIndex: currentInputIndex++,
+      volume: vol2
+    });
   }
-  fs.writeFileSync(audioConcatFile, audioContent);
 
-  const isYT = isYouTubeDestination(stream);
-  if (!stream.use_advanced_settings) {
+  if (!needsAudioProcessing) {
+    const isYT = isYouTubeDestination(stream);
+    const audioConcatFile = audioConcatFiles[0]?.filePath || '';
+    
+    if (!stream.use_advanced_settings) {
+      return [
+        '-nostdin',
+        '-loglevel', 'warning',
+        '-stats',
+        '-re',
+        '-fflags', '+genpts+igndts+discardcorrupt',
+        '-avoid_negative_ts', 'make_zero',
+        '-f', 'concat',
+        '-safe', '0',
+        '-i', concatFile,
+        '-re',
+        '-f', 'concat',
+        '-safe', '0',
+        '-i', audioConcatFile,
+        '-map', '0:v:0',
+        '-map', '1:a:0',
+        '-c:v', 'copy',
+        '-c:a', 'copy',
+        '-f', 'flv',
+        '-flvflags', 'no_duration_filesize',
+        rtmpUrl
+      ];
+    }
+
+    const resolution = stream.resolution || '1280x720';
+    const bitrate = stream.bitrate || 2500;
+    const fps = stream.fps || 30;
+    const preset = stream.use_advanced_settings ? 'veryfast' : 'ultrafast';
+
     return [
       '-nostdin',
       '-loglevel', 'warning',
@@ -652,7 +736,22 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
       '-i', audioConcatFile,
       '-map', '0:v:0',
       '-map', '1:a:0',
-      '-c:v', 'copy',
+      '-c:v', 'libx264',
+      '-threads', '2',
+      '-preset', preset,
+      '-tune', 'zerolatency',
+      '-profile:v', 'high',
+      '-level', getH264Level(resolution),
+      '-b:v', `${bitrate}k`,
+      '-maxrate', `${Math.round(bitrate * 1.1)}k`,
+      '-bufsize', `${bitrate * 2}k`,
+      '-pix_fmt', 'yuv420p',
+      '-g', String(Math.max(parseInt(fps) * 2, 2)),
+      '-keyint_min', String(Math.max(parseInt(fps), 1)),
+      '-sc_threshold', '0',
+      '-x264-params', `keyint=${Math.max(parseInt(fps) * 2, 2)}:min-keyint=${Math.max(parseInt(fps), 1)}:scenecut=0`,
+      '-s', resolution,
+      '-r', String(fps),
       '-c:a', 'copy',
       '-f', 'flv',
       '-flvflags', 'no_duration_filesize',
@@ -660,12 +759,17 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
     ];
   }
 
-  const resolution = stream.resolution || '1280x720';
-  const bitrate = stream.bitrate || 2500;
-  const fps = stream.fps || 30;
-  const preset = stream.use_advanced_settings ? 'veryfast' : 'ultrafast';
+  // Processing is needed (mixing or volume adjustments) -> encode audio to AAC
+  let filterComplex = '';
+  if (audioConcatFiles.length === 1) {
+    filterComplex = `[${audioConcatFiles[0].inputIndex}:a]volume=${audioConcatFiles[0].volume}[outa]`;
+  } else if (audioConcatFiles.length === 2) {
+    filterComplex = `[${audioConcatFiles[0].inputIndex}:a]volume=${audioConcatFiles[0].volume}[a1];` +
+                    `[${audioConcatFiles[1].inputIndex}:a]volume=${audioConcatFiles[1].volume}[a2];` +
+                    `[a1][a2]amix=inputs=2:duration=longest:dropout_transition=0[outa]`;
+  }
 
-  return [
+  const args = [
     '-nostdin',
     '-loglevel', 'warning',
     '-stats',
@@ -674,13 +778,44 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
     '-avoid_negative_ts', 'make_zero',
     '-f', 'concat',
     '-safe', '0',
-    '-i', concatFile,
-    '-re',
-    '-f', 'concat',
-    '-safe', '0',
-    '-i', audioConcatFile,
+    '-i', concatFile
+  ];
+
+  for (const acf of audioConcatFiles) {
+    args.push(
+      '-re',
+      '-f', 'concat',
+      '-safe', '0',
+      '-i', acf.filePath
+    );
+  }
+
+  args.push(
+    '-filter_complex', filterComplex,
     '-map', '0:v:0',
-    '-map', '1:a:0',
+    '-map', '[outa]'
+  );
+
+  if (!stream.use_advanced_settings) {
+    args.push(
+      '-c:v', 'copy',
+      '-c:a', 'aac',
+      '-b:a', '192k',
+      '-ar', '44100',
+      '-ac', '2',
+      '-f', 'flv',
+      '-flvflags', 'no_duration_filesize',
+      rtmpUrl
+    );
+    return args;
+  }
+
+  const resolution = stream.resolution || '1280x720';
+  const bitrate = stream.bitrate || 2500;
+  const fps = stream.fps || 30;
+  const preset = 'veryfast';
+
+  args.push(
     '-c:v', 'libx264',
     '-threads', '2',
     '-preset', preset,
@@ -697,11 +832,16 @@ async function buildFFmpegArgsForPlaylist(stream, playlist) {
     '-x264-params', `keyint=${Math.max(parseInt(fps) * 2, 2)}:min-keyint=${Math.max(parseInt(fps), 1)}:scenecut=0`,
     '-s', resolution,
     '-r', String(fps),
-    '-c:a', 'copy',
+    '-c:a', 'aac',
+    '-b:a', '192k',
+    '-ar', '44100',
+    '-ac', '2',
     '-f', 'flv',
     '-flvflags', 'no_duration_filesize',
     rtmpUrl
-  ];
+  );
+  
+  return args;
 }
 
 async function buildFFmpegArgs(stream) {
@@ -1198,7 +1338,9 @@ function cleanupTempFiles(streamId) {
   const tempDir = path.join(__dirname, '..', 'temp');
   const files = [
     path.join(tempDir, `playlist_${streamId}.txt`),
-    path.join(tempDir, `playlist_audio_${streamId}.txt`)
+    path.join(tempDir, `playlist_audio_${streamId}.txt`),
+    path.join(tempDir, `playlist_audio_${streamId}_t1.txt`),
+    path.join(tempDir, `playlist_audio_${streamId}_t2.txt`)
   ];
 
   for (const file of files) {

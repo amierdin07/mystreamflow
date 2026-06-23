@@ -116,6 +116,8 @@ function createTables() {
         description TEXT,
         is_shuffle BOOLEAN DEFAULT 0,
         user_id TEXT NOT NULL,
+        audio_track1_volume REAL DEFAULT 1.0,
+        audio_track2_volume REAL DEFAULT 1.0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
@@ -136,10 +138,29 @@ function createTables() {
         playlist_id TEXT NOT NULL,
         audio_id TEXT NOT NULL,
         position INTEGER NOT NULL,
+        track_number INTEGER DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
         FOREIGN KEY (audio_id) REFERENCES videos(id) ON DELETE CASCADE
       )`);
+
+      db.run(`ALTER TABLE playlists ADD COLUMN audio_track1_volume REAL DEFAULT 1.0`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+          console.error('Error adding audio_track1_volume column:', err.message);
+        }
+      });
+
+      db.run(`ALTER TABLE playlists ADD COLUMN audio_track2_volume REAL DEFAULT 1.0`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+          console.error('Error adding audio_track2_volume column:', err.message);
+        }
+      });
+
+      db.run(`ALTER TABLE playlist_audios ADD COLUMN track_number INTEGER DEFAULT 1`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+          console.error('Error adding track_number column:', err.message);
+        }
+      });
       
       db.run(`ALTER TABLE users ADD COLUMN user_role TEXT DEFAULT 'admin'`, (err) => {
         if (err && !err.message.includes('duplicate column name')) {

@@ -81,11 +81,11 @@ class Playlist {
             playlist.videos = videos;
             
             db.all(
-              `SELECT v.*, pa.position 
+              `SELECT v.*, pa.position, pa.track_number 
                FROM playlist_audios pa 
                JOIN videos v ON pa.audio_id = v.id 
                WHERE pa.playlist_id = ? 
-               ORDER BY pa.position ASC`,
+               ORDER BY pa.track_number ASC, pa.position ASC`,
               [id],
               (err, audios) => {
                 if (err) {
@@ -105,8 +105,17 @@ class Playlist {
     const playlistId = uuidv4();
     return new Promise((resolve, reject) => {
       db.run(
-        'INSERT INTO playlists (id, name, description, is_shuffle, user_id, youtube_channel_id) VALUES (?, ?, ?, ?, ?, ?)',
-        [playlistId, playlistData.name, playlistData.description || null, playlistData.is_shuffle || 0, playlistData.user_id, playlistData.youtube_channel_id || null],
+        'INSERT INTO playlists (id, name, description, is_shuffle, user_id, youtube_channel_id, audio_track1_volume, audio_track2_volume) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          playlistId, 
+          playlistData.name, 
+          playlistData.description || null, 
+          playlistData.is_shuffle || 0, 
+          playlistData.user_id, 
+          playlistData.youtube_channel_id || null,
+          playlistData.audio_track1_volume !== undefined ? playlistData.audio_track1_volume : 1.0,
+          playlistData.audio_track2_volume !== undefined ? playlistData.audio_track2_volume : 1.0
+        ],
         function (err) {
           if (err) {
             return reject(err);
@@ -235,17 +244,17 @@ class Playlist {
     });
   }
 
-  static addAudio(playlistId, audioId, position) {
+  static addAudio(playlistId, audioId, position, trackNumber = 1) {
     const id = uuidv4();
     return new Promise((resolve, reject) => {
       db.run(
-        'INSERT INTO playlist_audios (id, playlist_id, audio_id, position) VALUES (?, ?, ?, ?)',
-        [id, playlistId, audioId, position],
+        'INSERT INTO playlist_audios (id, playlist_id, audio_id, position, track_number) VALUES (?, ?, ?, ?, ?)',
+        [id, playlistId, audioId, position, trackNumber],
         function (err) {
           if (err) {
             return reject(err);
           }
-          resolve({ id, playlist_id: playlistId, audio_id: audioId, position });
+          resolve({ id, playlist_id: playlistId, audio_id: audioId, position, track_number: trackNumber });
         }
       );
     });
