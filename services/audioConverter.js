@@ -35,7 +35,7 @@ const convertToAac = (inputPath, outputPath) => {
   return new Promise((resolve, reject) => {
     ffmpeg(inputPath)
       .audioCodec('aac')
-      .audioBitrate('192k')
+      .audioBitrate('128k')
       .outputOptions(['-vn'])
       .toFormat('ipod')
       .on('end', () => {

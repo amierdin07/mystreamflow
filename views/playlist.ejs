@@ -467,6 +467,7 @@ let selectedVideos = [];
 let selectedAudios = [];
 let track1Volume = 1.0;
 let track2Volume = 1.0;
+let audioPreloadElements = {};
 let currentPlaylistId = null;
 let allVideos = <%- JSON.stringify(videos || []) %>;
 let allAudios = <%- JSON.stringify(audios || []) %>;
@@ -1015,62 +1016,70 @@ function deletePlaylist(playlistId, playlistName) {
 }
 
 function submitPlaylist() {
-  const name = document.getElementById('playlistName').value.trim();
-  if (!name) {
-    showToast('Please enter a playlist name', 'error');
-    return;
-  }
-  if (selectedVideos.length === 0) {
-    showToast('Please add at least one video', 'error');
-    switchTab('videos');
-    return;
-  }
-  
-  const playlistData = {
-    name: name,
-    description: document.getElementById('playlistDescription').value.trim(),
-    shuffle: document.getElementById('playlistShuffle').value === 'true',
-    videos: selectedVideos.map(v => v.id),
-    audios: selectedAudios.map(a => ({ id: a.id, track_number: a.track_number || 1 })),
-    audio_track1_volume: track1Volume,
-    audio_track2_volume: track2Volume,
-    youtube_channel_id: currentChannelIdJS
-  };
-  
-  const url = currentPlaylistId ? `/api/playlists/${currentPlaylistId}` : '/api/playlists';
-  const method = currentPlaylistId ? 'PUT' : 'POST';
-  
-  const csrfToken = document.querySelector('input[name="_csrf"]')?.value || '';
-  fetch(url, {
-    method: method,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken
-    },
-    body: JSON.stringify(playlistData),
-    credentials: 'same-origin'
-  })
-  .then(async response => {
-    const data = await response.json();
-    if (!response.ok) {
-       throw new Error(`HTTP ${response.status}: ${data.error || data.message || 'Server Rejected'}`);
+  try {
+    const name = document.getElementById('playlistName').value.trim();
+    if (!name) {
+      showToast('Please enter a playlist name', 'error');
+      return;
     }
-    return data;
-  })
-  .then(data => {
-    if (data.success) {
-      showToast(currentPlaylistId ? 'Playlist updated successfully' : 'Playlist created successfully', 'success');
-      closePlaylistModal();
-      setTimeout(() => location.reload(), 500);
-    } else {
-      showToast(data.message || data.error || 'Error saving playlist', 'error');
+    if (selectedVideos.length === 0) {
+      showToast('Please add at least one video', 'error');
+      switchTab('videos');
+      return;
     }
-  })
-  .catch(error => {
-    console.error('Playlist Fetch Error:', error);
-    alert('FAILED TO SAVE: ' + error.message); // High visibility alert
-    showToast('Failed: ' + error.message, 'error');
-  });
+    
+    const playlistData = {
+      name: name,
+      description: document.getElementById('playlistDescription').value.trim(),
+      shuffle: document.getElementById('playlistShuffle').value === 'true',
+      videos: selectedVideos.map(v => v.id),
+      audios: selectedAudios.filter(a => a && a.id).map(a => ({ id: a.id, track_number: parseInt(a.track_number) || 1 })),
+      audio_track1_volume: parseFloat(track1Volume) || 1.0,
+      audio_track2_volume: parseFloat(track2Volume) || 1.0,
+      youtube_channel_id: currentChannelIdJS
+    };
+    
+    console.log('Submitting playlist payload:', playlistData);
+    
+    const url = currentPlaylistId ? `/api/playlists/${currentPlaylistId}` : '/api/playlists';
+    const method = currentPlaylistId ? 'PUT' : 'POST';
+    
+    const csrfToken = document.querySelector('input[name="_csrf"]')?.value || '';
+    fetch(url, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken
+      },
+      body: JSON.stringify(playlistData),
+      credentials: 'same-origin'
+    })
+    .then(async response => {
+      const data = await response.json();
+      if (!response.ok) {
+         throw new Error(`HTTP ${response.status}: ${data.error || data.message || 'Server Rejected'}`);
+      }
+      return data;
+    })
+    .then(data => {
+      if (data.success) {
+        showToast(currentPlaylistId ? 'Playlist updated successfully' : 'Playlist created successfully', 'success');
+        closePlaylistModal();
+        setTimeout(() => location.reload(), 500);
+      } else {
+        showToast(data.message || data.error || 'Error saving playlist', 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Playlist Fetch Error:', error);
+      alert('FAILED TO SAVE: ' + error.message);
+      showToast('Failed: ' + error.message, 'error');
+    });
+  } catch (err) {
+    console.error('Fatal error in submitPlaylist:', err);
+    alert('Fatal error in submitPlaylist: ' + err.message);
+    showToast('Fatal error: ' + err.message, 'error');
+  }
 }
 
 document.getElementById('searchVideos').addEventListener('input', updateAvailableVideosDisplay);
@@ -1130,18 +1139,18 @@ function initializeAudioDragAndDrop() {
     audioSortableT2 = null;
   }
   
-  const t1Audios = selectedAudios.filter(a => (a.track_number || 1) === 1);
+  const t1Audios = selectedAudios.filter(a => (parseInt(a.track_number) || 1) === 1);
   if (t1Audios.length > 0 && containerT1) {
     audioSortableT1 = new Sortable(containerT1, {
       animation: 150,
       ghostClass: 'sortable-ghost',
       onEnd: function(evt) {
         if (evt.oldIndex !== evt.newIndex) {
-          const t1Items = selectedAudios.filter(a => (a.track_number || 1) === 1);
+          const t1Items = selectedAudios.filter(a => (parseInt(a.track_number) || 1) === 1);
           const moved = t1Items.splice(evt.oldIndex, 1)[0];
           t1Items.splice(evt.newIndex, 0, moved);
           
-          const t2Items = selectedAudios.filter(a => a.track_number === 2);
+          const t2Items = selectedAudios.filter(a => parseInt(a.track_number) === 2);
           selectedAudios = [...t1Items, ...t2Items];
           renderSelectedAudios();
         }
@@ -1149,18 +1158,18 @@ function initializeAudioDragAndDrop() {
     });
   }
 
-  const t2Audios = selectedAudios.filter(a => a.track_number === 2);
+  const t2Audios = selectedAudios.filter(a => parseInt(a.track_number) === 2);
   if (t2Audios.length > 0 && containerT2) {
     audioSortableT2 = new Sortable(containerT2, {
       animation: 150,
       ghostClass: 'sortable-ghost',
       onEnd: function(evt) {
         if (evt.oldIndex !== evt.newIndex) {
-          const t2Items = selectedAudios.filter(a => a.track_number === 2);
+          const t2Items = selectedAudios.filter(a => parseInt(a.track_number) === 2);
           const moved = t2Items.splice(evt.oldIndex, 1)[0];
           t2Items.splice(evt.newIndex, 0, moved);
           
-          const t1Items = selectedAudios.filter(a => (a.track_number || 1) === 1);
+          const t1Items = selectedAudios.filter(a => (parseInt(a.track_number) || 1) === 1);
           selectedAudios = [...t1Items, ...t2Items];
           renderSelectedAudios();
         }
@@ -1201,8 +1210,11 @@ function renderSelectedAudios() {
   const containerT2 = document.getElementById('selectedAudiosT2');
   if (!containerT1 || !containerT2) return;
 
-  const t1Audios = selectedAudios.filter(a => (a.track_number || 1) === 1);
-  const t2Audios = selectedAudios.filter(a => a.track_number === 2);
+  // Preload selected audios in background to make browser preview instant
+  selectedAudios.forEach(audio => preloadAudio(audio));
+
+  const t1Audios = selectedAudios.filter(a => (parseInt(a.track_number) || 1) === 1);
+  const t2Audios = selectedAudios.filter(a => parseInt(a.track_number) === 2);
 
   // Render T1
   if (t1Audios.length === 0) {
@@ -1373,6 +1385,20 @@ function goToPage(page) {
   }
 }
 
+function preloadAudio(audio) {
+  if (audioPreloadElements[audio.id]) return;
+  
+  let audioUrl = audio.filepath;
+  if (!audioUrl.startsWith('/')) {
+    audioUrl = '/' + audioUrl;
+  }
+  
+  const el = new Audio(audioUrl);
+  el.preload = 'auto';
+  el.load();
+  audioPreloadElements[audio.id] = el;
+}
+
 class TrackPlayer {
   constructor(trackNumber) {
     this.trackNumber = trackNumber;
@@ -1414,6 +1440,7 @@ class TrackPlayer {
     }
     
     const el = new Audio(audioUrl);
+    el.preload = 'auto';
     el.volume = this.volume;
     this.audioElements.push(el);
 
@@ -1450,21 +1477,37 @@ function togglePreviewMix() {
 }
 
 function startPreviewMix() {
-  if (selectedAudios.length === 0) return;
-  
-  stopPreviewMix();
-  
-  isPreviewing = true;
-  document.getElementById('previewPlayingIndicator').classList.remove('hidden');
-  document.getElementById('previewMixIcon').className = 'ti ti-player-stop';
-  document.getElementById('previewMixBtnText').textContent = 'Stop Preview';
-  document.getElementById('previewStatusText').textContent = 'Playing Mix Preview...';
-  
-  trackPlayer1.setVolume(track1Volume);
-  trackPlayer1.start(selectedAudios.filter(a => (a.track_number || 1) === 1));
+  try {
+    if (selectedAudios.length === 0) return;
+    
+    stopPreviewMix();
+    
+    isPreviewing = true;
+    const indicator = document.getElementById('previewPlayingIndicator');
+    const mixIcon = document.getElementById('previewMixIcon');
+    const mixBtnText = document.getElementById('previewMixBtnText');
+    const statusText = document.getElementById('previewStatusText');
+    
+    if (indicator) indicator.classList.remove('hidden');
+    if (mixIcon) mixIcon.className = 'ti ti-player-stop';
+    if (mixBtnText) mixBtnText.textContent = 'Stop Preview';
+    if (statusText) statusText.textContent = 'Playing Mix Preview...';
+    
+    const t1 = selectedAudios.filter(a => !a.track_number || parseInt(a.track_number) === 1);
+    const t2 = selectedAudios.filter(a => parseInt(a.track_number) === 2);
+    
+    console.log('Track 1 Audios:', t1);
+    console.log('Track 2 Audios:', t2);
+    
+    trackPlayer1.setVolume(track1Volume);
+    trackPlayer1.start(t1);
 
-  trackPlayer2.setVolume(track2Volume);
-  trackPlayer2.start(selectedAudios.filter(a => a.track_number === 2));
+    trackPlayer2.setVolume(track2Volume);
+    trackPlayer2.start(t2);
+  } catch (err) {
+    console.error('Fatal error in startPreviewMix:', err);
+    showToast('Preview error: ' + err.message, 'error');
+  }
 }
 
 function stopPreviewMix() {
