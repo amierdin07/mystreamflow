@@ -81,6 +81,7 @@ function createTables() {
         last_stop_at TIMESTAMP,
         use_advanced_settings BOOLEAN DEFAULT 0,
         youtube_monetization BOOLEAN DEFAULT 0,
+        auto_delete INTEGER DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         user_id TEXT,
@@ -450,6 +451,12 @@ function createTables() {
       db.run(`ALTER TABLE streams ADD COLUMN last_stop_at TIMESTAMP`, (err) => {
         if (err && !err.message.includes('duplicate column name')) {
           console.error('Error adding last_stop_at column to streams:', err.message);
+        }
+      });
+
+      db.run(`ALTER TABLE streams ADD COLUMN auto_delete INTEGER DEFAULT 1`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+          console.error('Error adding auto_delete column to streams:', err.message);
         }
       });
 

@@ -699,13 +699,19 @@ function openCreatePlaylistModal() {
 }
 
 function closePlaylistModal() {
-  stopPreviewMix();
+  try {
+    stopPreviewMix();
+  } catch (err) {
+    console.error('Error stopping preview mix:', err);
+  }
   const modal = document.getElementById('playlistModal');
-  modal.classList.remove('active');
-  setTimeout(() => {
-    modal.classList.add('hidden');
-    document.body.style.overflow = '';
-  }, 200);
+  if (modal) {
+    modal.classList.remove('active');
+    setTimeout(() => {
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+    }, 200);
+  }
 }
 
 function closeViewPlaylistModal() {
@@ -1064,7 +1070,11 @@ function submitPlaylist() {
     .then(data => {
       if (data.success) {
         showToast(currentPlaylistId ? 'Playlist updated successfully' : 'Playlist created successfully', 'success');
-        closePlaylistModal();
+        try {
+          closePlaylistModal();
+        } catch (modalErr) {
+          console.error('Error closing playlist modal:', modalErr);
+        }
         setTimeout(() => location.reload(), 500);
       } else {
         showToast(data.message || data.error || 'Error saving playlist', 'error');
@@ -1402,17 +1412,18 @@ function preloadAudio(audio) {
 class TrackPlayer {
   constructor(trackNumber) {
     this.trackNumber = trackNumber;
-    this.audioElements = [];
+    this.currentAudioElement = null;
     this.currentIndex = 0;
     this.isPlaying = false;
     this.volume = 1.0;
+    this.audiosList = [];
   }
 
   setVolume(volume) {
     this.volume = parseFloat(volume);
-    this.audioElements.forEach(el => {
-      el.volume = this.volume;
-    });
+    if (this.currentAudioElement) {
+      this.currentAudioElement.volume = this.volume;
+    }
   }
 
   start(audios) {
@@ -1421,46 +1432,67 @@ class TrackPlayer {
     
     this.isPlaying = true;
     this.currentIndex = 0;
-    this.playCurrent(audios);
+    this.audiosList = audios;
+    this.playCurrent();
   }
 
-  playCurrent(audios) {
-    if (!this.isPlaying) return;
+  playCurrent() {
+    if (!this.isPlaying || this.audiosList.length === 0) return;
     
-    this.audioElements.forEach(el => {
-      el.pause();
-      el.src = '';
-    });
-    this.audioElements = [];
-
-    const audioData = audios[this.currentIndex];
-    let audioUrl = audioData.filepath;
-    if (!audioUrl.startsWith('/')) {
-      audioUrl = '/' + audioUrl;
+    if (this.currentAudioElement) {
+      try {
+        this.currentAudioElement.pause();
+        this.currentAudioElement.onended = null;
+        this.currentAudioElement.currentTime = 0;
+      } catch (err) {
+        console.error('Error pausing active audio:', err);
+      }
+      this.currentAudioElement = null;
     }
-    
-    const el = new Audio(audioUrl);
-    el.preload = 'auto';
-    el.volume = this.volume;
-    this.audioElements.push(el);
 
-    el.play().catch(err => console.error(`Error playing track ${this.trackNumber}:`, err));
+    const audioData = this.audiosList[this.currentIndex];
+    
+    let el = audioPreloadElements[audioData.id];
+    if (!el) {
+      let audioUrl = audioData.filepath;
+      if (!audioUrl.startsWith('/')) {
+        audioUrl = '/' + audioUrl;
+      }
+      el = new Audio(audioUrl);
+      el.preload = 'auto';
+      audioPreloadElements[audioData.id] = el;
+      el.load();
+    }
+
+    el.volume = this.volume;
+    el.loop = false;
+    this.currentAudioElement = el;
 
     el.onended = () => {
       if (!this.isPlaying) return;
-      this.currentIndex = (this.currentIndex + 1) % audios.length;
-      this.playCurrent(audios);
+      this.currentIndex = (this.currentIndex + 1) % this.audiosList.length;
+      this.playCurrent();
     };
+
+    el.play().catch(err => {
+      console.error(`Error playing track ${this.trackNumber}:`, err);
+    });
   }
 
   stop() {
     this.isPlaying = false;
-    this.audioElements.forEach(el => {
-      el.pause();
-      el.src = '';
-    });
-    this.audioElements = [];
+    if (this.currentAudioElement) {
+      try {
+        this.currentAudioElement.pause();
+        this.currentAudioElement.onended = null;
+        this.currentAudioElement.currentTime = 0;
+      } catch (err) {
+        console.error('Error stopping active audio:', err);
+      }
+      this.currentAudioElement = null;
+    }
     this.currentIndex = 0;
+    this.audiosList = [];
   }
 }
 
@@ -1513,8 +1545,12 @@ function startPreviewMix() {
 function stopPreviewMix() {
   isPreviewing = false;
   
-  trackPlayer1.stop();
-  trackPlayer2.stop();
+  try {
+    if (typeof trackPlayer1 !== 'undefined' && trackPlayer1) trackPlayer1.stop();
+    if (typeof trackPlayer2 !== 'undefined' && trackPlayer2) trackPlayer2.stop();
+  } catch (err) {
+    console.error('Error stopping track players:', err);
+  }
   
   const indicator = document.getElementById('previewPlayingIndicator');
   if (indicator) indicator.classList.add('hidden');

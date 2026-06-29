@@ -207,9 +207,13 @@ app.get('/sw.js', (req, res) => {
 });
 
 app.use('/uploads', function (req, res, next) {
-  res.header('Cache-Control', 'no-cache');
-  res.header('Pragma', 'no-cache');
-  res.header('Expires', '0');
+  if (req.path.startsWith('/audio/') || req.path.startsWith('/videos/')) {
+    res.header('Cache-Control', 'public, max-age=86400, must-revalidate');
+  } else {
+    res.header('Cache-Control', 'no-cache');
+    res.header('Pragma', 'no-cache');
+    res.header('Expires', '0');
+  }
   next();
 });
 app.use(express.urlencoded({ extended: true, limit: '50gb' }));
@@ -277,9 +281,13 @@ const isAdmin = async (req, res, next) => {
   }
 };
 app.use('/uploads', function (req, res, next) {
-  res.header('Cache-Control', 'no-cache');
-  res.header('Pragma', 'no-cache');
-  res.header('Expires', '0');
+  if (req.path.startsWith('/audio/') || req.path.startsWith('/videos/')) {
+    res.header('Cache-Control', 'public, max-age=86400, must-revalidate');
+  } else {
+    res.header('Cache-Control', 'no-cache');
+    res.header('Pragma', 'no-cache');
+    res.header('Expires', '0');
+  }
   next();
 });
 app.use('/uploads/avatars', (req, res, next) => {
@@ -2531,7 +2539,7 @@ app.get('/stream/:videoId', isAuthenticated, async (req, res) => {
     const range = req.headers.range;
     res.setHeader('Content-Disposition', 'inline');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Cache-Control', 'private, max-age=86400, must-revalidate');
     if (range) {
       const parts = range.replace(/bytes=/, '').split('-');
       const start = parseInt(parts[0], 10);
@@ -3791,7 +3799,8 @@ app.post('/api/streams', isAuthenticated, [
       loop_video: req.body.loopVideo === 'true' || req.body.loopVideo === true,
       use_advanced_settings: req.body.useAdvancedSettings === 'true' || req.body.useAdvancedSettings === true,
       user_id: req.session.userId,
-      youtube_playlist_id: req.body.youtube_playlist_id || null
+      youtube_playlist_id: req.body.youtube_playlist_id || null,
+      auto_delete: req.body.autoDelete === undefined ? true : (req.body.autoDelete === 'true' || req.body.autoDelete === true || req.body.autoDelete === 1 || req.body.autoDelete === '1')
     };
     const serverTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     
@@ -3936,7 +3945,8 @@ app.post('/api/streams/youtube', isAuthenticated, uploadThumbnail.single('thumbn
       youtube_channel_id: selectedChannel.id,
       is_youtube_api: true,
       youtube_monetization: ytMonetization === 'true' || ytMonetization === true,
-      youtube_playlist_id: youtube_playlist_id || null
+      youtube_playlist_id: youtube_playlist_id || null,
+      auto_delete: req.body.autoDelete === undefined ? true : (req.body.autoDelete === 'true' || req.body.autoDelete === true || req.body.autoDelete === 1 || req.body.autoDelete === '1')
     };
     
     if (scheduleStartTime) {
@@ -4068,6 +4078,9 @@ app.put('/api/streams/:id', isAuthenticated, uploadThumbnail.single('thumbnail')
       }
       if (req.body.youtube_playlist_id !== undefined) {
         updateData.youtube_playlist_id = req.body.youtube_playlist_id || null;
+      }
+      if (req.body.autoDelete !== undefined) {
+        updateData.auto_delete = req.body.autoDelete === 'true' || req.body.autoDelete === true || req.body.autoDelete === 1 || req.body.autoDelete === '1';
       }
       
       if (req.body.scheduleStartTime) {
@@ -4279,6 +4292,9 @@ app.put('/api/streams/:id', isAuthenticated, uploadThumbnail.single('thumbnail')
     }
     if (req.body.useAdvancedSettings !== undefined) {
       updateData.use_advanced_settings = req.body.useAdvancedSettings === 'true' || req.body.useAdvancedSettings === true;
+    }
+    if (req.body.autoDelete !== undefined) {
+      updateData.auto_delete = req.body.autoDelete === 'true' || req.body.autoDelete === true || req.body.autoDelete === 1 || req.body.autoDelete === '1';
     }
     const serverTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     

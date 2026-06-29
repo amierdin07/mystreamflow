@@ -36,7 +36,7 @@ const convertToAac = (inputPath, outputPath) => {
     ffmpeg(inputPath)
       .audioCodec('aac')
       .audioBitrate('128k')
-      .outputOptions(['-vn'])
+      .outputOptions(['-vn', '-movflags +faststart'])
       .toFormat('ipod')
       .on('end', () => {
         resolve(outputPath);
@@ -49,27 +49,21 @@ const convertToAac = (inputPath, outputPath) => {
 };
 
 const processAudioFile = async (inputPath, originalFilename) => {
-  const isAac = await isAacCodec(inputPath);
-  const ext = path.extname(inputPath).toLowerCase();
-  
-  if (isAac && ext === '.m4a') {
-    return {
-      filepath: inputPath,
-      converted: false
-    };
-  }
-  
   const basename = path.basename(inputPath, path.extname(inputPath));
-  const outputPath = path.join(path.dirname(inputPath), `${basename}.m4a`);
+  const tempOutputPath = path.join(path.dirname(inputPath), `${basename}_converted.m4a`);
+  const finalOutputPath = path.join(path.dirname(inputPath), `${basename}.m4a`);
   
-  await convertToAac(inputPath, outputPath);
+  // Always convert to ensure 128k AAC with -movflags +faststart is applied
+  await convertToAac(inputPath, tempOutputPath);
   
-  if (inputPath !== outputPath && fs.existsSync(inputPath)) {
+  if (fs.existsSync(inputPath)) {
     await fs.remove(inputPath);
   }
   
+  await fs.move(tempOutputPath, finalOutputPath, { overwrite: true });
+  
   return {
-    filepath: outputPath,
+    filepath: finalOutputPath,
     converted: true
   };
 };

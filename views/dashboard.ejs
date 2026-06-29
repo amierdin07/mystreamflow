@@ -777,6 +777,21 @@
               </div>
             </div>
 
+            <!-- Auto Delete Option -->
+            <div class="pt-4 border-t border-gray-700">
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="text-sm font-medium text-white block">Auto-Delete Task</label>
+                  <span class="text-xs text-gray-400">Hapus otomatis task stream ini 1 jam setelah live selesai. Jika dinonaktifkan, task akan tetap disimpan.</span>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" name="autoDelete" id="autoDelete" class="sr-only peer" checked>
+                  <div class="w-11 h-6 bg-dark-700 rounded-full peer peer-checked:bg-primary"></div>
+                  <div class="absolute left-[2px] top-[2px] w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-5"></div>
+                </label>
+              </div>
+            </div>
+
           </form>
         </div>
         <div class="flex-shrink-0 flex items-center justify-end gap-3 p-4 sm:px-6 sm:py-4 border-t border-gray-700">
@@ -1309,6 +1324,21 @@
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <!-- Auto Delete Option -->
+            <div class="pt-4 border-t border-gray-700">
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="text-sm font-medium text-white block">Auto-Delete Task</label>
+                  <span class="text-xs text-gray-400">Hapus otomatis task stream ini 1 jam setelah live selesai. Jika dinonaktifkan, task akan tetap disimpan.</span>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" name="autoDelete" id="editAutoDelete" class="sr-only peer">
+                  <div class="w-11 h-6 bg-dark-700 rounded-full peer peer-checked:bg-primary"></div>
+                  <div class="absolute left-[2px] top-[2px] w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-5"></div>
+                </label>
               </div>
             </div>
 
@@ -1949,7 +1979,8 @@
             : document.getElementById('ytResolution').value,
           bitrate: document.getElementById('ytBitrate').value,
           fps: document.getElementById('ytFps').value,
-          youtube_playlist_id: document.getElementById('ytPlaylist').value
+          youtube_playlist_id: document.getElementById('ytPlaylist').value,
+          autoDelete: document.getElementById('autoDelete').checked
         };
         
         // Save defaults to localStorage
@@ -2071,7 +2102,8 @@
         loopVideo: document.querySelector('input[name="loopVideo"]').checked,
         orientation: currentOrientation,
         resolution: document.getElementById('currentResolution').textContent.split(' ')[0],
-        useAdvancedSettings: !document.getElementById('advancedSettingsContent').classList.contains('hidden')
+        useAdvancedSettings: !document.getElementById('advancedSettingsContent').classList.contains('hidden'),
+        autoDelete: document.getElementById('autoDelete').checked
       };
       const scheduleStartTime = document.getElementById('scheduleStartTime').value;
       const scheduleEndTime = document.getElementById('scheduleEndTime').value;
@@ -2498,6 +2530,10 @@
       const signalHTML = existingState.signalHTML || '<span class="text-gray-500 text-[10px] animate-pulse">Connecting...</span>';
       const autoliveNameHTML = stream.autolive_series_name ? `<div class="text-[10px] text-purple-300 truncate mt-0.5 leading-tight"><i class="ti ti-bolt text-[10px] mr-0.5"></i>Autolive: ${stream.autolive_series_name}</div>` : '';
       
+      const autoDeleteBadgeHTML = (stream.auto_delete === true || stream.auto_delete === 1)
+        ? '<span class="inline-flex items-center gap-0.5 px-1 rounded text-[9px] font-medium bg-red-950/40 text-red-400 border border-red-800/30" title="Task akan terhapus otomatis 1 jam setelah selesai"><i class="ti ti-trash text-[8px]"></i>Auto Delete</span>'
+        : '<span class="inline-flex items-center gap-0.5 px-1 rounded text-[9px] font-medium bg-green-950/40 text-green-400 border border-green-800/30" title="Task akan disimpan dan harus dihapus secara manual"><i class="ti ti-lock text-[8px]"></i>Keep Task</span>';
+      
       let statusBadge = '';
       if (stream.status === 'live') {
         const viewerCacheKey = `${stream.youtube_channel_id}:${stream.youtube_broadcast_id}`;
@@ -2538,13 +2574,14 @@
           ${stream.video_type ? `<div class="text-sm font-semibold text-white truncate leading-tight" title="${stream.video_type === 'playlist' ? stream.playlist_name : stream.video_title}">${stream.video_type === 'playlist' ? '<i class="ti ti-list text-[11px] text-primary mr-1"></i>' + stream.playlist_name : '<i class="ti ti-video text-[11px] text-primary mr-1"></i>' + stream.video_title}</div>` : `<h4 class="text-sm font-medium text-white truncate leading-tight">${stream.title}</h4>`}
           ${autoliveNameHTML}
           ${stream.video_type ? `<div class="text-[11px] text-gray-400 truncate mt-0.5 leading-tight">${stream.title}</div>` : ''}
-          <div class="flex items-center gap-1.5 mt-1">
+          <div class="flex items-center gap-1.5 mt-1 flex-wrap">
             <div class="flex items-center text-[10px] text-gray-400">
                 <i class="ti ti-brand-${getPlatformIcon(stream.platform)} text-${getPlatformColor(stream.platform)} mr-0.5 text-xs"></i>
                 <span>${stream.platform || 'Custom'}</span>
               </div>
               <span class="text-gray-600 text-[10px]">•</span>
               <span class="text-[10px] text-gray-400 stream-settings-display">${settingsDisplay}</span>
+              ${autoDeleteBadgeHTML}
             </div>
             ${youtubeInfoHTML ? `<div class="mt-0.5">${youtubeInfoHTML}</div>` : ''}
             ${scheduleHTML ? `<div class="mt-0.5">${scheduleHTML}</div>` : ''}
@@ -2599,6 +2636,10 @@
       const signalHTML = existingState.signalHTML || '<span class="text-gray-500 text-[10px] animate-pulse">Connecting...</span>';
       const autoliveNameHTML = stream.autolive_series_name ? `<div class="text-[11px] text-purple-300 truncate max-w-[200px]"><i class="ti ti-bolt text-[10px] mr-0.5"></i>Autolive: ${stream.autolive_series_name}</div>` : '';
       
+      const autoDeleteBadgeHTML = (stream.auto_delete === true || stream.auto_delete === 1)
+        ? '<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-950/40 text-red-400 border border-red-800/30" title="Task akan terhapus otomatis 1 jam setelah selesai"><i class="ti ti-trash text-[9px]"></i>Auto Delete</span>'
+        : '<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-950/40 text-green-400 border border-green-800/30" title="Task akan disimpan dan harus dihapus secara manual"><i class="ti ti-lock text-[9px]"></i>Keep Task</span>';
+      
       let durationDisplay = '';
       let statusBadge = '';
       if (stream.status === 'live' && stream.start_time) {
@@ -2651,7 +2692,10 @@
             ${stream.video_type ? `<div class="text-sm font-semibold truncate max-w-[200px]" title="${stream.video_type === 'playlist' ? stream.playlist_name : stream.video_title}">${stream.video_type === 'playlist' ? '<i class="ti ti-list text-[11px] text-primary mr-1"></i>' + stream.playlist_name : '<i class="ti ti-video text-[11px] text-primary mr-1"></i>' + stream.video_title}</div>` : `<div class="text-sm font-medium truncate max-w-[200px]" title="${stream.title}">${stream.title}</div>`}
             ${autoliveNameHTML}
             ${stream.video_type ? `<div class="text-[11px] text-gray-400 truncate max-w-[200px]">${stream.title}</div>` : ''}
-            <div class="text-xs text-gray-400 stream-settings-display">${settingsDisplay}</div>
+            <div class="text-xs text-gray-400 stream-settings-display flex items-center gap-1.5 mt-0.5 flex-wrap">
+              <span>${settingsDisplay}</span>
+              ${autoDeleteBadgeHTML}
+            </div>
           </div>
         </div>
       </td>
@@ -4279,6 +4323,10 @@
         selectEditVideo(videoData);
       }
       document.getElementById('editLoopVideo').checked = stream.loop_video;
+      const editAutoDeleteEl = document.getElementById('editAutoDelete');
+      if (editAutoDeleteEl) {
+        editAutoDeleteEl.checked = stream.auto_delete === true || stream.auto_delete === 1;
+      }
       const bitrateSelect = document.getElementById('editBitrate');
       for (let i = 0; i < bitrateSelect.options.length; i++) {
         if (bitrateSelect.options[i].value == stream.bitrate) {
@@ -4695,7 +4743,8 @@
                 : document.getElementById('editYtResolution').value,
               bitrate: document.getElementById('editYtBitrate').value,
               fps: document.getElementById('editYtFps').value,
-              youtube_playlist_id: document.getElementById('editYtPlaylist').value
+              youtube_playlist_id: document.getElementById('editYtPlaylist').value,
+              autoDelete: document.getElementById('editAutoDelete').checked
             };
 
             ytFormDataObj.ytMonetization = document.getElementById('editYtEnableMonetization').checked;
@@ -4783,7 +4832,8 @@
             loopVideo: document.getElementById('editLoopVideo').checked,
             orientation: currentEditOrientation,
             resolution: document.getElementById('editCurrentResolution').textContent,
-            useAdvancedSettings: !document.getElementById('editAdvancedSettingsContent').classList.contains('hidden')
+            useAdvancedSettings: !document.getElementById('editAdvancedSettingsContent').classList.contains('hidden'),
+            autoDelete: document.getElementById('editAutoDelete').checked
           };
           const scheduleStartTime = document.getElementById('editScheduleStartTime').value;
           const scheduleEndTime = document.getElementById('editScheduleEndTime').value;

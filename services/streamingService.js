@@ -1593,7 +1593,7 @@ async function cleanupDoneStreams() {
     
     return new Promise((resolve) => {
       db.all(
-        "SELECT id, user_id FROM streams WHERE status = 'done' AND done_at < ?",
+        "SELECT id, user_id FROM streams WHERE status = 'done' AND auto_delete = 1 AND done_at < ?",
         [oneHourAgo],
         async (err, rows) => {
           if (err) {
