@@ -45,6 +45,7 @@ const MAX_RETRY_DELAY = 30000;
 const HEALTH_CHECK_INTERVAL = 30000;
 const SYNC_INTERVAL = 60000;
 const STREAM_START_TIMEOUT = 15000;
+const YOUTUBE_CHECK_INTERVAL = 300000; // 5 minutes to avoid quota exhaustion
 
 const YOUTUBE_COPY_ALLOWED_VIDEO_CODECS = new Set(['h264']);
 const YOUTUBE_COPY_ALLOWED_AUDIO_CODECS = new Set(['aac', 'mp3']);
@@ -1488,62 +1489,69 @@ async function healthCheckStreams() {
       }
 
       const stream = await Stream.findById(streamId);
-      if (stream && stream.is_youtube_api && stream.youtube_broadcast_id) {
-        try {
-          const lifecycleStatus = await youtubeService.getBroadcastLifecycleStatus(
-            stream.user_id,
-            stream.youtube_channel_id,
-            stream.youtube_broadcast_id
-          );
+      if (stream && stream.is_youtube_api) {
+        const lastYoutubeCheck = streamData.lastYoutubeCheck || 0;
+        if (now - lastYoutubeCheck >= YOUTUBE_CHECK_INTERVAL) {
+          streamData.lastYoutubeCheck = now;
 
-          if (lifecycleStatus && ['complete', 'revoked'].includes(lifecycleStatus.toLowerCase())) {
-            addStreamLog(streamId, `YouTube broadcast lifecycle is ${lifecycleStatus}; stopping local FFmpeg.`);
-            manuallyStoppingStreams.add(streamId);
-            await killFFmpegProcess(streamId, streamData);
-            activeStreams.delete(streamId);
-            manuallyStoppingStreams.delete(streamId);
-            await Stream.updateStatus(
-              streamId,
-              'done',
-              stream.user_id,
-              buildStopOptions('youtube_ended', `YouTube broadcast status: ${lifecycleStatus}.`)
-            );
-            cleanupStreamData(streamId);
-            continue;
-          }
-        } catch (youtubeStatusError) {
-          console.error(`[StreamingService] Failed YouTube lifecycle check for stream ${streamId}:`, youtubeStatusError.message);
-        }
-      }
+          if (stream.youtube_broadcast_id) {
+            try {
+              const lifecycleStatus = await youtubeService.getBroadcastLifecycleStatus(
+                stream.user_id,
+                stream.youtube_channel_id,
+                stream.youtube_broadcast_id
+              );
 
-      if (stream && stream.is_youtube_api && stream.youtube_stream_id) {
-        try {
-          const health = await youtubeService.getStreamHealth(
-            stream.user_id,
-            stream.youtube_channel_id,
-            stream.youtube_stream_id
-          );
-
-          if (health && health.status) {
-            const status = health.status.toLowerCase();
-            if (status === 'poor' || status === 'bad') {
-              const lastNotified = poorSignalNotified.get(streamId);
-              // Notify only once every 30 minutes to avoid spam
-              if (!lastNotified || (now - lastNotified) > (30 * 60 * 1000)) {
-                await notificationService.sendPoorSignalNotification(
+              if (lifecycleStatus && ['complete', 'revoked'].includes(lifecycleStatus.toLowerCase())) {
+                addStreamLog(streamId, `YouTube broadcast lifecycle is ${lifecycleStatus}; stopping local FFmpeg.`);
+                manuallyStoppingStreams.add(streamId);
+                await killFFmpegProcess(streamId, streamData);
+                activeStreams.delete(streamId);
+                manuallyStoppingStreams.delete(streamId);
+                await Stream.updateStatus(
+                  streamId,
+                  'done',
                   stream.user_id,
-                  stream.title,
-                  status,
-                  health.configurationIssues || []
+                  buildStopOptions('youtube_ended', `YouTube broadcast status: ${lifecycleStatus}.`)
                 );
-                poorSignalNotified.set(streamId, now);
+                cleanupStreamData(streamId);
+                continue;
               }
-            } else if (status === 'good' || status === 'excellent') {
-              poorSignalNotified.delete(streamId);
+            } catch (youtubeStatusError) {
+              console.error(`[StreamingService] Failed YouTube lifecycle check for stream ${streamId}:`, youtubeStatusError.message);
             }
           }
-        } catch (healthError) {
-          console.error(`[StreamingService] Failed health check for stream ${streamId}:`, healthError.message);
+
+          if (stream.youtube_stream_id) {
+            try {
+              const health = await youtubeService.getStreamHealth(
+                stream.user_id,
+                stream.youtube_channel_id,
+                stream.youtube_stream_id
+              );
+
+              if (health && health.status) {
+                const status = health.status.toLowerCase();
+                if (status === 'poor' || status === 'bad') {
+                  const lastNotified = poorSignalNotified.get(streamId);
+                  // Notify only once every 30 minutes to avoid spam
+                  if (!lastNotified || (now - lastNotified) > (30 * 60 * 1000)) {
+                    await notificationService.sendPoorSignalNotification(
+                      stream.user_id,
+                      stream.title,
+                      status,
+                      health.configurationIssues || []
+                    );
+                    poorSignalNotified.set(streamId, now);
+                  }
+                } else if (status === 'good' || status === 'excellent') {
+                  poorSignalNotified.delete(streamId);
+                }
+              }
+            } catch (healthError) {
+              console.error(`[StreamingService] Failed health check for stream ${streamId}:`, healthError.message);
+            }
+          }
         }
       }
 

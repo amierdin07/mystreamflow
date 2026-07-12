@@ -5249,38 +5249,17 @@
         updateEditYtDurationBadge();
       }, 60000);
 
-      setInterval(() => {
-        pollConcurrentViewers();
-      }, 30000);
+      // setInterval(() => {
+      //   pollConcurrentViewers();
+      // }, 30000);
     });
 
     async function pollConcurrentViewers() {
-      const viewerElements = document.querySelectorAll('.concurrent-viewers');
-      const seen = new Set();
-      viewerElements.forEach(async (el) => {
-        const channelId = el.getAttribute('data-channel-id');
-        const broadcastId = el.getAttribute('data-broadcast-id');
-        if (channelId && broadcastId) {
-          const cacheKey = `${channelId}:${broadcastId}`;
-          if (seen.has(cacheKey)) return;
-          seen.add(cacheKey);
-          try {
-            const res = await fetch(`/api/youtube/live-viewers/${channelId}/${broadcastId}`);
-            const json = await res.json();
-            if (json.success && json.concurrentViewers !== undefined) {
-              const formatted = new Intl.NumberFormat().format(json.concurrentViewers);
-              viewerCountCache.set(cacheKey, formatted);
-              document.querySelectorAll(`.concurrent-viewers[data-channel-id="${channelId}"][data-broadcast-id="${broadcastId}"]`).forEach(viewerEl => {
-                viewerEl.textContent = formatted;
-              });
-            }
-          } catch (e) {}
-        }
-      });
+      // Disabled to prevent YouTube API quota exhaustion
+      return;
     }
 
-    // Call once initially after a small delay to let rows render
-    setTimeout(pollConcurrentViewers, 2000);
+    // setTimeout(pollConcurrentViewers, 2000);
 
     function updateYtDurationBadge() {
       const startInput = document.getElementById('ytScheduleStart');
