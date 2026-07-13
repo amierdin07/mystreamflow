@@ -87,14 +87,14 @@ function addDaysToZonedParts(parts, days) {
   };
 }
 
-async function getAutoliveSourceSettings(series) {
-  const sourceId = series.internal_playlist_id || series.video_id;
+async function getAutoliveSourceSettings(target) {
+  const sourceId = target.internal_playlist_id || target.video_id;
   if (!sourceId) {
     return {};
   }
 
-  if (series.internal_playlist_id) {
-    const playlist = await Playlist.findByIdWithVideos(series.internal_playlist_id);
+  if (target.internal_playlist_id) {
+    const playlist = await Playlist.findByIdWithVideos(target.internal_playlist_id);
     const firstVideo = playlist && playlist.videos && playlist.videos.find(video => video.resolution);
     return firstVideo
       ? {
@@ -105,7 +105,7 @@ async function getAutoliveSourceSettings(series) {
       : {};
   }
 
-  const video = await Video.findById(series.video_id);
+  const video = await Video.findById(target.video_id);
   return video
     ? {
         resolution: video.resolution || null,
@@ -519,38 +519,57 @@ class AutoliveService {
 
       if (items.length === 0) return;
 
-      const currentItem = items[series.current_item_index % items.length];
       const scheduledStart = targetStart || this.getNextStartTime(series, series.repeat_mode, series.custom_dates, getSeriesTimeZone(series));
       const scheduledEnd = targetEnd || new Date(scheduledStart.getTime() + ((series.duration || 60) * 60 * 1000));
-      const sourceSettings = await getAutoliveSourceSettings(series);
       
-      // Create a dummy stream object for YouTube service
-      const dummyStreamId = `autolive_${series.id}`;
-      const dummyStream = {
-        id: dummyStreamId,
-        user_id: series.user_id,
-        title: currentItem.title,
-        youtube_description: currentItem.description || '',
-        youtube_tags: currentItem.tags || '',
-        youtube_category: '22',
-        youtube_privacy: 'public',
-        youtube_channel_id: series.youtube_channel_id,
-        youtube_thumbnail: currentItem.thumbnail_path,
-        schedule_time: scheduledStart.toISOString()
-      };
-
-      // We need to temporarily save this dummy stream to the DB so youtubeService can find it
-      // OR we modify youtubeService to accept an object. 
-      // Let's use a more robust way: create/update a dedicated stream record for this series.
+      // Create/Get stream record with series defaults
       let streamRecord = await this.getOrCreateStreamRecord(series, {
-        title: currentItem.title,
+        title: series.name,
         schedule_time: scheduledStart.toISOString(),
         end_time: scheduledEnd.toISOString(),
-        duration: series.duration || null,
-        ...sourceSettings
+        duration: series.duration || null
       });
 
-      // FIX: Better resolution check to avoid redundant deletion
+      const isNewSession = !streamRecord.schedule_time || (new Date(streamRecord.schedule_time).getTime() !== scheduledStart.getTime());
+      
+      let chosenSlotIndex = series.current_item_index || 0;
+      if (isNewSession) {
+        if (series.is_random_video === 1) {
+          const chosenSlot = await this.getNextRandomSlot(series, items);
+          chosenSlotIndex = items.findIndex(it => it.id === chosenSlot.id);
+          if (chosenSlotIndex === -1) chosenSlotIndex = 0;
+        } else {
+          chosenSlotIndex = 0;
+        }
+        await Autolive.update(series.id, { current_item_index: chosenSlotIndex });
+      }
+      
+      const chosenSlot = items[chosenSlotIndex % items.length] || items[0];
+
+      if (chosenSlot.internal_playlist_id) {
+        if (isNewSession) {
+          const { videoId } = await this.getNextRandomVideoData(series, chosenSlot.internal_playlist_id);
+          await Autolive.update(series.id, { current_video_id: videoId });
+        }
+      }
+
+      // Get the next Title & Thumbnail from this chosen slot
+      const titles = chosenSlot.titles || [];
+      const thumbnails = chosenSlot.thumbnails || [];
+      
+      const titleIdx = chosenSlot.current_index % (titles.length || 1);
+      const thumbIdx = chosenSlot.current_index % (thumbnails.length || 1);
+      
+      const title = titles[titleIdx] || series.name;
+      const thumbnail = thumbnails[thumbIdx] || '';
+      
+      if (isNewSession) {
+        await new Promise((resolve) => {
+          db.run('UPDATE autolive_items SET current_index = ? WHERE id = ?', [chosenSlot.current_index + 1, chosenSlot.id], () => resolve());
+        });
+      }
+
+      const sourceSettings = await getAutoliveSourceSettings(chosenSlot);
       const sourceRes = sourceSettings.resolution || null;
       const dbRes = streamRecord.resolution || null;
       
@@ -567,24 +586,16 @@ class AutoliveService {
       }
       
       // Update stream record with current item metadata and series settings
-      console.log(`[Autolive] Updating stream metadata for ${streamRecord.id}. Thumbnail: ${currentItem.thumbnail_path}`);
+      console.log(`[Autolive] Updating stream metadata for ${streamRecord.id}. Thumbnail: ${thumbnail}`);
       
-      let nextVideoId = series.internal_playlist_id || series.video_id;
-      if (series.is_random_video === 1 && series.internal_playlist_id) {
-        const isNewSession = !streamRecord.schedule_time || (new Date(streamRecord.schedule_time).getTime() !== scheduledStart.getTime());
-        if (isNewSession) {
-          nextVideoId = await this.getNextRandomVideoId(series);
-        } else {
-          nextVideoId = streamRecord.video_id; // Keep currently selected video
-        }
-      }
+      const nextVideoId = chosenSlot.internal_playlist_id || chosenSlot.video_id;
 
       await Stream.update(streamRecord.id, {
-        title: currentItem.title,
+        title: title,
         video_id: nextVideoId,
-        youtube_description: currentItem.description || '',
-        youtube_tags: currentItem.tags || '',
-        youtube_thumbnail: currentItem.thumbnail_path || '',
+        youtube_description: chosenSlot.description || '',
+        youtube_tags: chosenSlot.tags || '',
+        youtube_thumbnail: thumbnail,
         schedule_time: scheduledStart.toISOString(),
         resolution: sourceRes || dbRes || null,
         bitrate: sourceSettings.bitrate || streamRecord.bitrate || 2500,
@@ -622,11 +633,10 @@ class AutoliveService {
     const streamId = `autolive_${series.id}`;
     let stream = await Stream.findById(streamId);
     if (!stream) {
-      // For Autolive, we can use the video_id field in the streams table for both single video or playlist,
-      // as the streamingService handles it based on ID lookup in videos or playlists table.
+      const items = await Autolive.getItemsBySeriesId(series.id);
       let sourceId = series.internal_playlist_id || series.video_id;
-      if (series.is_random_video === 1 && series.internal_playlist_id) {
-         sourceId = await this.getNextRandomVideoId(series);
+      if (items.length > 0) {
+        sourceId = items[0].internal_playlist_id || items[0].video_id || sourceId;
       }
       
       // FIX #4: db.run is callback-based in sqlite3 — must wrap in Promise, not use await directly.
@@ -899,12 +909,12 @@ class AutoliveService {
     return schedule;
   }
 
-  static async getNextRandomVideoId(series) {
+  static async getNextRandomVideoData(series, playlistId) {
     try {
       const Playlist = require('../models/Playlist');
-      const playlist = await Playlist.findByIdWithVideos(series.internal_playlist_id);
+      const playlist = await Playlist.findByIdWithVideos(playlistId);
       if (!playlist || !playlist.videos || playlist.videos.length === 0) {
-        return null;
+        return { videoId: null, itemIndex: 0 };
       }
       
       let pool = [];
@@ -914,26 +924,57 @@ class AutoliveService {
         pool = [];
       }
       
-      const videoIds = playlist.videos.map(v => v.id);
-      pool = pool.filter(id => videoIds.includes(id));
+      const maxIndex = playlist.videos.length - 1;
+      pool = pool.filter(idx => typeof idx === 'number' && idx >= 0 && idx <= maxIndex);
       
       if (pool.length === 0) {
-        // Shuffle the array of video IDs
-        pool = shuffleArray([...videoIds]);
+        const indices = Array.from({ length: playlist.videos.length }, (_, i) => i);
+        pool = shuffleArray(indices);
       }
       
-      const nextVideoId = pool.shift();
+      const chosenIndex = pool.shift();
+      const videoId = playlist.videos[chosenIndex].id;
       
       const Autolive = require('../models/Autolive');
       await Autolive.update(series.id, {
         random_pool_state: JSON.stringify(pool)
       });
       
-      console.log(`[Autolive] Selected random video ${nextVideoId} from playlist ${series.internal_playlist_id}. Remaining pool size: ${pool.length}`);
-      return nextVideoId;
+      console.log(`[Autolive] Selected random video index ${chosenIndex} (Video ID: ${videoId}) from playlist ${playlistId}. Remaining pool size: ${pool.length}`);
+      return { videoId, itemIndex: chosenIndex };
     } catch (err) {
-      console.error('[Autolive] Error selecting next random video:', err);
-      return null;
+      console.error('[Autolive] Error selecting next random video data:', err);
+      return { videoId: null, itemIndex: 0 };
+    }
+  }
+
+  static async getNextRandomSlot(series, items) {
+    try {
+      let pool = [];
+      try {
+        pool = JSON.parse(series.random_pool_state || '[]');
+      } catch (e) {
+        pool = [];
+      }
+      
+      const itemIds = items.map(it => it.id);
+      pool = pool.filter(id => itemIds.includes(id));
+      
+      if (pool.length === 0) {
+        pool = shuffleArray([...itemIds]);
+      }
+      
+      const chosenSlotId = pool.shift();
+      const Autolive = require('../models/Autolive');
+      await Autolive.update(series.id, {
+        random_pool_state: JSON.stringify(pool)
+      });
+      
+      console.log(`[Autolive] Selected random slot ${chosenSlotId}. Remaining pool size: ${pool.length}`);
+      return items.find(it => it.id === chosenSlotId) || items[0];
+    } catch (err) {
+      console.error('[Autolive] Error selecting next random slot:', err);
+      return items[0];
     }
   }
 }

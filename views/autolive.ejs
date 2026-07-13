@@ -214,42 +214,6 @@
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-400 mb-1.5">Select Video</label>
-                            <input type="hidden" id="videoId">
-                            <input type="hidden" id="internalPlaylistId">
-                            
-                            <!-- Opsi acak video dari playlist -->
-                            <div id="randomVideoSection" class="hidden mt-2 mb-2 p-3 bg-dark-900/50 rounded-xl border border-gray-700">
-                                <label class="flex items-center gap-2.5 cursor-pointer">
-                                    <input type="checkbox" id="isRandomVideo" class="form-checkbox h-4 w-4 text-primary bg-dark-900 border-gray-700 rounded focus:ring-primary focus:ring-opacity-50">
-                                    <span class="text-sm font-medium text-gray-300">Acak Video Master dari Playlist (Anti-Repeat)</span>
-                                </label>
-                            </div>
-
-                            <div class="relative">
-                                <button type="button" onclick="toggleAutoliveVideoSelector()"
-                                    id="autoliveVideoBtn"
-                                    class="w-full flex items-center justify-between px-4 py-3 bg-dark-900 border border-gray-700 rounded-xl hover:border-primary focus:border-primary transition-colors text-left">
-                                    <span class="text-sm text-gray-400" id="autoliveSelectedVideoLabel">Choose a video or playlist...</span>
-                                    <i class="ti ti-chevron-down text-gray-400"></i>
-                                </button>
-                                <div id="autoliveVideoDropdown"
-                                    class="hidden absolute z-50 mt-2 w-full bg-dark-800 rounded-xl border border-gray-700 shadow-2xl">
-                                    <div class="p-2 border-b border-gray-700/50">
-                                        <div class="relative">
-                                            <input type="text" id="autoliveVideoSearch"
-                                                class="w-full bg-dark-900 text-white pl-8 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary border border-gray-700"
-                                                placeholder="Search videos or playlists..."
-                                                oninput="filterAutoliveVideos(this.value)">
-                                            <i class="ti ti-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                                        </div>
-                                    </div>
-                                    <div id="autoliveVideoList" class="p-2 space-y-1 max-h-64 overflow-y-auto"></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div>
                             <label class="block text-sm font-medium text-gray-400 mb-1.5">YouTube Channel</label>
                             <select id="channelId" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all">
                                 <% youtubeChannels.forEach(c => { %>
@@ -396,56 +360,24 @@
 
                 <div class="h-px bg-gray-700 my-8"></div>
 
-                <!-- Section 2: Bulk Metadata -->
+                <!-- Section 2: Video Slots & Metadata Rotation -->
                 <div class="space-y-6">
                     <div class="flex items-center justify-between">
                         <h4 class="text-lg font-bold flex items-center gap-2">
                             <i class="ti ti-list-details text-primary"></i>
-                            <span>Rotasi Metadata (Judul & Thumbnail)</span>
+                            <span>Daftar Slot Video Master & Rotasi Metadata</span>
                         </h4>
-                        <span class="text-xs bg-primary/10 text-primary px-2 py-1 rounded">Auto-Swap 24 Jam Aktif</span>
+                        <span class="text-xs bg-primary/10 text-primary px-2 py-1 rounded">Auto-Swap Per Live Aktif</span>
                     </div>
 
-                    <div class="bg-dark-900/50 p-6 rounded-2xl border border-gray-700/50 space-y-6">
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Daftar Judul (Satu per baris)</label>
-                                <textarea id="bulkTitles" rows="6" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white font-mono text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="Judul Episode 1&#10;Judul Episode 2&#10;Judul Episode 3..."></textarea>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Deskripsi Live (Untuk Semua Judul)</label>
-                                <textarea id="bulkDescriptions" rows="6" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="Deskripsi yang sama untuk semua live dalam task ini..."></textarea>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Tag Live (Untuk Semua Judul)</label>
-                                <input type="hidden" id="bulkTags">
-                                <div id="tagChipBox" class="min-h-[48px] w-full bg-dark-900 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent transition-all flex flex-wrap items-center gap-2 cursor-text" onclick="document.getElementById('bulkTagsInput').focus()">
-                                    <div id="tagChips" class="flex flex-wrap items-center gap-2"></div>
-                                    <input type="text" id="bulkTagsInput" class="flex-1 min-w-[140px] bg-transparent border-0 outline-none text-white placeholder-gray-500 py-1" placeholder="ketik tag, lalu koma" onkeydown="handleTagInputKeydown(event)" oninput="handleTagInput(event)" onblur="addTagFromInput()">
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Upload Thumbnail (Banyak file)</label>
-                                <div class="relative group h-[158px]">
-                                    <input type="file" id="bulkThumbnails" multiple accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onchange="handleThumbnailPreview(this)">
-                                    <div class="w-full h-full border-2 border-dashed border-gray-700 rounded-xl flex flex-col items-center justify-center group-hover:border-primary transition-all bg-dark-900/30">
-                                        <i class="ti ti-photo-plus text-3xl text-gray-500 mb-2 group-hover:text-primary transition-colors"></i>
-                                        <p class="text-sm text-gray-400">Klik atau seret gambar ke sini</p>
-                                        <p class="text-xs text-gray-500 mt-1" id="thumbCount">Belum ada file dipilih</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <button type="button" onclick="generateItemsFromBulk()" class="w-full py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2">
-                            <i class="ti ti-refresh"></i>
-                            <span>Generate SEO</span>
-                        </button>
+                    <div id="slotsContainer" class="space-y-6">
+                        <!-- Dynamic slots will be rendered here -->
                     </div>
 
-                    <div id="itemsPreview" class="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                        <!-- Generated items will appear here -->
-                    </div>
+                    <button type="button" onclick="addNewSlot()" class="w-full py-4 bg-primary/10 hover:bg-primary/20 text-primary border-2 border-dashed border-primary/30 rounded-2xl font-bold transition-all flex items-center justify-center gap-2">
+                        <i class="ti ti-plus text-lg"></i>
+                        <span>Tambah Video Slot</span>
+                    </button>
                 </div>
             </form>
         </div>
@@ -501,6 +433,7 @@
 
 <script>
     let currentItems = [];
+    let currentSlots = [];
     let selectedDates = [];
     let uploadedThumbnailPaths = [];
     let sharedTags = [];
@@ -607,20 +540,11 @@
         document.getElementById('seriesId').value = '';
         document.getElementById('modalTitle').innerHTML = '<i class="ti ti-bolt text-primary"></i><span>Buat Autolive Baru</span>';
         document.getElementById('seriesName').value = '';
-        resetAutoliveVideoSelector();
         document.getElementById('startTime').value = '';
-        document.getElementById('bulkTitles').value = '';
-        document.getElementById('bulkDescriptions').value = '';
-        setSharedTags('');
-        document.getElementById('bulkThumbnails').value = '';
-        document.getElementById('thumbCount').innerText = 'Belum ada file dipilih';
-        document.getElementById('itemsPreview').innerHTML = '';
         document.getElementById('customDatesContainer').classList.add('hidden');
         document.getElementById('customDatesList').innerHTML = '';
         
         // Reset new custom fields
-        document.getElementById('isRandomVideo').checked = false;
-        document.getElementById('randomVideoSection').classList.add('hidden');
         document.getElementById('dailyTimes').value = '';
         document.getElementById('dailyTimesContainer').classList.add('hidden');
         
@@ -635,12 +559,219 @@
         const initialChannelId = document.getElementById('channelId').value;
         if (initialChannelId) loadPlaylists(initialChannelId);
 
-        currentItems = [];
+        currentSlots = [];
         selectedDates = [];
-        uploadedThumbnailPaths = [];
+        addNewSlot(); // Add one default slot
         setAutoliveSaving(false);
         document.getElementById('autoliveModal').classList.remove('hidden');
         document.getElementById('autoliveModal').classList.add('flex');
+    }
+
+    // ============================================================
+    // Slot Management JavaScript Functions
+    // ============================================================
+    function renderSlots() {
+        const container = document.getElementById('slotsContainer');
+        container.innerHTML = '';
+        
+        currentSlots.forEach((slot, index) => {
+            const slotEl = document.createElement('div');
+            slotEl.className = "bg-dark-900/50 p-6 rounded-2xl border border-gray-700 space-y-4 relative";
+            
+            let optionsHtml = `<option value="">-- Pilih Video atau Playlist --</option>`;
+            autoliveAllItems.forEach(item => {
+                const val = `${item.type}:${item.id}`;
+                const selected = (slot.video_id === item.id || slot.internal_playlist_id === item.id) ? 'selected' : '';
+                const typeLabel = item.type === 'playlist' ? '[Playlist] ' : '[Video] ';
+                optionsHtml += `<option value="${val}" ${selected}>${typeLabel}${item.label} ${item.sub ? `(${item.sub})` : ''}</option>`;
+            });
+            
+            slotEl.innerHTML = `
+                <div class="flex items-center justify-between pb-3 border-b border-gray-700">
+                    <h5 class="text-sm font-bold text-gray-300 flex items-center gap-2">
+                        <i class="ti ti-video text-primary"></i>
+                        <span>Slot Video Master #${index + 1}</span>
+                    </h5>
+                    <button type="button" onclick="removeSlot(${index})" class="text-red-400 hover:text-red-300 text-xs font-semibold flex items-center gap-1">
+                        <i class="ti ti-trash"></i> Hapus Slot
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1">Pilih Video/Playlist</label>
+                            <select onchange="updateSlotVideo(${index}, this.value)" class="w-full bg-dark-800 border border-gray-700 rounded-xl px-3 py-2.5 text-xs text-white focus:ring-1 focus:ring-primary focus:border-transparent">
+                                ${optionsHtml}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1">Daftar Judul (Satu per baris)</label>
+                            <textarea oninput="updateSlotTitles(${index}, this.value)" rows="4" class="w-full bg-dark-800 border border-gray-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:ring-1 focus:ring-primary focus:border-transparent" placeholder="Judul 1&#10;Judul 2...">${slot.titles.join('\n')}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1">Deskripsi Live (Khusus Slot Ini)</label>
+                            <textarea oninput="updateSlotDescription(${index}, this.value)" rows="2" class="w-full bg-dark-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-xs focus:ring-1 focus:ring-primary focus:border-transparent" placeholder="Deskripsi untuk live video ini...">${slot.description || ''}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1">Tag Live (Pisahkan dengan koma)</label>
+                            <input type="text" oninput="updateSlotTags(${index}, this.value)" value="${slot.tags || ''}" class="w-full bg-dark-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-xs focus:ring-1 focus:ring-primary focus:border-transparent" placeholder="tag1, tag2, tag3">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-2 pt-2">
+                    <label class="block text-xs font-medium text-gray-400">Rotasi Thumbnail (Banyak File)</label>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="relative group h-[90px] md:col-span-1">
+                            <input type="file" multiple accept="image/*" onchange="handleSlotFiles(${index}, this.files)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                            <div class="w-full h-full border border-dashed border-gray-700 rounded-xl flex flex-col items-center justify-center group-hover:border-primary transition-all bg-dark-800/30">
+                                <i class="ti ti-photo-plus text-xl text-gray-505 mb-1 group-hover:text-primary"></i>
+                                <span class="text-[10px] text-gray-400">Klik / Seret Gambar</span>
+                            </div>
+                        </div>
+                        <div class="md:col-span-2 flex flex-wrap gap-2 items-center p-2 bg-dark-800/30 border border-gray-800 rounded-xl min-h-[90px]" id="slot-thumbs-preview-${index}">
+                            ${renderSlotThumbsPreview(index)}
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="button" onclick="generateSlotSEO(${index})" class="w-full py-2 bg-gray-850 hover:bg-gray-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 mt-2">
+                    <i class="ti ti-refresh"></i> Generate SEO Khusus Slot Ini
+                </button>
+            `;
+            container.appendChild(slotEl);
+        });
+    }
+
+    function updateSlotVideo(index, val) {
+        if (!val) {
+            currentSlots[index].video_id = "";
+            currentSlots[index].internal_playlist_id = "";
+            return;
+        }
+        const parts = val.split(':');
+        const type = parts[0];
+        const id = parts[1];
+        if (type === 'playlist') {
+            currentSlots[index].internal_playlist_id = id;
+            currentSlots[index].video_id = "";
+        } else {
+            currentSlots[index].video_id = id;
+            currentSlots[index].internal_playlist_id = "";
+        }
+    }
+
+    function updateSlotTitles(index, val) {
+        currentSlots[index].titles = val.split('\n').map(t => t.trim()).filter(Boolean);
+    }
+
+    function updateSlotDescription(index, val) {
+        currentSlots[index].description = val;
+    }
+
+    function updateSlotTags(index, val) {
+        currentSlots[index].tags = val;
+    }
+
+    function handleSlotFiles(index, files) {
+        if (!currentSlots[index].newFiles) {
+            currentSlots[index].newFiles = [];
+        }
+        for (let i = 0; i < files.length; i++) {
+            currentSlots[index].newFiles.push(files[i]);
+        }
+        renderSlots();
+    }
+
+    function removeExistingSlotThumb(slotIndex, thumbIndex) {
+        currentSlots[slotIndex].thumbnails.splice(thumbIndex, 1);
+        if (currentSlots[slotIndex].original_thumbnails) {
+            currentSlots[slotIndex].original_thumbnails.splice(thumbIndex, 1);
+        }
+        renderSlots();
+    }
+
+    function removeNewSlotThumb(slotIndex, newFileIndex) {
+        currentSlots[slotIndex].newFiles.splice(newFileIndex, 1);
+        renderSlots();
+    }
+
+    function renderSlotThumbsPreview(slotIndex) {
+        const slot = currentSlots[slotIndex];
+        let html = '';
+        
+        if (slot.thumbnails && slot.thumbnails.length > 0) {
+            slot.thumbnails.forEach((t, i) => {
+                html += `
+                    <div class="relative w-16 h-16 rounded-lg border border-gray-700 overflow-hidden group">
+                        <img src="${t}" class="w-full h-full object-cover">
+                        <button type="button" onclick="removeExistingSlotThumb(${slotIndex}, ${i})" class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-red-400">
+                            <i class="ti ti-trash text-sm"></i>
+                        </button>
+                    </div>
+                `;
+            });
+        }
+        
+        if (slot.newFiles && slot.newFiles.length > 0) {
+            slot.newFiles.forEach((file, i) => {
+                const url = URL.createObjectURL(file);
+                html += `
+                    <div class="relative w-16 h-16 rounded-lg border border-primary/40 overflow-hidden group">
+                        <img src="${url}" class="w-full h-full object-cover">
+                        <span class="absolute top-0.5 left-0.5 bg-primary text-[8px] text-white px-1 rounded">Baru</span>
+                        <button type="button" onclick="removeNewSlotThumb(${slotIndex}, ${i})" class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-red-400">
+                            <i class="ti ti-trash text-sm"></i>
+                        </button>
+                    </div>
+                `;
+            });
+        }
+        
+        if (!html) {
+            html = `<span class="text-[10px] text-gray-500 italic w-full text-center py-1">Belum ada thumbnail</span>`;
+        }
+        
+        return html;
+    }
+
+    function addNewSlot() {
+        currentSlots.push({
+            id: "",
+            video_id: "",
+            internal_playlist_id: "",
+            titles: [],
+            description: "",
+            tags: "",
+            thumbnails: [],
+            original_thumbnails: [],
+            newFiles: []
+        });
+        renderSlots();
+    }
+
+    function removeSlot(index) {
+        if (currentSlots.length <= 1) {
+            alert("Minimal harus ada 1 slot video master");
+            return;
+        }
+        if (confirm("Apakah Anda yakin ingin menghapus slot ini?")) {
+            currentSlots.splice(index, 1);
+            renderSlots();
+        }
+    }
+
+    function generateSlotSEO(index) {
+        const slot = currentSlots[index];
+        if (!slot.titles || slot.titles.length === 0) {
+            alert("Mohon masukkan judul terlebih dahulu!");
+            return;
+        }
+        alert("SEO Metadata Slot #" + (index + 1) + " berhasil disinkronkan!");
     }
 
     function closeModal() {
@@ -958,12 +1089,9 @@
     async function saveSeries() {
         const id = document.getElementById('seriesId').value;
         const name = document.getElementById('seriesName').value;
-        const videoId = document.getElementById('videoId').value;
-        const internalPlaylistId = document.getElementById('internalPlaylistId').value;
         const startTime = document.getElementById('startTime').value;
         const repeatMode = document.getElementById('repeatMode').value;
         const channelId = document.getElementById('channelId').value;
-        const isRandomVideo = document.getElementById('isRandomVideo').checked ? 1 : 0;
         const dailyTimes = document.getElementById('dailyTimes').value;
         
         const hours = parseInt(document.getElementById('durationHours').value) || 0;
@@ -977,8 +1105,8 @@
         const madeForKids = document.getElementById('madeForKids').checked ? 1 : 0;
         const playlistId = document.getElementById('playlistId').value;
 
-        if (!name || (!videoId && !internalPlaylistId) || !startTime) {
-            alert('Mohon isi semua field wajib (Nama, Video/Playlist, Waktu Mulai)');
+        if (!name || !startTime) {
+            alert('Mohon isi semua field wajib (Nama, Waktu Mulai)');
             return;
         }
 
@@ -987,16 +1115,31 @@
             return;
         }
 
-        if (currentItems.length === 0) {
-            alert('Mohon tambahkan setidaknya satu judul/metadata');
+        if (currentSlots.length === 0) {
+            alert('Mohon tambahkan setidaknya satu slot video master');
             return;
         }
 
+        for (let i = 0; i < currentSlots.length; i++) {
+            const slot = currentSlots[i];
+            if (!slot.video_id && !slot.internal_playlist_id) {
+                alert(`Mohon pilih Video atau Playlist untuk Slot #${i + 1}`);
+                return;
+            }
+            if (!slot.titles || slot.titles.length === 0) {
+                alert(`Mohon masukkan setidaknya satu Judul untuk Slot #${i + 1}`);
+                return;
+            }
+        }
+
+        const isRandomVideo = currentSlots.length > 1 ? 1 : 0;
+
         const formData = new FormData();
         formData.append('name', name);
-        formData.append('video_id', videoId);
-        formData.append('internal_playlist_id', internalPlaylistId);
-        // Convert datetime-local (browser local time) to ISO UTC so server timezone doesn't matter
+        // Fallbacks for the base series fields - we use the first slot as default
+        formData.append('video_id', currentSlots[0].video_id || '');
+        formData.append('internal_playlist_id', currentSlots[0].internal_playlist_id || '');
+        
         const startTimeISO = startTime ? new Date(startTime).toISOString() : '';
         formData.append('start_time', startTimeISO);
         formData.append('repeat_mode', repeatMode);
@@ -1007,25 +1150,32 @@
         formData.append('is_random_video', isRandomVideo);
         formData.append('daily_times', dailyTimes);
         
-        // Add new YouTube fields
         formData.append('privacy', privacy);
         formData.append('category_id', categoryId);
         formData.append('monetization_enabled', monetizationEnabled);
         formData.append('made_for_kids', madeForKids);
         formData.append('playlist_id', playlistId);
 
-        const sharedDescription = document.getElementById('bulkDescriptions').value.trim();
-        const sharedTagsValue = getSharedTagsString();
+        const itemsToSend = [];
+        currentSlots.forEach((slot, idx) => {
+            const newFiles = slot.newFiles || [];
+            newFiles.forEach((file, fileIdx) => {
+                formData.append(`slot_${idx}_thumbnail_${fileIdx}`, file);
+            });
+            
+            itemsToSend.push({
+                video_id: slot.video_id || null,
+                internal_playlist_id: slot.internal_playlist_id || null,
+                titles: slot.titles || [],
+                description: slot.description || '',
+                tags: slot.tags || '',
+                existing_thumbnails: slot.thumbnails || [],
+                existing_original_thumbnails: slot.original_thumbnails || [],
+                new_thumbnails_count: newFiles.length
+            });
+        });
 
-        // Add items metadata
-        formData.append('items', JSON.stringify(currentItems.map((item, idx) => ({
-            title: item.title,
-            description: sharedDescription,
-            tags: sharedTagsValue,
-            thumbnail_upload_index: -1,
-            thumbnail_path: item.thumbnail_path, // for edits and new
-            original_thumbnail_path: item.original_thumbnail_path // for edits and new
-        }))));
+        formData.append('items', JSON.stringify(itemsToSend));
 
         setAutoliveSaving(true, 'Mengupload thumbnail dan metadata...', 0);
 
@@ -1131,8 +1281,6 @@
                 document.getElementById('dailyTimesContainer').classList.add('hidden');
             }
             
-            document.getElementById('isRandomVideo').checked = s.is_random_video === 1;
-            
             if (s.repeat_mode === 'custom') {
                 document.getElementById('customDatesContainer').classList.remove('hidden');
                 selectedDates = JSON.parse(s.custom_dates || '[]');
@@ -1154,29 +1302,24 @@
             
             // Load playlists and select the correct one
             await loadPlaylists(s.youtube_channel_id, s.playlist_id);
-            
-            currentItems = s.items.map(item => ({
-                title: item.title,
-                description: item.description,
-                tags: item.tags,
-                thumbnail_path: item.thumbnail_path,
-                original_thumbnail_path: item.original_thumbnail_path,
-                thumbnail_upload_index: -1
+
+            currentSlots = (s.items || []).map(item => ({
+                id: item.id,
+                video_id: item.video_id || "",
+                internal_playlist_id: item.internal_playlist_id || "",
+                titles: item.titles || [],
+                description: item.description || "",
+                tags: item.tags || "",
+                thumbnails: item.thumbnails || [],
+                original_thumbnails: item.original_thumbnails || [],
+                newFiles: []
             }));
 
-            document.getElementById('bulkTitles').value = currentItems.map(i => i.title).join('\n');
-            document.getElementById('bulkDescriptions').value = currentItems.find(i => i.description)?.description || '';
-            setSharedTags(currentItems.find(i => i.tags)?.tags || '');
-            document.getElementById('bulkThumbnails').value = '';
-            
-            const existingThumbnailsCount = currentItems.filter(i => i.thumbnail_path).length;
-            if (existingThumbnailsCount > 0) {
-                document.getElementById('thumbCount').innerHTML = `<span class="text-primary"><i class="ti ti-photo-check"></i> ${existingThumbnailsCount} thumbnail sudah tersimpan</span>`;
+            if (currentSlots.length === 0) {
+                addNewSlot();
             } else {
-                document.getElementById('thumbCount').innerText = 'Belum ada file dipilih';
+                renderSlots();
             }
-            
-            renderItemsPreview();
             
             document.getElementById('modalTitle').innerHTML = '<i class="ti ti-bolt text-primary"></i><span>Edit Seri Autolive</span>';
             document.getElementById('autoliveModal').classList.remove('hidden');

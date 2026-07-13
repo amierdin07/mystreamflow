@@ -88,7 +88,25 @@ class Autolive {
                 console.error('Error finding autolive items:', err.message);
                 return reject(err);
               }
-              series.items = items || [];
+              const parsedItems = (items || []).map(item => {
+                try {
+                  item.titles = item.titles ? JSON.parse(item.titles) : [];
+                } catch(e) {
+                  item.titles = [];
+                }
+                try {
+                  item.thumbnails = item.thumbnails ? JSON.parse(item.thumbnails) : [];
+                } catch(e) {
+                  item.thumbnails = [];
+                }
+                try {
+                  item.original_thumbnails = item.original_thumbnails ? JSON.parse(item.original_thumbnails) : [];
+                } catch(e) {
+                  item.original_thumbnails = [];
+                }
+                return item;
+              });
+              series.items = parsedItems;
               resolve(series);
             }
           );
@@ -176,19 +194,34 @@ class Autolive {
     const id = uuidv4();
     const {
       series_id,
-      title,
+      video_id = null,
+      internal_playlist_id = null,
+      title = null,
+      titles = null,
       description = '',
       tags = '',
       thumbnail_path = null,
+      thumbnails = null,
       original_thumbnail_path = null,
+      original_thumbnails = null,
+      current_index = 0,
       order_index
     } = itemData;
 
+    const titlesStr = Array.isArray(titles) ? JSON.stringify(titles) : (titles || '[]');
+    const thumbnailsStr = Array.isArray(thumbnails) ? JSON.stringify(thumbnails) : (thumbnails || '[]');
+    const originalThumbnailsStr = Array.isArray(original_thumbnails) ? JSON.stringify(original_thumbnails) : (original_thumbnails || '[]');
+
     return new Promise((resolve, reject) => {
       db.run(
-        `INSERT INTO autolive_items (id, series_id, title, description, tags, thumbnail_path, original_thumbnail_path, order_index)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, series_id, title, description, tags, thumbnail_path, original_thumbnail_path, order_index],
+        `INSERT INTO autolive_items (
+          id, series_id, video_id, internal_playlist_id, title, titles, description, tags, 
+          thumbnail_path, thumbnails, original_thumbnail_path, original_thumbnails, current_index, order_index
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id, series_id, video_id, internal_playlist_id, title, titlesStr, description, tags, 
+          thumbnail_path, thumbnailsStr, original_thumbnail_path, originalThumbnailsStr, current_index, order_index
+        ],
         function(err) {
           if (err) {
             console.error('Error adding autolive item:', err.message);
@@ -215,8 +248,26 @@ class Autolive {
         'SELECT * FROM autolive_items WHERE series_id = ? ORDER BY order_index ASC',
         [seriesId],
         (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows || []);
+          if (err) return reject(err);
+          const parsed = (rows || []).map(item => {
+            try {
+              item.titles = item.titles ? JSON.parse(item.titles) : [];
+            } catch(e) {
+              item.titles = [];
+            }
+            try {
+              item.thumbnails = item.thumbnails ? JSON.parse(item.thumbnails) : [];
+            } catch(e) {
+              item.thumbnails = [];
+            }
+            try {
+              item.original_thumbnails = item.original_thumbnails ? JSON.parse(item.original_thumbnails) : [];
+            } catch(e) {
+              item.original_thumbnails = [];
+            }
+            return item;
+          });
+          resolve(parsed);
         }
       );
     });

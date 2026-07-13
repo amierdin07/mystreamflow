@@ -5379,23 +5379,29 @@ app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, re
     
     for (let i = 0; i < parsedItems.length; i++) {
       const item = parsedItems[i];
-      let thumbnailPath = item.thumbnail_path;
-      let originalThumbnailPath = item.original_thumbnail_path;
+      const finalThumbnails = [...(item.existing_thumbnails || [])];
+      const finalOriginals = [...(item.existing_original_thumbnails || [])];
       
-      const thumbnailFile = uploadedFileMap.get(`thumbnail_${item.thumbnail_upload_index}`);
-      if (thumbnailFile) {
-        const originalFilename = thumbnailFile.filename;
-        originalThumbnailPath = originalFilename;
-        thumbnailPath = `/uploads/thumbnails/${originalFilename}`;
+      const newCount = parseInt(item.new_thumbnails_count) || 0;
+      for (let j = 0; j < newCount; j++) {
+        const fileKey = `slot_${i}_thumbnail_${j}`;
+        const file = uploadedFileMap.get(fileKey);
+        if (file) {
+          finalOriginals.push(file.filename);
+          finalThumbnails.push(`/uploads/thumbnails/${file.filename}`);
+        }
       }
       
       await Autolive.addItem({
         series_id: series.id,
-        title: item.title,
-        description: item.description,
-        tags: item.tags,
-        thumbnail_path: thumbnailPath,
-        original_thumbnail_path: originalThumbnailPath,
+        video_id: item.video_id || null,
+        internal_playlist_id: item.internal_playlist_id || null,
+        titles: item.titles || [],
+        description: item.description || '',
+        tags: item.tags || '',
+        thumbnails: finalThumbnails,
+        original_thumbnails: finalOriginals,
+        current_index: 0,
         order_index: i
       });
     }
@@ -5449,6 +5455,7 @@ app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req,
     
     if (items) {
       const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
+      const existingItems = await Autolive.getItemsBySeriesId(req.params.id);
       await Autolive.deleteItemsBySeriesId(req.params.id);
       
       const uploadedFiles = req.files || [];
@@ -5456,24 +5463,38 @@ app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req,
       
       for (let i = 0; i < parsedItems.length; i++) {
         const item = parsedItems[i];
-        let thumbnailPath = item.thumbnail_path;
-        let originalThumbnailPath = item.original_thumbnail_path;
+        const finalThumbnails = [...(item.existing_thumbnails || [])];
+        const finalOriginals = [...(item.existing_original_thumbnails || [])];
         
-        const thumbnailFile = uploadedFileMap.get(`thumbnail_${item.thumbnail_upload_index}`);
-        if (thumbnailFile) {
-          const originalFilename = thumbnailFile.filename;
-          originalThumbnailPath = originalFilename;
-          // Use original file directly - no resize/compress
-          thumbnailPath = `/uploads/thumbnails/${originalFilename}`;
+        const newCount = parseInt(item.new_thumbnails_count) || 0;
+        for (let j = 0; j < newCount; j++) {
+          const fileKey = `slot_${i}_thumbnail_${j}`;
+          const file = uploadedFileMap.get(fileKey);
+          if (file) {
+            finalOriginals.push(file.filename);
+            finalThumbnails.push(`/uploads/thumbnails/${file.filename}`);
+          }
+        }
+
+        let oldIndex = 0;
+        const matchedOld = existingItems.find(oldItem => 
+          (oldItem.video_id && oldItem.video_id === item.video_id) ||
+          (oldItem.internal_playlist_id && oldItem.internal_playlist_id === item.internal_playlist_id)
+        );
+        if (matchedOld) {
+          oldIndex = matchedOld.current_index || 0;
         }
         
         await Autolive.addItem({
           series_id: req.params.id,
-          title: item.title,
-          description: item.description,
-          tags: item.tags,
-          thumbnail_path: thumbnailPath,
-          original_thumbnail_path: originalThumbnailPath,
+          video_id: item.video_id || null,
+          internal_playlist_id: item.internal_playlist_id || null,
+          titles: item.titles || [],
+          description: item.description || '',
+          tags: item.tags || '',
+          thumbnails: finalThumbnails,
+          original_thumbnails: finalOriginals,
+          current_index: oldIndex,
           order_index: i
         });
       }

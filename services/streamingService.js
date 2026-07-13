@@ -396,12 +396,13 @@ async function validateCopyModeCompatibility(stream) {
     return;
   }
 
-  return validateCopyModeCompatibilityForInput({
+  await validateCopyModeCompatibilityForInput({
     videoId: stream.video_id,
     videoType: streamWithVideo.video_type,
     useAdvancedSettings: stream.use_advanced_settings,
     isYouTubeApi: stream.is_youtube_api,
-    rtmpUrl: stream.rtmp_url
+    rtmpUrl: stream.rtmp_url,
+    streamId: stream.id
   });
 }
 
@@ -410,7 +411,8 @@ async function validateCopyModeCompatibilityForInput({
   videoType = null,
   useAdvancedSettings = false,
   isYouTubeApi = false,
-  rtmpUrl = ''
+  rtmpUrl = '',
+  streamId = null
 }) {
   if (useAdvancedSettings || !isYouTubeDestination({ is_youtube_api: isYouTubeApi, rtmp_url: rtmpUrl })) {
     return;
@@ -421,6 +423,19 @@ async function validateCopyModeCompatibilityForInput({
     : null;
 
   if (playlist) {
+    if (streamId && streamId.startsWith('autolive_')) {
+      try {
+        const Autolive = require('../models/Autolive');
+        const seriesId = streamId.replace('autolive_', '');
+        const series = await Autolive.findById(seriesId);
+        if (series && series.is_random_video === 1 && series.current_video_id) {
+          playlist.videos = playlist.videos.filter(v => v.id === series.current_video_id);
+        }
+      } catch (e) {
+        console.error('[StreamingService] Error loading autolive series for validation:', e);
+      }
+    }
+
     if (!playlist.videos || playlist.videos.length === 0) {
       throw new Error('Playlist is empty');
     }
@@ -527,6 +542,22 @@ function waitForStreamStartup(streamId, ffmpegProcess, startupState) {
 }
 
 async function buildFFmpegArgsForPlaylist(stream, playlist) {
+  if (stream.id && stream.id.startsWith('autolive_')) {
+    try {
+      const Autolive = require('../models/Autolive');
+      const seriesId = stream.id.replace('autolive_', '');
+      const series = await Autolive.findById(seriesId);
+      if (series && series.is_random_video === 1 && series.current_video_id) {
+        const filtered = playlist.videos.filter(v => v.id === series.current_video_id);
+        if (filtered.length > 0) {
+          playlist.videos = filtered;
+        }
+      }
+    } catch (e) {
+      console.error('[StreamingService] Error loading autolive series for buildFFmpegArgs:', e);
+    }
+  }
+
   if (!playlist.videos || playlist.videos.length === 0) {
     throw new Error('Playlist is empty');
   }

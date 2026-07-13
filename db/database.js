@@ -547,8 +547,28 @@ function createTables() {
                 if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
                 db.run(`ALTER TABLE autolive_series ADD COLUMN random_pool_state TEXT`, (err) => {
                   if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
-                  db.run(`ALTER TABLE autolive_series ADD COLUMN daily_times TEXT`, (err) => {
+                    db.run(`ALTER TABLE autolive_series ADD COLUMN daily_times TEXT`, (err) => {
                     if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
+                    db.run(`ALTER TABLE autolive_series ADD COLUMN current_video_id TEXT`, (err) => {
+                      if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
+                      db.run(`ALTER TABLE autolive_items ADD COLUMN video_id TEXT`, (err) => {
+                        if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
+                        db.run(`ALTER TABLE autolive_items ADD COLUMN internal_playlist_id TEXT`, (err) => {
+                          if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
+                          db.run(`ALTER TABLE autolive_items ADD COLUMN titles TEXT`, (err) => {
+                            if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
+                            db.run(`ALTER TABLE autolive_items ADD COLUMN thumbnails TEXT`, (err) => {
+                              if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
+                              db.run(`ALTER TABLE autolive_items ADD COLUMN original_thumbnails TEXT`, (err) => {
+                                if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
+                                db.run(`ALTER TABLE autolive_items ADD COLUMN current_index INTEGER DEFAULT 0`, (err) => {
+                                  if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
+                                });
+                              });
+                            });
+                          });
+                        });
+                      });
       db.run(`CREATE TABLE IF NOT EXISTS autolive_series (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
@@ -577,6 +597,7 @@ function createTables() {
         is_random_video INTEGER DEFAULT 0,
         random_pool_state TEXT,
         daily_times TEXT,
+        current_video_id TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -586,11 +607,17 @@ function createTables() {
       db.run(`CREATE TABLE IF NOT EXISTS autolive_items (
         id TEXT PRIMARY KEY,
         series_id TEXT NOT NULL,
-        title TEXT NOT NULL,
+        video_id TEXT,
+        internal_playlist_id TEXT,
+        title TEXT,
+        titles TEXT,
         description TEXT,
         tags TEXT,
         thumbnail_path TEXT,
+        thumbnails TEXT,
         original_thumbnail_path TEXT,
+        original_thumbnails TEXT,
+        current_index INTEGER DEFAULT 0,
         order_index INTEGER NOT NULL,
         FOREIGN KEY (series_id) REFERENCES autolive_series(id) ON DELETE CASCADE
       )`);
@@ -630,7 +657,8 @@ function createTables() {
         });
       });
     });
-  }
+  });
+}
 function checkIfUsersExist() {
   return new Promise((resolve, reject) => {
     db.get('SELECT COUNT(*) as count FROM users', [], (err, result) => {
