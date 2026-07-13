@@ -217,6 +217,15 @@
                             <label class="block text-sm font-medium text-gray-400 mb-1.5">Select Video</label>
                             <input type="hidden" id="videoId">
                             <input type="hidden" id="internalPlaylistId">
+                            
+                            <!-- Opsi acak video dari playlist -->
+                            <div id="randomVideoSection" class="hidden mt-2 mb-2 p-3 bg-dark-900/50 rounded-xl border border-gray-700">
+                                <label class="flex items-center gap-2.5 cursor-pointer">
+                                    <input type="checkbox" id="isRandomVideo" class="form-checkbox h-4 w-4 text-primary bg-dark-900 border-gray-700 rounded focus:ring-primary focus:ring-opacity-50">
+                                    <span class="text-sm font-medium text-gray-300">Acak Video Master dari Playlist (Anti-Repeat)</span>
+                                </label>
+                            </div>
+
                             <div class="relative">
                                 <button type="button" onclick="toggleAutoliveVideoSelector()"
                                     id="autoliveVideoBtn"
@@ -277,6 +286,12 @@
                                     <option value="every_5_days">Setiap 5 Hari</option>
                                     <option value="custom">Pilih Tanggal Spesifik</option>
                                 </select>
+                            </div>
+
+                            <div id="dailyTimesContainer" class="col-span-2 hidden bg-dark-900/50 p-4 rounded-xl border border-primary/20 mb-4">
+                                <label class="block text-sm font-medium text-gray-400 mb-1.5">Jam Live Harian (Pisahkan dengan koma)</label>
+                                <input type="text" id="dailyTimes" class="w-full bg-dark-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="Contoh: 09:00, 13:00, 17:00, 21:00">
+                                <span class="text-xs text-gray-500 mt-1 block">Tulis beberapa waktu mulai live dalam format HH:MM, pisahkan dengan koma (misal: 08:30, 12:00, 16:30, 20:00)</span>
                             </div>
 
                             <div id="customDatesContainer" class="col-span-2 hidden bg-dark-900/50 p-4 rounded-xl border border-primary/20 mb-4">
@@ -497,6 +512,13 @@
         } else {
             container.classList.add('hidden');
         }
+
+        const dailyTimesContainer = document.getElementById('dailyTimesContainer');
+        if (this.value === 'daily') {
+            dailyTimesContainer.classList.remove('hidden');
+        } else {
+            dailyTimesContainer.classList.add('hidden');
+        }
     });
 
     document.getElementById('channelId').addEventListener('change', function() {
@@ -595,6 +617,12 @@
         document.getElementById('itemsPreview').innerHTML = '';
         document.getElementById('customDatesContainer').classList.add('hidden');
         document.getElementById('customDatesList').innerHTML = '';
+        
+        // Reset new custom fields
+        document.getElementById('isRandomVideo').checked = false;
+        document.getElementById('randomVideoSection').classList.add('hidden');
+        document.getElementById('dailyTimes').value = '';
+        document.getElementById('dailyTimesContainer').classList.add('hidden');
         
         // Reset YouTube settings to defaults
         document.getElementById('privacy').value = 'public';
@@ -935,6 +963,8 @@
         const startTime = document.getElementById('startTime').value;
         const repeatMode = document.getElementById('repeatMode').value;
         const channelId = document.getElementById('channelId').value;
+        const isRandomVideo = document.getElementById('isRandomVideo').checked ? 1 : 0;
+        const dailyTimes = document.getElementById('dailyTimes').value;
         
         const hours = parseInt(document.getElementById('durationHours').value) || 0;
         const mins = parseInt(document.getElementById('durationMinutes').value) || 0;
@@ -974,6 +1004,8 @@
         formData.append('duration', duration);
         formData.append('youtube_channel_id', channelId);
         formData.append('custom_dates', JSON.stringify(selectedDates));
+        formData.append('is_random_video', isRandomVideo);
+        formData.append('daily_times', dailyTimes);
         
         // Add new YouTube fields
         formData.append('privacy', privacy);
@@ -1090,6 +1122,17 @@
             }
             
             document.getElementById('repeatMode').value = s.repeat_mode;
+            
+            // Set daily times value
+            document.getElementById('dailyTimes').value = s.daily_times || '';
+            if (s.repeat_mode === 'daily') {
+                document.getElementById('dailyTimesContainer').classList.remove('hidden');
+            } else {
+                document.getElementById('dailyTimesContainer').classList.add('hidden');
+            }
+            
+            document.getElementById('isRandomVideo').checked = s.is_random_video === 1;
+            
             if (s.repeat_mode === 'custom') {
                 document.getElementById('customDatesContainer').classList.remove('hidden');
                 selectedDates = JSON.parse(s.custom_dates || '[]');
@@ -1266,6 +1309,9 @@
         label.textContent = 'Choose a video or playlist...';
         label.classList.add('text-gray-400');
         label.classList.remove('text-white');
+        
+        document.getElementById('isRandomVideo').checked = false;
+        document.getElementById('randomVideoSection').classList.add('hidden');
     }
 
     function setAutoliveVideoSelector(playlistId, videoId, playlistName, videoTitle) {
@@ -1276,6 +1322,8 @@
             label.textContent = playlistName || 'Playlist';
             label.classList.remove('text-gray-400');
             label.classList.add('text-white');
+            
+            document.getElementById('randomVideoSection').classList.remove('hidden');
         } else if (videoId) {
             document.getElementById('videoId').value = videoId;
             document.getElementById('internalPlaylistId').value = '';
@@ -1283,6 +1331,9 @@
             label.textContent = videoTitle || 'Video';
             label.classList.remove('text-gray-400');
             label.classList.add('text-white');
+            
+            document.getElementById('isRandomVideo').checked = false;
+            document.getElementById('randomVideoSection').classList.add('hidden');
         } else {
             resetAutoliveVideoSelector();
         }

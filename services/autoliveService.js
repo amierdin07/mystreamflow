@@ -173,7 +173,7 @@ class AutoliveService {
     
     // Find the most recent session start that is <= now (i.e. the session currently active or the last one).
     if (series.repeat_mode !== 'none' && series.repeat_mode !== 'custom') {
-      sessionStart = this.getCurrentSessionStart(series.start_time, series.repeat_mode, now, timeZone);
+      sessionStart = this.getCurrentSessionStart(series, series.repeat_mode, now, timeZone);
     } else if (series.repeat_mode === 'custom' && series.custom_dates) {
       try {
         const dates = JSON.parse(series.custom_dates);
@@ -195,7 +195,7 @@ class AutoliveService {
             second: 0
           }, timeZone);
         } else {
-          sessionStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates, timeZone);
+          sessionStart = this.getNextStartTime(series, series.repeat_mode, series.custom_dates, timeZone);
         }
       } catch(e) { console.error('[Autolive] Error parsing custom dates:', e); }
     } else if (series.repeat_mode === 'nonstop') {
@@ -228,7 +228,7 @@ class AutoliveService {
     }
 
     // 2. Prepare the next/current stream task in the Stream tab 3 hours before start.
-    const futureStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates, timeZone);
+    const futureStart = this.getNextStartTime(series, series.repeat_mode, series.custom_dates, timeZone);
     const targetStart = now < sessionEnd ? sessionStart : futureStart;
     const targetEnd = new Date(targetStart.getTime() + durationMs);
     const timeToTarget = targetStart - now;
@@ -280,10 +280,67 @@ class AutoliveService {
     }
   }
 
-  static getNextStartTime(startTimeStr, repeatMode, customDatesStr = null, timeZone = 'Asia/Bangkok') {
+  static getNextStartTime(startTimeStrOrSeries, repeatMode, customDatesStr = null, timeZone = 'Asia/Bangkok') {
+    let series = null;
+    let startTimeStr = startTimeStrOrSeries;
+    let dailyTimes = null;
+
+    if (startTimeStrOrSeries && typeof startTimeStrOrSeries === 'object') {
+      series = startTimeStrOrSeries;
+      startTimeStr = series.start_time;
+      repeatMode = series.repeat_mode;
+      timeZone = getSeriesTimeZone(series);
+      dailyTimes = series.daily_times;
+      customDatesStr = series.custom_dates;
+    }
+
     if (!startTimeStr) return new Date(8640000000000000); // Far future
     let nextStart = parseLocalDateTime(startTimeStr);
     const now = new Date();
+
+    // DAILY TIMES LOGIC
+    if (repeatMode === 'daily' && dailyTimes) {
+      const times = dailyTimes.split(',').map(t => t.trim()).filter(t => /^\d{2}:\d{2}$/.test(t)).sort();
+      if (times.length > 0) {
+        const originalStart = parseLocalDateTime(startTimeStr);
+        const zonedNowParts = getZonedParts(now, timeZone);
+        const candidates = [];
+        
+        for (const dayOffset of [-1, 0, 1]) {
+          const targetParts = addDaysToZonedParts(zonedNowParts, dayOffset);
+          for (const timeStr of times) {
+            const [hour, minute] = timeStr.split(':').map(Number);
+            const candDate = makeDateInTimeZone({
+              year: targetParts.year,
+              month: targetParts.month,
+              day: targetParts.day,
+              hour,
+              minute,
+              second: 0
+            }, timeZone);
+            if (candDate >= originalStart) {
+              candidates.push(candDate);
+            }
+          }
+        }
+        
+        candidates.sort((a, b) => a - b);
+        const futureCandidates = candidates.filter(c => c > now);
+        if (futureCandidates.length > 0) return futureCandidates[0];
+        
+        // Fallback to tomorrow
+        const tomorrowParts = addDaysToZonedParts(zonedNowParts, 1);
+        const [hour, minute] = times[0].split(':').map(Number);
+        return makeDateInTimeZone({
+          year: tomorrowParts.year,
+          month: tomorrowParts.month,
+          day: tomorrowParts.day,
+          hour,
+          minute,
+          second: 0
+        }, timeZone);
+      }
+    }
 
     // CUSTOM DATES LOGIC
     if (repeatMode === 'custom' && customDatesStr) {
@@ -317,7 +374,7 @@ class AutoliveService {
     // If it's a one-time thing and already passed
     if (repeatMode === 'none' || repeatMode === 'nonstop' || !repeatMode) return nextStart;
 
-    const currentStart = this.getCurrentSessionStart(startTimeStr, repeatMode, now, timeZone);
+    const currentStart = this.getCurrentSessionStart(startTimeStrOrSeries, repeatMode, now, timeZone);
     if (currentStart > now) return currentStart;
 
     const stepDays = this.getRepeatStepDays(repeatMode);
@@ -327,9 +384,56 @@ class AutoliveService {
     return makeDateInTimeZone(addDaysToZonedParts(currentParts, stepDays), timeZone);
   }
 
-  static getCurrentSessionStart(startTimeStr, repeatMode, now = new Date(), timeZone = 'Asia/Bangkok') {
+  static getCurrentSessionStart(startTimeStrOrSeries, repeatMode, now = new Date(), timeZone = 'Asia/Bangkok') {
+    let series = null;
+    let startTimeStr = startTimeStrOrSeries;
+    let dailyTimes = null;
+
+    if (startTimeStrOrSeries && typeof startTimeStrOrSeries === 'object') {
+      series = startTimeStrOrSeries;
+      startTimeStr = series.start_time;
+      repeatMode = series.repeat_mode;
+      timeZone = getSeriesTimeZone(series);
+      dailyTimes = series.daily_times;
+    }
+
     let currentStart = parseLocalDateTime(startTimeStr);
     if (isNaN(currentStart.getTime()) || currentStart > now) return currentStart;
+
+    // DAILY TIMES LOGIC
+    if (repeatMode === 'daily' && dailyTimes) {
+      const times = dailyTimes.split(',').map(t => t.trim()).filter(t => /^\d{2}:\d{2}$/.test(t)).sort();
+      if (times.length > 0) {
+        const originalStart = parseLocalDateTime(startTimeStr);
+        const zonedNowParts = getZonedParts(now, timeZone);
+        const candidates = [];
+        
+        for (const dayOffset of [-1, 0, 1]) {
+          const targetParts = addDaysToZonedParts(zonedNowParts, dayOffset);
+          for (const timeStr of times) {
+            const [hour, minute] = timeStr.split(':').map(Number);
+            const candDate = makeDateInTimeZone({
+              year: targetParts.year,
+              month: targetParts.month,
+              day: targetParts.day,
+              hour,
+              minute,
+              second: 0
+            }, timeZone);
+            if (candDate >= originalStart) {
+              candidates.push(candDate);
+            }
+          }
+        }
+        
+        candidates.sort((a, b) => a - b);
+        const pastCandidates = candidates.filter(c => c <= now);
+        if (pastCandidates.length > 0) {
+          return pastCandidates[pastCandidates.length - 1];
+        }
+        return candidates[0] || originalStart;
+      }
+    }
 
     const dayMap = {
       'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
@@ -416,7 +520,7 @@ class AutoliveService {
       if (items.length === 0) return;
 
       const currentItem = items[series.current_item_index % items.length];
-      const scheduledStart = targetStart || this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates, getSeriesTimeZone(series));
+      const scheduledStart = targetStart || this.getNextStartTime(series, series.repeat_mode, series.custom_dates, getSeriesTimeZone(series));
       const scheduledEnd = targetEnd || new Date(scheduledStart.getTime() + ((series.duration || 60) * 60 * 1000));
       const sourceSettings = await getAutoliveSourceSettings(series);
       
@@ -464,9 +568,20 @@ class AutoliveService {
       
       // Update stream record with current item metadata and series settings
       console.log(`[Autolive] Updating stream metadata for ${streamRecord.id}. Thumbnail: ${currentItem.thumbnail_path}`);
+      
+      let nextVideoId = series.internal_playlist_id || series.video_id;
+      if (series.is_random_video === 1 && series.internal_playlist_id) {
+        const isNewSession = !streamRecord.schedule_time || (new Date(streamRecord.schedule_time).getTime() !== scheduledStart.getTime());
+        if (isNewSession) {
+          nextVideoId = await this.getNextRandomVideoId(series);
+        } else {
+          nextVideoId = streamRecord.video_id; // Keep currently selected video
+        }
+      }
+
       await Stream.update(streamRecord.id, {
         title: currentItem.title,
-        video_id: series.internal_playlist_id || series.video_id,
+        video_id: nextVideoId,
         youtube_description: currentItem.description || '',
         youtube_tags: currentItem.tags || '',
         youtube_thumbnail: currentItem.thumbnail_path || '',
@@ -509,7 +624,10 @@ class AutoliveService {
     if (!stream) {
       // For Autolive, we can use the video_id field in the streams table for both single video or playlist,
       // as the streamingService handles it based on ID lookup in videos or playlists table.
-      const sourceId = series.internal_playlist_id || series.video_id;
+      let sourceId = series.internal_playlist_id || series.video_id;
+      if (series.is_random_video === 1 && series.internal_playlist_id) {
+         sourceId = await this.getNextRandomVideoId(series);
+      }
       
       // FIX #4: db.run is callback-based in sqlite3 — must wrap in Promise, not use await directly.
       await new Promise((resolve, reject) => {
@@ -717,12 +835,12 @@ class AutoliveService {
     const durationMs = (series.duration || 60) * 60 * 1000;
     const now = new Date();
     
-    let currentStart = this.getCurrentSessionStart(series.start_time, series.repeat_mode, now, timeZone);
+    let currentStart = this.getCurrentSessionStart(series, series.repeat_mode, now, timeZone);
     let itemIndex = series.current_item_index || 0;
     
     // If the current session is already in the past (finished), move to next
     if (new Date(currentStart.getTime() + durationMs) < now) {
-      currentStart = this.getNextStartTime(series.start_time, series.repeat_mode, series.custom_dates, timeZone);
+      currentStart = this.getNextStartTime(series, series.repeat_mode, series.custom_dates, timeZone);
       // itemIndex remains the same because it only increments after a successful stop
     }
     
@@ -767,14 +885,65 @@ class AutoliveService {
             break; 
         }
       } else {
-        const currentParts = getZonedParts(currentStart, timeZone);
-        currentStart = makeDateInTimeZone(addDaysToZonedParts(currentParts, stepDays), timeZone);
+        if (series.repeat_mode === 'daily' && series.daily_times) {
+            // For daily times, we get the next candidate after currentStart
+            currentStart = this.getNextStartTime(series, series.repeat_mode, null, timeZone);
+        } else {
+            const currentParts = getZonedParts(currentStart, timeZone);
+            currentStart = makeDateInTimeZone(addDaysToZonedParts(currentParts, stepDays), timeZone);
+        }
       }
       itemIndex++;
     }
     
     return schedule;
   }
+
+  static async getNextRandomVideoId(series) {
+    try {
+      const Playlist = require('../models/Playlist');
+      const playlist = await Playlist.findByIdWithVideos(series.internal_playlist_id);
+      if (!playlist || !playlist.videos || playlist.videos.length === 0) {
+        return null;
+      }
+      
+      let pool = [];
+      try {
+        pool = JSON.parse(series.random_pool_state || '[]');
+      } catch (e) {
+        pool = [];
+      }
+      
+      const videoIds = playlist.videos.map(v => v.id);
+      pool = pool.filter(id => videoIds.includes(id));
+      
+      if (pool.length === 0) {
+        // Shuffle the array of video IDs
+        pool = shuffleArray([...videoIds]);
+      }
+      
+      const nextVideoId = pool.shift();
+      
+      const Autolive = require('../models/Autolive');
+      await Autolive.update(series.id, {
+        random_pool_state: JSON.stringify(pool)
+      });
+      
+      console.log(`[Autolive] Selected random video ${nextVideoId} from playlist ${series.internal_playlist_id}. Remaining pool size: ${pool.length}`);
+      return nextVideoId;
+    } catch (err) {
+      console.error('[Autolive] Error selecting next random video:', err);
+      return null;
+    }
+  }
+}
+
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
 }
 
 module.exports = AutoliveService;

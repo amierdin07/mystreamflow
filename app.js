@@ -5348,7 +5348,7 @@ app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, re
     const { 
       name, video_id, internal_playlist_id, start_time, repeat_mode, duration, items, timezone,
       youtube_channel_id, custom_dates, privacy, category_id, monetization_enabled, 
-      made_for_kids, playlist_id 
+      made_for_kids, playlist_id, is_random_video, daily_times
     } = req.body;
     
     const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
@@ -5368,7 +5368,10 @@ app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, re
       category_id: category_id || '10',
       monetization_enabled: parseInt(monetization_enabled) || 0,
       made_for_kids: parseInt(made_for_kids) || 0,
-      playlist_id: playlist_id || null
+      playlist_id: playlist_id || null,
+      is_random_video: parseInt(is_random_video) || 0,
+      random_pool_state: null,
+      daily_times: daily_times || null
     });
     
     const uploadedFiles = req.files || [];
@@ -5414,9 +5417,16 @@ app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req,
     const { 
       name, video_id, internal_playlist_id, start_time, repeat_mode, duration, items, timezone,
       youtube_channel_id, custom_dates, privacy, category_id, monetization_enabled, 
-      made_for_kids, playlist_id 
+      made_for_kids, playlist_id, is_random_video, daily_times
     } = req.body;
     
+    // Check if we need to reset the random pool (e.g. playlist changed or randomization status changed)
+    const existingSeries = await Autolive.findById(req.params.id);
+    let randomPoolState = existingSeries ? existingSeries.random_pool_state : null;
+    if (existingSeries && (existingSeries.internal_playlist_id !== internal_playlist_id || existingSeries.is_random_video !== parseInt(is_random_video))) {
+      randomPoolState = null;
+    }
+
     await Autolive.update(req.params.id, {
       name,
       video_id: video_id || '',
@@ -5431,7 +5441,10 @@ app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req,
       category_id: category_id || '10',
       monetization_enabled: parseInt(monetization_enabled) || 0,
       made_for_kids: parseInt(made_for_kids) || 0,
-      playlist_id: playlist_id || null
+      playlist_id: playlist_id || null,
+      is_random_video: parseInt(is_random_video) || 0,
+      random_pool_state: randomPoolState,
+      daily_times: daily_times || null
     });
     
     if (items) {

@@ -542,6 +542,20 @@ function createTables() {
             if (err && !err.message.includes('duplicate column name')) console.error(err.message);
             db.run(`ALTER TABLE playlists ADD COLUMN youtube_channel_id TEXT`, (err) => {
               if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+              // Run migrations for autolive_series new columns
+              db.run(`ALTER TABLE autolive_series ADD COLUMN is_random_video INTEGER DEFAULT 0`, (err) => {
+                if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
+                db.run(`ALTER TABLE autolive_series ADD COLUMN random_pool_state TEXT`, (err) => {
+                  if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
+                  db.run(`ALTER TABLE autolive_series ADD COLUMN daily_times TEXT`, (err) => {
+                    if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
+                  });
+                });
+              });
+            });
+          });
+        });
+      });
       db.run(`CREATE TABLE IF NOT EXISTS autolive_series (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
@@ -567,6 +581,9 @@ function createTables() {
         made_for_kids INTEGER DEFAULT 0,
         playlist_id TEXT,
         custom_dates TEXT,
+        is_random_video INTEGER DEFAULT 0,
+        random_pool_state TEXT,
+        daily_times TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

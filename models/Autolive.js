@@ -19,7 +19,10 @@ class Autolive {
       category_id = '10',
       monetization_enabled = 0,
       made_for_kids = 0,
-      playlist_id = null
+      playlist_id = null,
+      is_random_video = 0,
+      random_pool_state = null,
+      daily_times = null
     } = seriesData;
 
     return new Promise((resolve, reject) => {
@@ -27,12 +30,13 @@ class Autolive {
         `INSERT INTO autolive_series (
           id, user_id, name, video_id, start_time, repeat_mode, custom_dates, timezone, duration, 
           is_active, youtube_channel_id, internal_playlist_id, privacy, category_id, 
-          monetization_enabled, made_for_kids, playlist_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          monetization_enabled, made_for_kids, playlist_id, is_random_video, random_pool_state, daily_times
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id, user_id, name, video_id || '', start_time, repeat_mode, custom_dates, timezone, duration,
           is_active, youtube_channel_id, seriesData.internal_playlist_id || null,
-          privacy, category_id, monetization_enabled, made_for_kids, playlist_id
+          privacy, category_id, monetization_enabled, made_for_kids, playlist_id,
+          is_random_video, random_pool_state, daily_times
         ],
         function(err) {
           if (err) {
