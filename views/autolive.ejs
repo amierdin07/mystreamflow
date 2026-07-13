@@ -432,6 +432,114 @@
 </style>
 
 <script>
+    // ============================================================
+    // Modern Premium Popups System (Replaces native alerts/confirms)
+    // ============================================================
+    function showAlert(message, type = 'warning') {
+        const oldAlert = document.getElementById('customAlertModal');
+        if (oldAlert) oldAlert.remove();
+        
+        let iconClass = 'ti-alert-triangle text-amber-500 bg-amber-500/10';
+        if (type === 'success') {
+            iconClass = 'ti-circle-check text-green-500 bg-green-500/10';
+        } else if (type === 'error') {
+            iconClass = 'ti-circle-x text-red-500 bg-red-500/10';
+        } else if (type === 'info') {
+            iconClass = 'ti-info-circle text-primary bg-primary/10';
+        }
+        
+        const modal = document.createElement('div');
+        modal.id = 'customAlertModal';
+        modal.className = 'fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-all duration-300 opacity-0';
+        modal.innerHTML = `
+            <div class="bg-dark-800 border border-gray-700/80 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl transform scale-95 transition-all duration-300">
+                <div class="p-6 flex flex-col items-center text-center space-y-4">
+                    <div class="w-16 h-16 rounded-full flex items-center justify-center text-3xl ${iconClass}">
+                        <i class="ti ${iconClass.split(' ')[0]}"></i>
+                    </div>
+                    <div class="space-y-1">
+                        <h4 class="text-white font-bold text-base">Notifikasi</h4>
+                        <p class="text-gray-300 text-sm leading-relaxed">${message}</p>
+                    </div>
+                </div>
+                <div class="px-6 py-4 bg-dark-900/50 border-t border-gray-700/50 flex justify-end">
+                    <button type="button" onclick="closeCustomAlert()" class="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold transition-all">
+                        Oke
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            modal.querySelector('.transform').classList.remove('scale-95');
+        }, 10);
+    }
+    
+    function closeCustomAlert() {
+        const modal = document.getElementById('customAlertModal');
+        if (modal) {
+            modal.classList.add('opacity-0');
+            modal.querySelector('.transform').classList.add('scale-95');
+            setTimeout(() => modal.remove(), 300);
+        }
+    }
+    
+    function showConfirm(message, onConfirm, confirmText = 'Ya, Lanjutkan') {
+        const oldConfirm = document.getElementById('customConfirmModal');
+        if (oldConfirm) oldConfirm.remove();
+        
+        const modal = document.createElement('div');
+        modal.id = 'customConfirmModal';
+        modal.className = 'fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-all duration-300 opacity-0';
+        modal.innerHTML = `
+            <div class="bg-dark-800 border border-gray-700/80 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl transform scale-95 transition-all duration-300">
+                <div class="p-6 flex flex-col items-center text-center space-y-4">
+                    <div class="w-16 h-16 rounded-full flex items-center justify-center text-3xl text-red-500 bg-red-500/10">
+                        <i class="ti ti-help-circle"></i>
+                    </div>
+                    <div class="space-y-1">
+                        <h4 class="text-white font-bold text-base">Konfirmasi</h4>
+                        <p class="text-gray-300 text-sm leading-relaxed">${message}</p>
+                    </div>
+                </div>
+                <div class="px-6 py-4 bg-dark-900/50 border-t border-gray-700/50 flex items-center gap-3">
+                    <button type="button" onclick="closeCustomConfirm(false)" class="flex-1 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-sm font-semibold transition-all">
+                        Batal
+                    </button>
+                    <button type="button" id="confirmOkBtn" class="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-bold transition-all">
+                        ${confirmText}
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        modal.querySelector('#confirmOkBtn').onclick = () => {
+            closeCustomConfirm(true, onConfirm);
+        };
+        
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            modal.querySelector('.transform').classList.remove('scale-95');
+        }, 10);
+    }
+    
+    function closeCustomConfirm(isConfirmed, callback) {
+        const modal = document.getElementById('customConfirmModal');
+        if (modal) {
+            modal.classList.add('opacity-0');
+            modal.querySelector('.transform').classList.add('scale-95');
+            setTimeout(() => {
+                modal.remove();
+                if (isConfirmed && typeof callback === 'function') {
+                    callback();
+                }
+            }, 300);
+        }
+    }
+
     let currentItems = [];
     let currentSlots = [];
     let selectedDates = [];
@@ -756,22 +864,22 @@
 
     function removeSlot(index) {
         if (currentSlots.length <= 1) {
-            alert("Minimal harus ada 1 slot video master");
+            showAlert("Minimal harus ada 1 slot video master", "warning");
             return;
         }
-        if (confirm("Apakah Anda yakin ingin menghapus slot ini?")) {
+        showConfirm("Apakah Anda yakin ingin menghapus slot ini?", () => {
             currentSlots.splice(index, 1);
             renderSlots();
-        }
+        }, "Ya, Hapus Slot");
     }
 
     function generateSlotSEO(index) {
         const slot = currentSlots[index];
         if (!slot.titles || slot.titles.length === 0) {
-            alert("Mohon masukkan judul terlebih dahulu!");
+            showAlert("Mohon masukkan judul terlebih dahulu!", "warning");
             return;
         }
-        alert("SEO Metadata Slot #" + (index + 1) + " berhasil disinkronkan!");
+        showAlert("SEO Metadata Slot #" + (index + 1) + " berhasil disinkronkan!", "success");
     }
 
     function closeModal() {
@@ -951,7 +1059,7 @@
     function generateItemsFromBulk() {
         const titlesText = document.getElementById('bulkTitles').value.trim();
         if (!titlesText) {
-            alert('Masukkan daftar judul terlebih dahulu');
+            showAlert('Masukkan daftar judul terlebih dahulu', 'warning');
             return;
         }
 
@@ -1106,28 +1214,28 @@
         const playlistId = document.getElementById('playlistId').value;
 
         if (!name || !startTime) {
-            alert('Mohon isi semua field wajib (Nama, Waktu Mulai)');
+            showAlert('Mohon isi semua field wajib (Nama, Waktu Mulai)', 'warning');
             return;
         }
 
         if (duration <= 0) {
-            alert('Durasi live tidak boleh kosong');
+            showAlert('Durasi live tidak boleh kosong', 'warning');
             return;
         }
 
         if (currentSlots.length === 0) {
-            alert('Mohon tambahkan setidaknya satu slot video master');
+            showAlert('Mohon tambahkan setidaknya satu slot video master', 'warning');
             return;
         }
 
         for (let i = 0; i < currentSlots.length; i++) {
             const slot = currentSlots[i];
             if (!slot.video_id && !slot.internal_playlist_id) {
-                alert(`Mohon pilih Video atau Playlist untuk Slot #${i + 1}`);
+                showAlert(`Mohon pilih Video atau Playlist untuk Slot #${i + 1}`, 'warning');
                 return;
             }
             if (!slot.titles || slot.titles.length === 0) {
-                alert(`Mohon masukkan setidaknya satu Judul untuk Slot #${i + 1}`);
+                showAlert(`Mohon masukkan setidaknya satu Judul untuk Slot #${i + 1}`, 'warning');
                 return;
             }
         }
@@ -1190,12 +1298,12 @@
                 setAutoliveSaving(true, 'Selesai, memuat ulang...', 100);
                 location.reload();
             } else {
-                alert('Gagal menyimpan: ' + result.error);
+                showAlert('Gagal menyimpan: ' + result.error, 'error');
                 setAutoliveSaving(false);
             }
         } catch (error) {
             console.error('Save error:', error);
-            alert(error.message || 'Terjadi kesalahan sistem');
+            showAlert(error.message || 'Terjadi kesalahan sistem', 'error');
             setAutoliveSaving(false);
         }
     }
@@ -1208,7 +1316,7 @@
             });
             const result = await response.json();
             if (!result.success) {
-                alert('Gagal mengubah status');
+                showAlert('Gagal mengubah status', 'error');
                 // Revert checkbox state if failed
                 const checkbox = document.querySelector(`input[onchange="toggleSeries('${id}')"]`);
                 if (checkbox) checkbox.checked = !checkbox.checked;
@@ -1225,14 +1333,14 @@
                 }
             }
         } catch (e) {
-            alert('Terjadi kesalahan');
+            showAlert('Terjadi kesalahan', 'error');
             const checkbox = document.querySelector(`input[onchange="toggleSeries('${id}')"]`);
             if (checkbox) checkbox.checked = !checkbox.checked;
         }
     }
 
     async function deleteSeries(id) {
-        if (!confirm('Yakin ingin menghapus seri Autolive ini? Semua metadata di dalamnya juga akan terhapus.')) return;
+        showConfirm('Yakin ingin menghapus seri Autolive ini? Semua metadata di dalamnya juga akan terhapus.', async () => {
 
         try {
             const response = await fetch(`/api/autolive/${id}`, {
@@ -1240,17 +1348,22 @@
                 headers: { 'x-csrf-token': document.querySelector('input[name="_csrf"]').value }
             });
             const result = await response.json();
-            if (result.success) location.reload();
+            if (result.success) {
+                location.reload();
+            } else {
+                showAlert('Gagal menghapus', 'error');
+            }
         } catch (e) {
-            alert('Gagal menghapus');
+            showAlert('Gagal menghapus', 'error');
         }
+        }, 'Ya, Hapus');
     }
 
     async function editSeries(id) {
         try {
             const response = await fetch(`/api/autolive/${id}`);
             const result = await response.json();
-            if (!result.success) return alert('Gagal mengambil data');
+            if (!result.success) return showAlert('Gagal mengambil data', 'error');
 
             const s = result.series;
             document.getElementById('seriesId').value = s.id;
@@ -1324,8 +1437,7 @@
             document.getElementById('modalTitle').innerHTML = '<i class="ti ti-bolt text-primary"></i><span>Edit Seri Autolive</span>';
             document.getElementById('autoliveModal').classList.remove('hidden');
             document.getElementById('autoliveModal').classList.add('flex');
-        } catch (e) {
-            alert('Kesalahan saat memuat data');
+            showAlert('Kesalahan saat memuat data', 'error');
         }
     }
 

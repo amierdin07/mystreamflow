@@ -211,6 +211,10 @@ class Autolive {
     const titlesStr = Array.isArray(titles) ? JSON.stringify(titles) : (titles || '[]');
     const thumbnailsStr = Array.isArray(thumbnails) ? JSON.stringify(thumbnails) : (thumbnails || '[]');
     const originalThumbnailsStr = Array.isArray(original_thumbnails) ? JSON.stringify(original_thumbnails) : (original_thumbnails || '[]');
+    
+    // Safely populate legacy title/thumbnail_path to satisfy DB NOT NULL constraints
+    const resolvedTitles = Array.isArray(titles) ? titles : JSON.parse(titlesStr);
+    const legacyTitle = resolvedTitles[0] || title || 'Untitled Slot';
 
     return new Promise((resolve, reject) => {
       db.run(
@@ -219,7 +223,7 @@ class Autolive {
           thumbnail_path, thumbnails, original_thumbnail_path, original_thumbnails, current_index, order_index
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          id, series_id, video_id, internal_playlist_id, title, titlesStr, description, tags, 
+          id, series_id, video_id, internal_playlist_id, legacyTitle, titlesStr, description, tags, 
           thumbnail_path, thumbnailsStr, original_thumbnail_path, originalThumbnailsStr, current_index, order_index
         ],
         function(err) {
