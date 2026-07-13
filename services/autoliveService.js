@@ -229,7 +229,8 @@ class AutoliveService {
 
     // 2. Prepare the next/current stream task in the Stream tab 3 hours before start.
     const futureStart = this.getNextStartTime(series, series.repeat_mode, series.custom_dates, timeZone);
-    const targetStart = now < sessionEnd ? sessionStart : futureStart;
+    const isLive = series.status === 'live';
+    const targetStart = (now < sessionEnd && (now < sessionStart || isLive)) ? sessionStart : futureStart;
     const targetEnd = new Date(targetStart.getTime() + durationMs);
     const timeToTarget = targetStart - now;
     const alreadyQueued = this.isStreamQueuedFor(linkedStream, targetStart);
