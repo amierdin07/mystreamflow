@@ -549,13 +549,6 @@ function createTables() {
                   if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
                   db.run(`ALTER TABLE autolive_series ADD COLUMN daily_times TEXT`, (err) => {
                     if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) console.error(err.message);
-                  });
-                });
-              });
-            });
-          });
-        });
-      });
       db.run(`CREATE TABLE IF NOT EXISTS autolive_series (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
@@ -628,13 +621,16 @@ function createTables() {
                 }
                 resolve();
               });
+                    });
+                  });
+                });
+              });
             });
           });
         });
       });
     });
-  });
-}
+  }
 function checkIfUsersExist() {
   return new Promise((resolve, reject) => {
     db.get('SELECT COUNT(*) as count FROM users', [], (err, result) => {
