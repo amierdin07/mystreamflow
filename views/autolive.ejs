@@ -1432,6 +1432,7 @@
             document.getElementById('modalTitle').innerHTML = '<i class="ti ti-bolt text-primary"></i><span>Edit Seri Autolive</span>';
             document.getElementById('autoliveModal').classList.remove('hidden');
             document.getElementById('autoliveModal').classList.add('flex');
+        } catch (e) {
             showAlert('Kesalahan saat memuat data', 'error');
         }
     }
