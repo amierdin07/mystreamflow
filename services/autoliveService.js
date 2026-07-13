@@ -281,7 +281,7 @@ class AutoliveService {
     }
   }
 
-  static getNextStartTime(startTimeStrOrSeries, repeatMode, customDatesStr = null, timeZone = 'Asia/Bangkok') {
+  static getNextStartTime(startTimeStrOrSeries, repeatMode, customDatesStr = null, timeZone = 'Asia/Bangkok', relativeTo = new Date()) {
     let series = null;
     let startTimeStr = startTimeStrOrSeries;
     let dailyTimes = null;
@@ -297,7 +297,7 @@ class AutoliveService {
 
     if (!startTimeStr) return new Date(8640000000000000); // Far future
     let nextStart = parseLocalDateTime(startTimeStr);
-    const now = new Date();
+    const now = relativeTo;
 
     // DAILY TIMES LOGIC
     if (repeatMode === 'daily' && dailyTimes) {
@@ -897,8 +897,9 @@ class AutoliveService {
         }
       } else {
         if (series.repeat_mode === 'daily' && series.daily_times) {
-            // For daily times, we get the next candidate after currentStart
-            currentStart = this.getNextStartTime(series, series.repeat_mode, null, timeZone);
+            // For daily times, we get the next candidate after currentStart (+1s to avoid returning same time)
+            const nextRelativeTo = new Date(currentStart.getTime() + 1000);
+            currentStart = this.getNextStartTime(series, series.repeat_mode, null, timeZone, nextRelativeTo);
         } else {
             const currentParts = getZonedParts(currentStart, timeZone);
             currentStart = makeDateInTimeZone(addDaysToZonedParts(currentParts, stepDays), timeZone);
