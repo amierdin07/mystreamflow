@@ -300,7 +300,7 @@ class AutoliveService {
 
     // DAILY TIMES LOGIC
     if (repeatMode === 'daily' && dailyTimes) {
-      const times = dailyTimes.split(',').map(t => t.trim()).filter(t => /^\d{2}:\d{2}$/.test(t)).sort();
+      const times = dailyTimes.split(',').map(t => t.trim().replace('.', ':')).filter(t => /^\d{2}:\d{2}$/.test(t)).sort();
       if (times.length > 0) {
         const originalStart = parseLocalDateTime(startTimeStr);
         const zonedNowParts = getZonedParts(now, timeZone);
@@ -402,7 +402,7 @@ class AutoliveService {
 
     // DAILY TIMES LOGIC
     if (repeatMode === 'daily' && dailyTimes) {
-      const times = dailyTimes.split(',').map(t => t.trim()).filter(t => /^\d{2}:\d{2}$/.test(t)).sort();
+      const times = dailyTimes.split(',').map(t => t.trim().replace('.', ':')).filter(t => /^\d{2}:\d{2}$/.test(t)).sort();
       if (times.length > 0) {
         const originalStart = parseLocalDateTime(startTimeStr);
         const zonedNowParts = getZonedParts(now, timeZone);
