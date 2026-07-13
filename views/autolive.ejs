@@ -1261,9 +1261,12 @@
         if (item.type === 'playlist') {
             document.getElementById('internalPlaylistId').value = item.id;
             document.getElementById('videoId').value = '';
+            document.getElementById('randomVideoSection').classList.remove('hidden');
         } else {
             document.getElementById('videoId').value = item.id;
             document.getElementById('internalPlaylistId').value = '';
+            document.getElementById('randomVideoSection').classList.add('hidden');
+            document.getElementById('isRandomVideo').checked = false;
         }
         document.getElementById('autoliveSelectedVideoLabel').textContent = item.label;
         document.getElementById('autoliveSelectedVideoLabel').classList.remove('text-gray-400');
