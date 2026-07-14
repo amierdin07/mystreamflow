@@ -432,6 +432,7 @@
 </style>
 
 <script>
+    let activeUploadsCount = 0;
     // ============================================================
     // Modern Premium Popups System (Replaces native alerts/confirms)
     // ============================================================
@@ -795,6 +796,7 @@
     async function handleSlotFiles(index, files) {
         if (files.length === 0) return;
         
+        activeUploadsCount++;
         const previewContainer = document.getElementById(`slot-thumbs-preview-${index}`);
         
         // Show uploading loader
@@ -842,8 +844,6 @@
                     currentSlots[index].thumbnails.push(t.path);
                     currentSlots[index].original_thumbnails.push(t.filename);
                 });
-                
-                showAlert(`${files.length} gambar berhasil diupload!`, 'success');
             } else {
                 showAlert(`Gagal upload: ${response.error}`, 'error');
             }
@@ -851,6 +851,7 @@
             console.error('Slot upload error:', error);
             showAlert(error.message || 'Gagal mengupload file', 'error');
         } finally {
+            activeUploadsCount = Math.max(0, activeUploadsCount - 1);
             renderSlots();
         }
     }
@@ -919,6 +920,19 @@
             if (!silent) showAlert("Mohon masukkan judul terlebih dahulu!", "warning");
             return;
         }
+
+        // Shuffle the slot's thumbnails & original thumbnails in-place to randomize the rotation pairing
+        if (slot.thumbnails && slot.thumbnails.length > 1) {
+            for (let i = slot.thumbnails.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [slot.thumbnails[i], slot.thumbnails[j]] = [slot.thumbnails[j], slot.thumbnails[i]];
+                if (slot.original_thumbnails && slot.original_thumbnails[i] && slot.original_thumbnails[j]) {
+                    [slot.original_thumbnails[i], slot.original_thumbnails[j]] = [slot.original_thumbnails[j], slot.original_thumbnails[i]];
+                }
+            }
+            // Trigger slots rendering so the new order of thumbnails shows up immediately in the slot editor area too!
+            renderSlots();
+        }
         
         const previewContainer = document.getElementById(`slot-seo-preview-${index}`);
         if (!previewContainer) return;
@@ -935,21 +949,9 @@
         
         slot.titles.forEach((title, idx) => {
             let thumbUrl = '/images/default-video-thumbnail.svg';
-            
-            const existingCount = slot.thumbnails ? slot.thumbnails.length : 0;
-            const newCount = slot.newFiles ? slot.newFiles.length : 0;
-            const totalCount = existingCount + newCount;
-            
+            const totalCount = slot.thumbnails ? slot.thumbnails.length : 0;
             if (totalCount > 0) {
-                const targetIdx = idx % totalCount;
-                if (targetIdx < existingCount) {
-                    thumbUrl = slot.thumbnails[targetIdx];
-                } else {
-                    const newFileIdx = targetIdx - existingCount;
-                    if (slot.newFiles[newFileIdx]) {
-                        thumbUrl = URL.createObjectURL(slot.newFiles[newFileIdx]);
-                    }
-                }
+                thumbUrl = slot.thumbnails[idx % totalCount];
             }
             
             const row = document.createElement('div');
@@ -967,7 +969,7 @@
         });
         
         previewContainer.appendChild(wrapper);
-        if (!silent) showAlert("Rotasi metadata berhasil dibuat!", "success");
+        if (!silent) showAlert("Rotasi metadata berhasil diacak kembali!", "success");
     }
 
     function closeModal() {
@@ -1283,6 +1285,10 @@
     }
 
     async function saveSeries() {
+        if (activeUploadsCount > 0) {
+            showAlert('Mohon tunggu sebentar, proses upload gambar masih berjalan...', 'warning');
+            return;
+        }
         const id = document.getElementById('seriesId').value;
         const name = document.getElementById('seriesName').value;
         const startTime = document.getElementById('startTime').value;
