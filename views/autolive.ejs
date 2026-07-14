@@ -792,14 +792,67 @@
         currentSlots[index].tags = val;
     }
 
-    function handleSlotFiles(index, files) {
-        if (!currentSlots[index].newFiles) {
-            currentSlots[index].newFiles = [];
-        }
+    async function handleSlotFiles(index, files) {
+        if (files.length === 0) return;
+        
+        const previewContainer = document.getElementById(`slot-thumbs-preview-${index}`);
+        
+        // Show uploading loader
+        previewContainer.innerHTML = `
+            <div class="flex items-center gap-2 text-xs text-primary font-medium w-full justify-center py-4">
+                <i class="ti ti-loader animate-spin text-base"></i>
+                <span>Mengupload ${files.length} gambar...</span>
+            </div>
+        `;
+        
+        const formData = new FormData();
         for (let i = 0; i < files.length; i++) {
-            currentSlots[index].newFiles.push(files[i]);
+            formData.append('thumbnails', files[i]);
         }
-        renderSlots();
+        
+        try {
+            const url = '/api/autolive/upload-thumbnails';
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', url);
+            xhr.setRequestHeader('x-csrf-token', document.querySelector('input[name="_csrf"]').value);
+            
+            const response = await new Promise((resolve, reject) => {
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            resolve(JSON.parse(xhr.responseText));
+                        } catch (e) { reject(e); }
+                    } else {
+                        reject(new Error('Gagal upload thumbnail'));
+                    }
+                };
+                xhr.onerror = () => reject(new Error('Koneksi terputus'));
+                xhr.send(formData);
+            });
+            
+            if (response.success) {
+                if (!currentSlots[index].thumbnails) {
+                    currentSlots[index].thumbnails = [];
+                }
+                if (!currentSlots[index].original_thumbnails) {
+                    currentSlots[index].original_thumbnails = [];
+                }
+                
+                response.thumbnails.forEach(t => {
+                    currentSlots[index].thumbnails.push(t.path);
+                    currentSlots[index].original_thumbnails.push(t.filename);
+                });
+                
+                showAlert(`${files.length} gambar berhasil diupload!`, 'success');
+            } else {
+                showAlert(`Gagal upload: ${response.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('Slot upload error:', error);
+            showAlert(error.message || 'Gagal mengupload file', 'error');
+        } finally {
+            renderSlots();
+        }
     }
 
     function removeExistingSlotThumb(slotIndex, thumbIndex) {
@@ -807,11 +860,6 @@
         if (currentSlots[slotIndex].original_thumbnails) {
             currentSlots[slotIndex].original_thumbnails.splice(thumbIndex, 1);
         }
-        renderSlots();
-    }
-
-    function removeNewSlotThumb(slotIndex, newFileIndex) {
-        currentSlots[slotIndex].newFiles.splice(newFileIndex, 1);
         renderSlots();
     }
 
@@ -825,21 +873,6 @@
                     <div class="relative w-16 h-16 rounded-lg border border-gray-700 overflow-hidden group">
                         <img src="${t}" class="w-full h-full object-cover">
                         <button type="button" onclick="removeExistingSlotThumb(${slotIndex}, ${i})" class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-red-400">
-                            <i class="ti ti-trash text-sm"></i>
-                        </button>
-                    </div>
-                `;
-            });
-        }
-        
-        if (slot.newFiles && slot.newFiles.length > 0) {
-            slot.newFiles.forEach((file, i) => {
-                const url = URL.createObjectURL(file);
-                html += `
-                    <div class="relative w-16 h-16 rounded-lg border border-primary/40 overflow-hidden group">
-                        <img src="${url}" class="w-full h-full object-cover">
-                        <span class="absolute top-0.5 left-0.5 bg-primary text-[8px] text-white px-1 rounded">Baru</span>
-                        <button type="button" onclick="removeNewSlotThumb(${slotIndex}, ${i})" class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-red-400">
                             <i class="ti ti-trash text-sm"></i>
                         </button>
                     </div>
@@ -1321,11 +1354,6 @@
 
         const itemsToSend = [];
         currentSlots.forEach((slot, idx) => {
-            const newFiles = slot.newFiles || [];
-            newFiles.forEach((file, fileIdx) => {
-                formData.append(`slot_${idx}_thumbnail_${fileIdx}`, file);
-            });
-            
             itemsToSend.push({
                 video_id: slot.video_id || null,
                 internal_playlist_id: slot.internal_playlist_id || null,
@@ -1334,7 +1362,7 @@
                 tags: slot.tags || '',
                 existing_thumbnails: slot.thumbnails || [],
                 existing_original_thumbnails: slot.original_thumbnails || [],
-                new_thumbnails_count: newFiles.length
+                new_thumbnails_count: 0
             });
         });
 

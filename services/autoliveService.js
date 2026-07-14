@@ -852,18 +852,32 @@ class AutoliveService {
     // If the current session is already in the past (finished), move to next
     if (new Date(currentStart.getTime() + durationMs) < now) {
       currentStart = this.getNextStartTime(series, series.repeat_mode, series.custom_dates, timeZone);
-      // itemIndex remains the same because it only increments after a successful stop
     }
+
+    // Keep track of the rotation index of each slot item for schedule preview calculations
+    const slotRotationIndices = {};
+    items.forEach(it => {
+      slotRotationIndices[it.id] = it.current_index || 0;
+    });
     
     for (let i = 0; i < count; i++) {
       const item = items[itemIndex % items.length];
+      const titles = Array.isArray(item.titles) ? item.titles : [];
+      const thumbnails = Array.isArray(item.thumbnails) ? item.thumbnails : [];
+      
+      const currentRotIdx = slotRotationIndices[item.id] || 0;
+      const title = titles[currentRotIdx % (titles.length || 1)] || series.name;
+      const thumbnail = thumbnails[currentRotIdx % (thumbnails.length || 1)] || '';
+
       schedule.push({
         startTime: new Date(currentStart),
         endTime: new Date(currentStart.getTime() + durationMs),
-        title: item.title,
-        thumbnail: item.thumbnail_path,
+        title: title,
+        thumbnail: thumbnail,
         index: (itemIndex % items.length) + 1
       });
+
+      slotRotationIndices[item.id] = currentRotIdx + 1;
       
       // Calculate next start
       const stepDays = this.getRepeatStepDays(series.repeat_mode);
