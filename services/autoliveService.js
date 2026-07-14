@@ -552,7 +552,8 @@ class AutoliveService {
   }
 
   static async getOrCreateStreamRecord(series, defaults = {}) {
-    const streamId = `autolive_${series.id}`;
+    const ts = defaults.schedule_time ? new Date(defaults.schedule_time).getTime() : new Date(series.start_time).getTime();
+    const streamId = `autolive_${series.id}_${ts}`;
     let stream = await Stream.findById(streamId);
     if (!stream) {
       const items = await Autolive.getItemsBySeriesId(series.id);
@@ -748,7 +749,13 @@ class AutoliveService {
       if (items.length === 0) return { success: false, error: 'No metadata items' };
 
       const currentItem = items[(series.current_item_index || 0) % items.length];
-      const streamId = `autolive_${series.id}`;
+      
+      const streamId = await new Promise((resolve) => {
+        db.get("SELECT id FROM streams WHERE id LIKE ? AND (status = 'live' OR status = 'scheduled') ORDER BY schedule_time ASC LIMIT 1", [`autolive_${series.id}%`], (err, row) => {
+          resolve(row ? row.id : null);
+        });
+      }) || `autolive_${series.id}`;
+
       const stream = await Stream.findById(streamId);
 
       if (!stream) {
