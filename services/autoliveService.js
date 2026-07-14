@@ -148,139 +148,56 @@ class AutoliveService {
       return;
     }
 
-    // Looping is handled by % items.length in syncToYouTube, so we don't need to force stop here
-    // unless it's a one-time series that has no more sessions (which is handled below).
-
-
     const timeZone = getSeriesTimeZone(series);
-    console.log(`[Autolive] Processing "${series.name}": index=${series.current_item_index}, items=${items.length}, repeat=${series.repeat_mode}`);
+    console.log(`[Autolive] Processing "${series.name}": items=${items.length}, repeat=${series.repeat_mode}`);
 
+    const durationMs = (series.duration || 60) * 60 * 1000;
 
-    // FIX #2 & #3: Properly calculate which session window 'now' falls into.
-    let sessionStart = parseLocalDateTime(series.start_time);
-    if (!series.start_time || isNaN(sessionStart.getTime())) {
-      console.error(`[Autolive] Series "${series.name}" skipped: invalid start_time "${series.start_time}"`);
-      return;
-    }
+    // Get the upcoming schedule (next 5 runs) to process and prepare
+    const upcoming = this.getUpcomingSchedule(series, items, 5);
 
-    // FIX #3: durationMs must be at least 1 minute to avoid zero-window. If user set 0, default to 60 min.
-    let rawDurationMs = (series.duration || 0) * 60 * 1000;
-    if (series.repeat_mode === 'nonstop') {
-        // For nonstop, set a massive duration (10 years)
-        rawDurationMs = 10 * 365 * 24 * 60 * 60 * 1000; 
-    }
-    const durationMs = rawDurationMs > 0 ? rawDurationMs : 60 * 60 * 1000;
-    
-    // Find the most recent session start that is <= now (i.e. the session currently active or the last one).
-    if (series.repeat_mode !== 'none' && series.repeat_mode !== 'custom') {
-      sessionStart = this.getCurrentSessionStart(series, series.repeat_mode, now, timeZone);
-    } else if (series.repeat_mode === 'custom' && series.custom_dates) {
-      try {
-        const dates = JSON.parse(series.custom_dates);
-        const activeDate = dates.find(d => {
-          const timeParts = getZonedParts(parseLocalDateTime(series.start_time), timeZone);
-          const dateParts = getZonedParts(makeDateInTimeZone({ ...timeParts, year: Number(d.slice(0, 4)), month: Number(d.slice(5, 7)), day: Number(d.slice(8, 10)) }, timeZone), timeZone);
-          const dStart = makeDateInTimeZone({ ...dateParts, hour: timeParts.hour, minute: timeParts.minute, second: 0 }, timeZone);
-          const dEnd = new Date(dStart.getTime() + durationMs);
-          return now >= dStart && now < dEnd;
-        });
-        if (activeDate) {
-          const timeParts = getZonedParts(parseLocalDateTime(series.start_time), timeZone);
-          sessionStart = makeDateInTimeZone({
-            year: Number(activeDate.slice(0, 4)),
-            month: Number(activeDate.slice(5, 7)),
-            day: Number(activeDate.slice(8, 10)),
-            hour: timeParts.hour,
-            minute: timeParts.minute,
-            second: 0
-          }, timeZone);
-        } else {
-          sessionStart = this.getNextStartTime(series, series.repeat_mode, series.custom_dates, timeZone);
-        }
-      } catch(e) { console.error('[Autolive] Error parsing custom dates:', e); }
-    } else if (series.repeat_mode === 'nonstop') {
-      // Nonstop mode always starts from original start_time and never ends
-      sessionStart = parseLocalDateTime(series.start_time);
-    } else {
-      // One-time session
-      sessionStart = parseLocalDateTime(series.start_time);
-    }
+    for (const session of upcoming) {
+      const targetStart = session.startTime;
+      const targetEnd = session.endTime;
+      const ts = targetStart.getTime();
+      const streamId = `autolive_${series.id}_${ts}`;
+      const linkedStream = await Stream.findById(streamId);
 
-    const futureStart = this.getNextStartTime(series, series.repeat_mode, series.custom_dates, timeZone, new Date(sessionStart.getTime() + 1000));
-    let sessionEnd = new Date(sessionStart.getTime() + durationMs);
-    if (futureStart > sessionStart && futureStart < sessionEnd) {
-      sessionEnd = futureStart;
-    }
+      const timeToTarget = targetStart - now;
+      const isPastSession = now >= targetEnd;
+      const isCurrentlyActive = now >= targetStart && now < targetEnd;
 
-    console.log(`[Autolive] "${series.name}" | now=${now.toISOString()} sessionStart=${sessionStart.toISOString()} sessionEnd=${sessionEnd.toISOString()} futureStart=${futureStart.toISOString()} status=${series.status}`);
-    const isReadyToStart = this.isReadyToStart(series.status);
-    const streamId = `autolive_${series.id}`;
-    const linkedStream = await Stream.findById(streamId);
-
-    if (linkedStream && linkedStream.status === 'live' && series.status !== 'live') {
-      await Autolive.update(series.id, {
-        status: 'live',
-        last_metadata_update: series.last_metadata_update || new Date().toISOString()
-      });
-      series.status = 'live';
-    }
-
-    // 1. Stop Live
-    if (series.status === 'live' && now >= sessionEnd) {
-      console.log(`[Autolive] Stopping live for series "${series.name}" (Duration reached or next scheduled start arrived)`);
-      await this.stopAutoliveStream(series);
-      return;
-    }
-
-    // 2. Prepare the next/current stream task in the Stream tab 3 hours before start.
-    const isLive = series.status === 'live';
-    const targetStart = (now < sessionEnd && (now < sessionStart || isLive)) ? sessionStart : futureStart;
-    const targetEnd = new Date(targetStart.getTime() + durationMs);
-    const timeToTarget = targetStart - now;
-    const alreadyQueued = this.isStreamQueuedFor(linkedStream, targetStart);
-
-    // NONSTOP Logic: If it's nonstop and NOT live, we should always be in the "prepare" window
-    const isNonstopAndOffline = series.repeat_mode === 'nonstop' && series.status !== 'live';
-
-    if (isReadyToStart && now < targetEnd && (timeToTarget <= PREPARE_WINDOW_MS || isNonstopAndOffline)) {
-      if (linkedStream && linkedStream.status === 'scheduled' && !linkedStream.schedule_time) {
-        console.log(`[Autolive] Repairing missing schedule_time for "${series.name}" at ${targetStart.toISOString()}`);
-        await Stream.update(streamId, {
-          schedule_time: targetStart.toISOString(),
-          end_time: targetEnd.toISOString(),
-          duration: series.duration || null
-        });
-      }
-
-      // Optimization: Only sync metadata if it's new OR if it's been more than 30 mins since last sync
-      // or if it's very close to starting (within 5 mins)
-      const lastSync = series.last_metadata_update ? new Date(series.last_metadata_update).getTime() : 0;
-      const shouldSync = !series.last_metadata_update || (now.getTime() - lastSync > 30 * 60 * 1000) || timeToTarget < 5 * 60 * 1000;
-
-      if (shouldSync) {
-        console.log(`[Autolive] Synchronizing metadata for "${series.name}"...`);
+      // 1. If this session is currently active and the stream is not live yet, check/trigger scheduler to start it
+      if (isCurrentlyActive && (!linkedStream || linkedStream.status === 'scheduled')) {
+        // Sync metadata to create the scheduled broadcast on YouTube
         await this.syncToYouTube(series, targetStart, targetEnd);
         
-        await Autolive.update(series.id, {
-            last_metadata_update: now.toISOString()
-        });
-      }
-
-      if (now >= targetStart) {
         const schedulerService = require('./schedulerService');
         schedulerService.checkScheduledStreams().catch(err => {
           console.error('[Autolive] Error triggering stream scheduler:', err);
         });
       }
-    }
 
-    // 3. Mid-Stream Auto-Swap (24 Hours+)
-    if (series.status === 'live') {
-      const lastUpdate = series.last_metadata_update ? new Date(series.last_metadata_update) : new Date(series.start_time);
-      const timeSinceUpdate = now - lastUpdate;
-      if (timeSinceUpdate >= 24 * 60 * 60 * 1000) {
-        console.log(`[Autolive] Mid-stream auto-swap for series "${series.name}" (24h reached)`);
-        await this.swapMetadataMidStream(series);
+      // 2. Stop this session if it is live and duration reached
+      if (linkedStream && linkedStream.status === 'live' && now >= targetEnd) {
+        console.log(`[Autolive] Stopping live for series "${series.name}" session ${targetStart.toISOString()} (Duration reached)`);
+        await this.stopAutoliveStream(series, targetStart);
+      }
+
+      // 3. Prepare future sessions 3 hours before start
+      const shouldPrepare = !isPastSession && (timeToTarget <= PREPARE_WINDOW_MS || series.repeat_mode === 'nonstop');
+      if (shouldPrepare) {
+        const lastSync = series.last_metadata_update ? new Date(series.last_metadata_update).getTime() : 0;
+        const shouldSync = !linkedStream || (now.getTime() - lastSync > 30 * 60 * 1000) || timeToTarget < 5 * 60 * 1000;
+        
+        if (shouldSync) {
+          console.log(`[Autolive] Preparing session ${targetStart.toISOString()} for "${series.name}"...`);
+          await this.syncToYouTube(series, targetStart, targetEnd);
+          
+          await Autolive.update(series.id, {
+              last_metadata_update: now.toISOString()
+          });
+        }
       }
     }
   }
@@ -729,9 +646,31 @@ class AutoliveService {
     }
   }
 
-  static async stopAutoliveStream(series) {
+  static async stopAutoliveStream(series, targetStart = null) {
     try {
-      const streamId = `autolive_${series.id}`;
+      let streamId = `autolive_${series.id}`;
+      if (targetStart) {
+        const ts = new Date(targetStart).getTime();
+        streamId = `autolive_${series.id}_${ts}`;
+      } else {
+        // Query database to find the active live stream for this series
+        const activeLiveId = await new Promise((resolve) => {
+          db.get("SELECT id FROM streams WHERE id LIKE ? AND status = 'live'", [`autolive_${series.id}%`], (err, row) => {
+            resolve(row ? row.id : null);
+          });
+        });
+        if (activeLiveId) {
+          streamId = activeLiveId;
+        } else {
+          const items = await Autolive.getItemsBySeriesId(series.id);
+          const upcoming = this.getUpcomingSchedule(series, items, 1);
+          if (upcoming.length > 0) {
+            const ts = new Date(upcoming[0].startTime).getTime();
+            streamId = `autolive_${series.id}_${ts}`;
+          }
+        }
+      }
+
       await streamingService.stopStream(streamId, {
         reason: 'scheduled_end',
         message: 'Autolive berhenti karena durasi atau jadwal item sudah selesai.'
@@ -755,10 +694,17 @@ class AutoliveService {
 
       const nextIndex = (series.current_item_index + 1) % items.length;
       const nextItem = items[nextIndex];
-      const streamId = `autolive_${series.id}`;
+      
+      // Find currently live stream ID
+      const streamId = await new Promise((resolve) => {
+        db.get("SELECT id FROM streams WHERE id LIKE ? AND status = 'live'", [`autolive_${series.id}%`], (err, row) => {
+          resolve(row ? row.id : null);
+        });
+      }) || `autolive_${series.id}`;
+
       const stream = await Stream.findById(streamId);
 
-      if (!stream.youtube_broadcast_id) return;
+      if (!stream || !stream.youtube_broadcast_id) return;
 
       console.log(`[Autolive] Swapping to next metadata: ${nextItem.title}`);
       

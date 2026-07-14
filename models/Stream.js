@@ -113,7 +113,7 @@ class Stream {
         LEFT JOIN videos v ON s.video_id = v.id
         LEFT JOIN playlists p ON s.video_id = p.id
         LEFT JOIN youtube_channels yc ON s.youtube_channel_id = yc.id
-        LEFT JOIN autolive_series als ON s.id = 'autolive_' || als.id
+        LEFT JOIN autolive_series als ON s.id LIKE 'autolive_' || als.id || '%'
       `;
       const params = [];
       const conditions = [];
@@ -173,7 +173,7 @@ class Stream {
         LEFT JOIN videos v ON s.video_id = v.id
         LEFT JOIN playlists p ON s.video_id = p.id
         LEFT JOIN youtube_channels yc ON s.youtube_channel_id = yc.id
-        LEFT JOIN autolive_series als ON s.id = 'autolive_' || als.id
+        LEFT JOIN autolive_series als ON s.id LIKE 'autolive_' || als.id || '%'
       `;
       const params = [];
       const conditions = [];
