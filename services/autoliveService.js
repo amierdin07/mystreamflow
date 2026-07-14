@@ -206,8 +206,13 @@ class AutoliveService {
       sessionStart = parseLocalDateTime(series.start_time);
     }
 
-    const sessionEnd = new Date(sessionStart.getTime() + durationMs);
-    console.log(`[Autolive] "${series.name}" | now=${now.toISOString()} sessionStart=${sessionStart.toISOString()} sessionEnd=${sessionEnd.toISOString()} status=${series.status}`);
+    const futureStart = this.getNextStartTime(series, series.repeat_mode, series.custom_dates, timeZone, new Date(sessionStart.getTime() + 1000));
+    let sessionEnd = new Date(sessionStart.getTime() + durationMs);
+    if (futureStart > sessionStart && futureStart < sessionEnd) {
+      sessionEnd = futureStart;
+    }
+
+    console.log(`[Autolive] "${series.name}" | now=${now.toISOString()} sessionStart=${sessionStart.toISOString()} sessionEnd=${sessionEnd.toISOString()} futureStart=${futureStart.toISOString()} status=${series.status}`);
     const isReadyToStart = this.isReadyToStart(series.status);
     const streamId = `autolive_${series.id}`;
     const linkedStream = await Stream.findById(streamId);
@@ -222,13 +227,12 @@ class AutoliveService {
 
     // 1. Stop Live
     if (series.status === 'live' && now >= sessionEnd) {
-      console.log(`[Autolive] Stopping live for series "${series.name}" (Duration reached)`);
+      console.log(`[Autolive] Stopping live for series "${series.name}" (Duration reached or next scheduled start arrived)`);
       await this.stopAutoliveStream(series);
       return;
     }
 
     // 2. Prepare the next/current stream task in the Stream tab 3 hours before start.
-    const futureStart = this.getNextStartTime(series, series.repeat_mode, series.custom_dates, timeZone);
     const isLive = series.status === 'live';
     const targetStart = (now < sessionEnd && (now < sessionStart || isLive)) ? sessionStart : futureStart;
     const targetEnd = new Date(targetStart.getTime() + durationMs);
