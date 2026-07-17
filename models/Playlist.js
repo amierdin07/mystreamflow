@@ -380,6 +380,8 @@ class Playlist {
         });
       });
     });
+  }
+
   static updatePlaylistWithItems(id, playlistData, videoIds, audioItems) {
     return new Promise((resolve, reject) => {
       db.serialize(() => {
