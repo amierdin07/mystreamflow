@@ -222,7 +222,12 @@ class AutoliveService {
 
     // DAILY TIMES LOGIC
     if (repeatMode === 'daily' && dailyTimes) {
-      const times = dailyTimes.split(',').map(t => t.trim().replace('.', ':')).filter(t => /^\d{2}:\d{2}$/.test(t)).sort();
+      const matches = [...dailyTimes.matchAll(/(\d{1,2})[.:, ]+(\d{2})/g)];
+      const times = matches.map(m => {
+        const hour = m[1].padStart(2, '0');
+        const minute = m[2];
+        return `${hour}:${minute}`;
+      }).sort();
       if (times.length > 0) {
         const originalStart = parseLocalDateTime(startTimeStr);
         const zonedNowParts = getZonedParts(now, timeZone);
@@ -324,7 +329,12 @@ class AutoliveService {
 
     // DAILY TIMES LOGIC
     if (repeatMode === 'daily' && dailyTimes) {
-      const times = dailyTimes.split(',').map(t => t.trim().replace('.', ':')).filter(t => /^\d{2}:\d{2}$/.test(t)).sort();
+      const matches = [...dailyTimes.matchAll(/(\d{1,2})[.:, ]+(\d{2})/g)];
+      const times = matches.map(m => {
+        const hour = m[1].padStart(2, '0');
+        const minute = m[2];
+        return `${hour}:${minute}`;
+      }).sort();
       if (times.length > 0) {
         const originalStart = parseLocalDateTime(startTimeStr);
         const zonedNowParts = getZonedParts(now, timeZone);
