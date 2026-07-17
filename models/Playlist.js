@@ -304,6 +304,83 @@ class Playlist {
       );
     });
   }
+
+  static addVideosBatch(playlistId, videoIds) {
+    return new Promise((resolve, reject) => {
+      if (!videoIds || videoIds.length === 0) {
+        return resolve({ success: true });
+      }
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        let completed = 0;
+        let hasError = false;
+
+        videoIds.forEach((videoId, index) => {
+          const id = uuidv4();
+          db.run(
+            'INSERT INTO playlist_videos (id, playlist_id, video_id, position) VALUES (?, ?, ?, ?)',
+            [id, playlistId, videoId, index + 1],
+            function (err) {
+              if (err && !hasError) {
+                hasError = true;
+                db.run('ROLLBACK');
+                return reject(err);
+              }
+              completed++;
+              if (completed === videoIds.length && !hasError) {
+                db.run('COMMIT', (err) => {
+                  if (err) {
+                    return reject(err);
+                  }
+                  resolve({ success: true });
+                });
+              }
+            }
+          );
+        });
+      });
+    });
+  }
+
+  static addAudiosBatch(playlistId, audioItems) {
+    return new Promise((resolve, reject) => {
+      if (!audioItems || audioItems.length === 0) {
+        return resolve({ success: true });
+      }
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        let completed = 0;
+        let hasError = false;
+
+        audioItems.forEach((audioItem, index) => {
+          const id = uuidv4();
+          const audioId = typeof audioItem === 'object' && audioItem !== null ? audioItem.id : audioItem;
+          const trackNumber = typeof audioItem === 'object' && audioItem !== null ? (parseInt(audioItem.track_number) || 1) : 1;
+          
+          db.run(
+            'INSERT INTO playlist_audios (id, playlist_id, audio_id, position, track_number) VALUES (?, ?, ?, ?, ?)',
+            [id, playlistId, audioId, index + 1, trackNumber],
+            function (err) {
+              if (err && !hasError) {
+                hasError = true;
+                db.run('ROLLBACK');
+                return reject(err);
+              }
+              completed++;
+              if (completed === audioItems.length && !hasError) {
+                db.run('COMMIT', (err) => {
+                  if (err) {
+                    return reject(err);
+                  }
+                  resolve({ success: true });
+                });
+              }
+            }
+          );
+        });
+      });
+    });
+  }
 }
 
 module.exports = Playlist;

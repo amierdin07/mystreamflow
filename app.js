@@ -4729,20 +4729,11 @@ app.post('/api/playlists', isAuthenticated, [
     const playlist = await Playlist.create(playlistData);
     
     if (req.body.videos && Array.isArray(req.body.videos) && req.body.videos.length > 0) {
-      for (let i = 0; i < req.body.videos.length; i++) {
-        await Playlist.addVideo(playlist.id, req.body.videos[i], i + 1);
-      }
+      await Playlist.addVideosBatch(playlist.id, req.body.videos);
     }
 
     if (req.body.audios && Array.isArray(req.body.audios) && req.body.audios.length > 0) {
-      for (let i = 0; i < req.body.audios.length; i++) {
-        const audioItem = req.body.audios[i];
-        if (typeof audioItem === 'object' && audioItem !== null) {
-          await Playlist.addAudio(playlist.id, audioItem.id, i + 1, audioItem.track_number || 1);
-        } else {
-          await Playlist.addAudio(playlist.id, audioItem, i + 1, 1);
-        }
-      }
+      await Playlist.addAudiosBatch(playlist.id, req.body.audios);
     }
 
     res.json({ success: true, message: 'Playlist created', id: playlist.id });
@@ -4805,22 +4796,12 @@ app.put('/api/playlists/:id', isAuthenticated, [
     
     if (req.body.videos && Array.isArray(req.body.videos)) {
       await Playlist.clearVideos(req.params.id);
-      
-      for (let i = 0; i < req.body.videos.length; i++) {
-        await Playlist.addVideo(req.params.id, req.body.videos[i], i + 1);
-      }
+      await Playlist.addVideosBatch(req.params.id, req.body.videos);
     }
 
     if (req.body.audios && Array.isArray(req.body.audios)) {
       await Playlist.clearAudios(req.params.id);
-      for (let i = 0; i < req.body.audios.length; i++) {
-        const audioItem = req.body.audios[i];
-        if (typeof audioItem === 'object' && audioItem !== null) {
-          await Playlist.addAudio(req.params.id, audioItem.id, i + 1, audioItem.track_number || 1);
-        } else {
-          await Playlist.addAudio(req.params.id, audioItem, i + 1, 1);
-        }
-      }
+      await Playlist.addAudiosBatch(req.params.id, req.body.audios);
     }
     
     res.json({ success: true, playlist: updatedPlaylist });
@@ -4878,16 +4859,11 @@ app.post('/api/playlists/:id/clone', isAuthenticated, [
     const newPlaylist = await Playlist.create(playlistData);
 
     if (playlist.videos && Array.isArray(playlist.videos) && playlist.videos.length > 0) {
-      for (let i = 0; i < playlist.videos.length; i++) {
-        await Playlist.addVideo(newPlaylist.id, playlist.videos[i].id, i + 1);
-      }
+      await Playlist.addVideosBatch(newPlaylist.id, playlist.videos.map(v => v.id));
     }
 
     if (playlist.audios && Array.isArray(playlist.audios) && playlist.audios.length > 0) {
-      for (let i = 0; i < playlist.audios.length; i++) {
-        const audioItem = playlist.audios[i];
-        await Playlist.addAudio(newPlaylist.id, audioItem.id, i + 1, audioItem.track_number || 1);
-      }
+      await Playlist.addAudiosBatch(newPlaylist.id, playlist.audios);
     }
 
     res.json({ success: true, message: 'Playlist cloned successfully', id: newPlaylist.id });

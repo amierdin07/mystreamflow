@@ -1025,34 +1025,122 @@ function deletePlaylist(playlistId, playlistName) {
 }
 
 function clonePlaylist(playlistId, playlistName) {
-  const newName = prompt(`Enter name for the cloned playlist:`, `${playlistName} (Copy)`);
-  if (newName === null) return;
-  const trimmedName = newName.trim();
-  if (!trimmedName) {
-    showToast('Playlist name cannot be empty', 'error');
-    return;
-  }
+  const dialog = document.createElement('div');
+  dialog.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm transition-all duration-300';
   
-  fetch(`/api/playlists/${playlistId}/clone`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ name: trimmedName })
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      showToast('Playlist cloned successfully', 'success');
-      location.reload();
-    } else {
-      showToast(data.error || 'Error cloning playlist', 'error');
+  dialog.innerHTML = `
+    <div class="max-w-md w-full mx-4 transform scale-95 opacity-0 transition-all duration-300" id="cloneDialogContainer">
+      <div class="bg-dark-800 border border-gray-700/80 rounded-xl shadow-2xl overflow-hidden">
+        <div class="p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+              <i class="ti ti-copy text-xl"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-semibold text-white">Clone Playlist</h3>
+              <p class="text-xs text-gray-400">Create a copy of this playlist</p>
+            </div>
+          </div>
+          
+          <div class="space-y-3">
+            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider">New Playlist Name</label>
+            <input type="text" id="clonePlaylistName" 
+              class="w-full bg-dark-700 border border-gray-600 text-white px-4 py-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm" 
+              placeholder="Enter new name"
+              value="${playlistName} (Copy)"
+              autocomplete="off"
+            >
+          </div>
+        </div>
+        
+        <div class="flex justify-end gap-3 p-4 bg-dark-900/50 border-t border-gray-700/80">
+          <button id="plCloneCancelBtn" class="px-4 py-2 text-xs font-semibold bg-dark-700 hover:bg-dark-600 text-gray-300 hover:text-white rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button id="plCloneConfirmBtn" class="px-4 py-2 text-xs font-semibold bg-primary hover:bg-blue-600 text-white rounded-lg transition-colors">
+            Clone Playlist
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(dialog);
+  
+  const container = document.getElementById('cloneDialogContainer');
+  setTimeout(() => {
+    container.classList.remove('scale-95', 'opacity-0');
+    container.classList.add('scale-100', 'opacity-100');
+  }, 10);
+  
+  const inputEl = document.getElementById('clonePlaylistName');
+  inputEl.focus();
+  inputEl.select();
+
+  const closeDialog = () => {
+    container.classList.remove('scale-100', 'opacity-100');
+    container.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => dialog.remove(), 200);
+  };
+
+  document.getElementById('plCloneCancelBtn').onclick = closeDialog;
+  
+  dialog.onclick = (e) => {
+    if (e.target === dialog) closeDialog();
+  };
+
+  const handleConfirm = () => {
+    const trimmedName = inputEl.value.trim();
+    if (!trimmedName) {
+      showToast('Playlist name cannot be empty', 'error');
+      return;
     }
-  })
-  .catch(error => {
-    console.error('Error cloning playlist:', error);
-    showToast('Error cloning playlist', 'error');
-  });
+    
+    const confirmBtn = document.getElementById('plCloneConfirmBtn');
+    const cancelBtn = document.getElementById('plCloneCancelBtn');
+    confirmBtn.disabled = true;
+    cancelBtn.disabled = true;
+    confirmBtn.innerHTML = '<i class="ti ti-loader animate-spin mr-1"></i> Cloning...';
+    
+    fetch(`/api/playlists/${playlistId}/clone`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ name: trimmedName })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showToast('Playlist cloned successfully', 'success');
+        closeDialog();
+        setTimeout(() => location.reload(), 300);
+      } else {
+        showToast(data.error || 'Error cloning playlist', 'error');
+        confirmBtn.disabled = false;
+        cancelBtn.disabled = false;
+        confirmBtn.innerHTML = 'Clone Playlist';
+      }
+    })
+    .catch(error => {
+      console.error('Error cloning playlist:', error);
+      showToast('Error cloning playlist', 'error');
+      confirmBtn.disabled = false;
+      cancelBtn.disabled = false;
+      confirmBtn.innerHTML = 'Clone Playlist';
+    });
+  };
+
+  document.getElementById('plCloneConfirmBtn').onclick = handleConfirm;
+  
+  inputEl.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleConfirm();
+    } else if (e.key === 'Escape') {
+      closeDialog();
+    }
+  };
 }
 
 function submitPlaylist() {
