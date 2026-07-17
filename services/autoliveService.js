@@ -779,8 +779,6 @@ class AutoliveService {
       const items = await Autolive.getItemsBySeriesId(series.id);
       if (items.length === 0) return { success: false, error: 'No metadata items' };
 
-      const currentItem = items[(series.current_item_index || 0) % items.length];
-      
       const streamId = await new Promise((resolve) => {
         db.get("SELECT id FROM streams WHERE id LIKE ? AND (status = 'live' OR status = 'scheduled') ORDER BY schedule_time ASC LIMIT 1", [`autolive_${series.id}%`], (err, row) => {
           resolve(row ? row.id : null);
@@ -793,9 +791,22 @@ class AutoliveService {
         return { success: true, skipped: true, message: 'Linked stream task has not been created yet' };
       }
 
-      const sourceSettings = await getAutoliveSourceSettings(series);
+      // Determine the correct item matching this stream's scheduled start
+      const upcoming = this.getUpcomingSchedule(series, items, 15);
+      const streamStart = stream.schedule_time ? new Date(stream.schedule_time) : new Date(series.start_time);
+      const matchingSession = upcoming.find(s => s.startTime.getTime() === streamStart.getTime());
+      
+      let currentItem = items[0];
+      if (matchingSession) {
+        currentItem = items[(matchingSession.index - 1) % items.length];
+      } else {
+        currentItem = items[(series.current_item_index || 0) % items.length];
+      }
+
+      const sourceSettings = await getAutoliveSourceSettings(currentItem);
       await Stream.update(streamId, {
         title: currentItem.title,
+        video_id: currentItem.internal_playlist_id || currentItem.video_id || series.internal_playlist_id || series.video_id,
         youtube_description: currentItem.description || '',
         youtube_tags: currentItem.tags || '',
         youtube_thumbnail: currentItem.thumbnail_path || '',
