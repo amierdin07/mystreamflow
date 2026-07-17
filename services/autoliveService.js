@@ -327,6 +327,8 @@ class AutoliveService {
     let currentStart = parseLocalDateTime(startTimeStr);
     if (isNaN(currentStart.getTime()) || currentStart > now) return currentStart;
 
+    const durationMs = ((series && series.duration) || 60) * 60 * 1000;
+
     // DAILY TIMES LOGIC
     if (repeatMode === 'daily' && dailyTimes) {
       const matches = [...dailyTimes.matchAll(/(\d{1,2})[.:, ]+(\d{2})/g)];
@@ -360,6 +362,12 @@ class AutoliveService {
         
         candidates.sort((a, b) => a - b);
         const pastCandidates = candidates.filter(c => c <= now);
+        
+        const activeCandidates = pastCandidates.filter(c => c.getTime() + durationMs > now.getTime());
+        if (activeCandidates.length > 0) {
+          return activeCandidates[0]; // oldest active session
+        }
+        
         if (pastCandidates.length > 0) {
           return pastCandidates[pastCandidates.length - 1];
         }
@@ -380,21 +388,39 @@ class AutoliveService {
         currentStart = makeDateInTimeZone(currentParts, timeZone);
       }
 
+      const candidates = [currentStart];
       while (true) {
         const nextStart = makeDateInTimeZone(addDaysToZonedParts(getZonedParts(currentStart, timeZone), 7), timeZone);
-        if (nextStart > now) return currentStart;
+        if (nextStart > now) break;
+        candidates.push(nextStart);
         currentStart = nextStart;
       }
+
+      const pastCandidates = candidates.filter(c => c <= now);
+      const activeCandidates = pastCandidates.filter(c => c.getTime() + durationMs > now.getTime());
+      if (activeCandidates.length > 0) {
+        return activeCandidates[0];
+      }
+      return pastCandidates[pastCandidates.length - 1] || currentStart;
     }
 
     const stepDays = this.getRepeatStepDays(repeatMode);
     if (!stepDays) return currentStart;
 
+    const candidates = [currentStart];
     while (true) {
       const nextStart = makeDateInTimeZone(addDaysToZonedParts(getZonedParts(currentStart, timeZone), stepDays), timeZone);
-      if (nextStart <= currentStart || nextStart > now) return currentStart;
+      if (nextStart <= currentStart || nextStart > now) break;
+      candidates.push(nextStart);
       currentStart = nextStart;
     }
+
+    const pastCandidates = candidates.filter(c => c <= now);
+    const activeCandidates = pastCandidates.filter(c => c.getTime() + durationMs > now.getTime());
+    if (activeCandidates.length > 0) {
+      return activeCandidates[0];
+    }
+    return pastCandidates[pastCandidates.length - 1] || currentStart;
   }
 
   static getRepeatStepDays(repeatMode) {
