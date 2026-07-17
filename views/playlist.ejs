@@ -409,7 +409,7 @@
         </div>
         <div class="flex items-center gap-3">
           <button type="button" onclick="closePlaylistModal()" class="px-5 py-2.5 text-sm font-medium text-gray-300 hover:text-white transition-colors">Cancel</button>
-          <button type="button" onclick="submitPlaylist()" class="px-5 py-2.5 text-sm font-medium bg-primary hover:bg-blue-600 text-white rounded-lg transition-colors">
+          <button type="button" id="playlistSubmitBtn" onclick="submitPlaylist()" class="px-5 py-2.5 text-sm font-medium bg-primary hover:bg-blue-600 text-white rounded-lg transition-colors">
             <span id="submitButtonText">Create Playlist</span>
           </button>
         </div>
@@ -1144,6 +1144,12 @@ function clonePlaylist(playlistId, playlistName) {
 }
 
 function submitPlaylist() {
+  const submitBtn = document.getElementById('playlistSubmitBtn');
+  const submitBtnText = document.getElementById('submitButtonText');
+  const cancelBtn = submitBtn ? submitBtn.previousElementSibling : null;
+  const isEdit = currentPlaylistId ? true : false;
+  const originalText = isEdit ? 'Update Playlist' : 'Create Playlist';
+
   try {
     const name = document.getElementById('playlistName').value.trim();
     if (!name) {
@@ -1156,6 +1162,13 @@ function submitPlaylist() {
       return;
     }
     
+    // Set loading state
+    if (submitBtn) submitBtn.disabled = true;
+    if (cancelBtn) cancelBtn.disabled = true;
+    if (submitBtnText) {
+      submitBtnText.innerHTML = `<i class="ti ti-loader animate-spin mr-1"></i> ${isEdit ? 'Updating...' : 'Creating...'}`;
+    }
+
     const playlistData = {
       name: name,
       description: document.getElementById('playlistDescription').value.trim(),
@@ -1200,17 +1213,27 @@ function submitPlaylist() {
         setTimeout(() => location.reload(), 500);
       } else {
         showToast(data.message || data.error || 'Error saving playlist', 'error');
+        // Reset loading state
+        if (submitBtn) submitBtn.disabled = false;
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (submitBtnText) submitBtnText.textContent = originalText;
       }
     })
     .catch(error => {
       console.error('Playlist Fetch Error:', error);
-      alert('FAILED TO SAVE: ' + error.message);
       showToast('Failed: ' + error.message, 'error');
+      // Reset loading state
+      if (submitBtn) submitBtn.disabled = false;
+      if (cancelBtn) cancelBtn.disabled = false;
+      if (submitBtnText) submitBtnText.textContent = originalText;
     });
   } catch (err) {
     console.error('Fatal error in submitPlaylist:', err);
-    alert('Fatal error in submitPlaylist: ' + err.message);
     showToast('Fatal error: ' + err.message, 'error');
+    // Reset loading state
+    if (submitBtn) submitBtn.disabled = false;
+    if (cancelBtn) cancelBtn.disabled = false;
+    if (submitBtnText) submitBtnText.textContent = originalText;
   }
 }
 

@@ -4792,22 +4792,13 @@ app.put('/api/playlists/:id', isAuthenticated, [
     };
 
     console.log('UPDATING PLAYLIST:', req.params.id, updateData);
-    const updatedPlaylist = await Playlist.update(req.params.id, updateData);
-    
-    if (req.body.videos && Array.isArray(req.body.videos)) {
-      await Playlist.clearVideos(req.params.id);
-      await Playlist.addVideosBatch(req.params.id, req.body.videos);
-    }
-
-    if (req.body.audios && Array.isArray(req.body.audios)) {
-      await Playlist.clearAudios(req.params.id);
-      await Playlist.addAudiosBatch(req.params.id, req.body.audios);
-    }
+    await Playlist.updatePlaylistWithItems(req.params.id, updateData, req.body.videos, req.body.audios);
+    const updatedPlaylist = await Playlist.findById(req.params.id);
     
     res.json({ success: true, playlist: updatedPlaylist });
   } catch (error) {
     console.error('Error updating playlist:', error);
-    res.status(500).json({ success: false, error: 'Failed to update playlist' });
+    res.status(500).json({ success: false, error: 'Failed to update playlist: ' + error.message });
   }
 });
 

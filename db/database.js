@@ -148,6 +148,16 @@ function createTables() {
         FOREIGN KEY (audio_id) REFERENCES videos(id) ON DELETE CASCADE
       )`);
 
+      // Add indexes to optimize queries and speed up the application
+      db.run(`CREATE INDEX IF NOT EXISTS idx_playlist_videos_playlist_id ON playlist_videos(playlist_id)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_playlist_videos_video_id ON playlist_videos(video_id)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_playlist_audios_playlist_id ON playlist_audios(playlist_id)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_playlist_audios_audio_id ON playlist_audios(audio_id)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_videos_user_id ON videos(user_id)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_videos_youtube_channel_id ON videos(youtube_channel_id)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_playlists_user_id ON playlists(user_id)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_playlists_youtube_channel_id ON playlists(youtube_channel_id)`);
+
       db.run(`ALTER TABLE playlists ADD COLUMN audio_track1_volume REAL DEFAULT 1.0`, (err) => {
         if (err && !err.message.includes('duplicate column name')) {
           console.error('Error adding audio_track1_volume column:', err.message);

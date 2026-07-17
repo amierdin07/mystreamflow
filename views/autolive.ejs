@@ -921,8 +921,8 @@
             return;
         }
 
-        // Shuffle the slot's thumbnails & original thumbnails in-place to randomize the rotation pairing
-        if (slot.thumbnails && slot.thumbnails.length > 1) {
+        // Shuffle the slot's thumbnails & original thumbnails in-place to randomize the rotation pairing only if not silent (triggered by user button click)
+        if (!silent && slot.thumbnails && slot.thumbnails.length > 1) {
             for (let i = slot.thumbnails.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [slot.thumbnails[i], slot.thumbnails[j]] = [slot.thumbnails[j], slot.thumbnails[i]];
@@ -932,6 +932,7 @@
             }
             // Trigger slots rendering so the new order of thumbnails shows up immediately in the slot editor area too!
             renderSlots();
+            return;
         }
         
         const previewContainer = document.getElementById(`slot-seo-preview-${index}`);

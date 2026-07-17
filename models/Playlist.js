@@ -380,6 +380,112 @@ class Playlist {
         });
       });
     });
+  static updatePlaylistWithItems(id, playlistData, videoIds, audioItems) {
+    return new Promise((resolve, reject) => {
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        
+        let hasError = false;
+        
+        const rollback = (err) => {
+          if (!hasError) {
+            hasError = true;
+            db.run('ROLLBACK');
+            reject(err);
+          }
+        };
+
+        // 1. Update playlist table
+        const fields = [];
+        const values = [];
+        Object.entries(playlistData).forEach(([key, value]) => {
+          if (key !== 'id' && key !== 'user_id') {
+            fields.push(`${key} = ?`);
+            values.push(value);
+          }
+        });
+        fields.push('updated_at = CURRENT_TIMESTAMP');
+        const updateQuery = `UPDATE playlists SET ${fields.join(', ')} WHERE id = ?`;
+        values.push(id);
+
+        db.run(updateQuery, values, function(err) {
+          if (err) return rollback(err);
+
+          // 2. Clear & insert videos if provided
+          if (videoIds !== undefined) {
+            db.run('DELETE FROM playlist_videos WHERE playlist_id = ?', [id], function(err) {
+              if (err) return rollback(err);
+
+              if (videoIds && videoIds.length > 0) {
+                let completedVideos = 0;
+                videoIds.forEach((videoId, index) => {
+                  const pvId = uuidv4();
+                  db.run(
+                    'INSERT INTO playlist_videos (id, playlist_id, video_id, position) VALUES (?, ?, ?, ?)',
+                    [pvId, id, videoId, index + 1],
+                    function(err) {
+                      if (err) return rollback(err);
+                      completedVideos++;
+                      if (completedVideos === videoIds.length) {
+                        checkAudiosStep();
+                      }
+                    }
+                  );
+                });
+              } else {
+                checkAudiosStep();
+              }
+            });
+          } else {
+            checkAudiosStep();
+          }
+        });
+
+        function checkAudiosStep() {
+          if (hasError) return;
+
+          // 3. Clear & insert audios if provided
+          if (audioItems !== undefined) {
+            db.run('DELETE FROM playlist_audios WHERE playlist_id = ?', [id], function(err) {
+              if (err) return rollback(err);
+
+              if (audioItems && audioItems.length > 0) {
+                let completedAudios = 0;
+                audioItems.forEach((audioItem, index) => {
+                  const paId = uuidv4();
+                  const audioId = typeof audioItem === 'object' && audioItem !== null ? audioItem.id : audioItem;
+                  const trackNumber = typeof audioItem === 'object' && audioItem !== null ? (parseInt(audioItem.track_number) || 1) : 1;
+
+                  db.run(
+                    'INSERT INTO playlist_audios (id, playlist_id, audio_id, position, track_number) VALUES (?, ?, ?, ?, ?)',
+                    [paId, id, audioId, index + 1, trackNumber],
+                    function(err) {
+                      if (err) return rollback(err);
+                      completedAudios++;
+                      if (completedAudios === audioItems.length) {
+                        commitTransaction();
+                      }
+                    }
+                  );
+                });
+              } else {
+                commitTransaction();
+              }
+            });
+          } else {
+            commitTransaction();
+          }
+        }
+
+        function commitTransaction() {
+          if (hasError) return;
+          db.run('COMMIT', (err) => {
+            if (err) return rollback(err);
+            resolve({ success: true });
+          });
+        }
+      });
+    });
   }
 }
 

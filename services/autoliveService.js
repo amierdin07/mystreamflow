@@ -444,30 +444,52 @@ class AutoliveService {
       const scheduledStart = targetStart || this.getNextStartTime(series, series.repeat_mode, series.custom_dates, getSeriesTimeZone(series));
       const scheduledEnd = targetEnd || new Date(scheduledStart.getTime() + ((series.duration || 60) * 60 * 1000));
       
-      // Create/Get stream record with series defaults
+      const upcoming = this.getUpcomingSchedule(series, items, 15);
+      const matchingSession = upcoming.find(s => s.startTime.getTime() === scheduledStart.getTime());
+      
+      let chosenSlotIndex = series.current_item_index || 0;
+      if (matchingSession) {
+        chosenSlotIndex = (matchingSession.index - 1) % items.length;
+      }
+
+      const isNewSessionCheck = await new Promise((resolve) => {
+        const ts = scheduledStart.getTime();
+        const streamId = `autolive_${series.id}_${ts}`;
+        db.get('SELECT schedule_time FROM streams WHERE id = ?', [streamId], (err, row) => {
+          resolve(!row);
+        });
+      });
+
+      if (isNewSessionCheck && series.is_random_video === 1) {
+        const chosenSlotRand = await this.getNextRandomSlot(series, items);
+        const idx = items.findIndex(it => it.id === chosenSlotRand.id);
+        if (idx !== -1) {
+          chosenSlotIndex = idx;
+        }
+      }
+      
+      const chosenSlot = items[chosenSlotIndex % items.length] || items[0];
+      const chosenVideoId = chosenSlot.internal_playlist_id || chosenSlot.video_id || series.internal_playlist_id || series.video_id;
+
       let streamRecord = await this.getOrCreateStreamRecord(series, {
         title: series.name,
         schedule_time: scheduledStart.toISOString(),
         end_time: scheduledEnd.toISOString(),
-        duration: series.duration || null
+        duration: series.duration || null,
+        video_id: chosenVideoId
       });
 
+      if (streamRecord.video_id !== chosenVideoId) {
+        await Stream.update(streamRecord.id, { video_id: chosenVideoId });
+        streamRecord.video_id = chosenVideoId;
+      }
+
       const isNewSession = !streamRecord.schedule_time || (new Date(streamRecord.schedule_time).getTime() !== scheduledStart.getTime());
-      
-      let chosenSlotIndex = series.current_item_index || 0;
+
       if (isNewSession) {
-        if (series.is_random_video === 1) {
-          const chosenSlot = await this.getNextRandomSlot(series, items);
-          chosenSlotIndex = items.findIndex(it => it.id === chosenSlot.id);
-          if (chosenSlotIndex === -1) chosenSlotIndex = 0;
-        } else {
-          chosenSlotIndex = 0;
-        }
         await Autolive.update(series.id, { current_item_index: chosenSlotIndex });
       }
       
-      const chosenSlot = items[chosenSlotIndex % items.length] || items[0];
-
       if (chosenSlot.internal_playlist_id) {
         if (isNewSession) {
           const { videoId } = await this.getNextRandomVideoData(series, chosenSlot.internal_playlist_id);
@@ -475,7 +497,6 @@ class AutoliveService {
         }
       }
 
-      // Get the next Title & Thumbnail from this chosen slot
       const titles = chosenSlot.titles || [];
       const thumbnails = chosenSlot.thumbnails || [];
       
@@ -557,8 +578,8 @@ class AutoliveService {
     let stream = await Stream.findById(streamId);
     if (!stream) {
       const items = await Autolive.getItemsBySeriesId(series.id);
-      let sourceId = series.internal_playlist_id || series.video_id;
-      if (items.length > 0) {
+      let sourceId = defaults.video_id || series.internal_playlist_id || series.video_id;
+      if (!defaults.video_id && items.length > 0) {
         sourceId = items[0].internal_playlist_id || items[0].video_id || sourceId;
       }
       
