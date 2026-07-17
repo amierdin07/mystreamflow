@@ -104,6 +104,9 @@ function createTables() {
         end_time TIMESTAMP,
         duration INTEGER,
         use_advanced_settings BOOLEAN DEFAULT 0,
+        status TEXT,
+        last_stop_reason TEXT,
+        last_stop_message TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         user_id TEXT,
         FOREIGN KEY (user_id) REFERENCES users(id),
@@ -522,6 +525,16 @@ function createTables() {
         if (err && !err.message.includes('duplicate column name')) {
           console.error('Error adding telegram_chat_id column:', err.message);
         }
+      });
+
+      db.run(`ALTER TABLE stream_history ADD COLUMN status TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
+      db.run(`ALTER TABLE stream_history ADD COLUMN last_stop_reason TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
+      });
+      db.run(`ALTER TABLE stream_history ADD COLUMN last_stop_message TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error(err.message);
       });
 
       db.run(`CREATE TABLE IF NOT EXISTS app_settings (

@@ -145,6 +145,9 @@
             <button class="p-1 hover:bg-dark-700 rounded transition-colors" onclick="editPlaylist('<%= playlist.id %>')" title="Edit">
               <i class="ti ti-edit text-gray-400 hover:text-white text-sm"></i>
             </button>
+            <button class="p-1 hover:bg-dark-700 rounded transition-colors" onclick='clonePlaylist(<%- JSON.stringify(playlist.id) %>, <%- JSON.stringify(playlist.name) %>)' title="Clone">
+              <i class="ti ti-copy text-gray-400 hover:text-white text-sm"></i>
+            </button>
             <button class="p-1 hover:bg-dark-700 rounded transition-colors" onclick='deletePlaylist(<%- JSON.stringify(playlist.id) %>, <%- JSON.stringify(playlist.name) %>)' title="Delete">
               <i class="ti ti-trash text-gray-400 hover:text-red-400 text-sm"></i>
             </button>
@@ -1019,6 +1022,37 @@ function deletePlaylist(playlistId, playlistName) {
         showToast('Error deleting playlist', 'error');
       });
   }
+}
+
+function clonePlaylist(playlistId, playlistName) {
+  const newName = prompt(`Enter name for the cloned playlist:`, `${playlistName} (Copy)`);
+  if (newName === null) return;
+  const trimmedName = newName.trim();
+  if (!trimmedName) {
+    showToast('Playlist name cannot be empty', 'error');
+    return;
+  }
+  
+  fetch(`/api/playlists/${playlistId}/clone`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ name: trimmedName })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showToast('Playlist cloned successfully', 'success');
+      location.reload();
+    } else {
+      showToast(data.error || 'Error cloning playlist', 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error cloning playlist:', error);
+    showToast('Error cloning playlist', 'error');
+  });
 }
 
 function submitPlaylist() {

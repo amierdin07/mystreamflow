@@ -1186,7 +1186,7 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
           addStreamLog(streamId, 'Stream ended - scheduled end time reached');
           if (wasActive) {
             try {
-              await Stream.updateStatus(streamId, 'done', currentStream.user_id, buildStopOptions('scheduled_end'));
+              await transitionStreamToDone(streamId, currentStream.user_id, buildStopOptions('scheduled_end'));
               if (schedulerService) {
                 schedulerService.handleStreamStopped(streamId);
               }
@@ -1217,14 +1217,14 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
                   const endTime = new Date(latestStream.end_time);
                   const now = new Date();
                   if (endTime.getTime() <= now.getTime()) {
-                    await Stream.updateStatus(streamId, 'done', latestStream.user_id, buildStopOptions('scheduled_end'));
+                    await transitionStreamToDone(streamId, latestStream.user_id, buildStopOptions('scheduled_end'));
                     cleanupStreamData(streamId);
                     return;
                   }
                 }
                 const result = await startStream(streamId, true, baseUrl);
                 if (!result.success) {
-                  await Stream.updateStatus(streamId, 'done', latestStream.user_id, buildStopOptions('start_failed', result.error || 'Retry start stream gagal.'));
+                  await transitionStreamToDone(streamId, latestStream.user_id, buildStopOptions('start_failed', result.error || 'Retry start stream gagal.'));
                   cleanupStreamData(streamId);
                 }
               } else {
@@ -1244,7 +1244,7 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
         try {
           const retryCount = streamRetryCount.get(streamId) || 0;
           const reason = retryCount >= MAX_RETRY_ATTEMPTS ? 'ffmpeg_max_retries' : 'ffmpeg_exit';
-          await Stream.updateStatus(streamId, 'done', currentStream.user_id, buildStopOptions(reason, buildFfmpegStopMessage(code, signal)));
+          await transitionStreamToDone(streamId, currentStream.user_id, buildStopOptions(reason, buildFfmpegStopMessage(code, signal)));
           if (schedulerService) {
             schedulerService.handleStreamStopped(streamId);
           }
@@ -1324,7 +1324,7 @@ async function stopStream(streamId, options = {}) {
 
     if (!streamData) {
       if (stream && stream.status === 'live') {
-        await Stream.updateStatus(streamId, 'done', stream.user_id, buildStopOptions(options.reason || 'app_process_missing', options.message || null));
+        await transitionStreamToDone(streamId, stream.user_id, buildStopOptions(options.reason || 'app_process_missing', options.message || null));
         if (schedulerService) {
           schedulerService.handleStreamStopped(streamId);
         }
@@ -1350,7 +1350,7 @@ async function stopStream(streamId, options = {}) {
         } catch (e) { }
       }
 
-      await saveStreamHistory(stream);
+      await saveStreamHistory(stream, stopOptions);
       await Stream.updateStatus(streamId, 'done', stream.user_id, stopOptions);
     }
 
@@ -1654,7 +1654,7 @@ async function cleanupDoneStreams() {
   } catch (error) { }
 }
 
-async function saveStreamHistory(stream) {
+async function saveStreamHistory(stream, stopOptions = {}) {
   try {
     if (!stream.start_time) {
       return false;
@@ -1669,6 +1669,9 @@ async function saveStreamHistory(stream) {
     }
 
     const videoDetails = stream.video_id ? await Video.findById(stream.video_id) : null;
+
+    const stopReason = stopOptions.stopReason || 'unknown';
+    const status = (stopReason === 'scheduled_end' || stopReason === 'user_stop') ? 'done' : 'error';
 
     const historyData = {
       id: uuidv4(),
@@ -1685,21 +1688,26 @@ async function saveStreamHistory(stream) {
       end_time: endTime.toISOString(),
       duration: durationSeconds,
       use_advanced_settings: stream.use_advanced_settings ? 1 : 0,
-      user_id: stream.user_id
+      user_id: stream.user_id,
+      status: status,
+      last_stop_reason: stopReason,
+      last_stop_message: stopOptions.stopMessage || null
     };
 
     return new Promise((resolve, reject) => {
       db.run(
         `INSERT INTO stream_history (
           id, stream_id, title, platform, platform_icon, video_id, video_title,
-          resolution, bitrate, fps, start_time, end_time, duration, use_advanced_settings, user_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          resolution, bitrate, fps, start_time, end_time, duration, use_advanced_settings, user_id,
+          status, last_stop_reason, last_stop_message
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           historyData.id, historyData.stream_id, historyData.title,
           historyData.platform, historyData.platform_icon, historyData.video_id, historyData.video_title,
           historyData.resolution, historyData.bitrate, historyData.fps,
           historyData.start_time, historyData.end_time, historyData.duration,
-          historyData.use_advanced_settings, historyData.user_id
+          historyData.use_advanced_settings, historyData.user_id,
+          historyData.status, historyData.last_stop_reason, historyData.last_stop_message
         ],
         function (err) {
           if (err) {
@@ -1711,6 +1719,18 @@ async function saveStreamHistory(stream) {
     });
   } catch (error) {
     return false;
+  }
+}
+
+async function transitionStreamToDone(streamId, userId, stopOptions) {
+  try {
+    const stream = await Stream.findById(streamId);
+    if (stream) {
+      await saveStreamHistory(stream, stopOptions);
+      await Stream.updateStatus(streamId, 'done', userId, stopOptions);
+    }
+  } catch (error) {
+    console.error(`[StreamingService] Error transitioning stream ${streamId} to done:`, error);
   }
 }
 

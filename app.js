@@ -4848,6 +4848,56 @@ app.delete('/api/playlists/:id', isAuthenticated, async (req, res) => {
   }
 });
 
+app.post('/api/playlists/:id/clone', isAuthenticated, [
+  body('name').trim().isLength({ min: 1 }).withMessage('Playlist name is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const playlist = await Playlist.findByIdWithVideos(req.params.id);
+    if (!playlist) {
+      return res.status(404).json({ success: false, error: 'Playlist not found' });
+    }
+    if (playlist.user_id !== req.session.userId) {
+      return res.status(403).json({ success: false, error: 'Not authorized' });
+    }
+
+    const playlistData = {
+      name: req.body.name,
+      description: playlist.description || null,
+      is_shuffle: playlist.is_shuffle || 0,
+      user_id: req.session.userId,
+      youtube_channel_id: playlist.youtube_channel_id || null,
+      audio_track1_volume: playlist.audio_track1_volume !== undefined ? playlist.audio_track1_volume : 1.0,
+      audio_track2_volume: playlist.audio_track2_volume !== undefined ? playlist.audio_track2_volume : 1.0
+    };
+
+    const newPlaylist = await Playlist.create(playlistData);
+
+    if (playlist.videos && Array.isArray(playlist.videos) && playlist.videos.length > 0) {
+      for (let i = 0; i < playlist.videos.length; i++) {
+        await Playlist.addVideo(newPlaylist.id, playlist.videos[i].id, i + 1);
+      }
+    }
+
+    if (playlist.audios && Array.isArray(playlist.audios) && playlist.audios.length > 0) {
+      for (let i = 0; i < playlist.audios.length; i++) {
+        const audioItem = playlist.audios[i];
+        await Playlist.addAudio(newPlaylist.id, audioItem.id, i + 1, audioItem.track_number || 1);
+      }
+    }
+
+    res.json({ success: true, message: 'Playlist cloned successfully', id: newPlaylist.id });
+  } catch (error) {
+    console.error('Playlist CLONE error:', error);
+    res.status(500).json({ success: false, error: 'Failed to clone playlist: ' + error.message });
+  }
+});
+
+
 app.post('/api/playlists/:id/videos', isAuthenticated, [
   body('videoId').notEmpty().withMessage('Video ID is required')
 ], async (req, res) => {
