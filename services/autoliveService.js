@@ -480,13 +480,24 @@ class AutoliveService {
       const scheduledStart = targetStart || this.getNextStartTime(series, series.repeat_mode, series.custom_dates, getSeriesTimeZone(series));
       const scheduledEnd = targetEnd || new Date(scheduledStart.getTime() + ((series.duration || 60) * 60 * 1000));
       
+      // Round-based rotation: determine which item and title to use
+      const totalSessions = this.getTotalSessions(items);
+      let globalIndex = series.current_item_index || 0;
+
       const upcoming = this.getUpcomingSchedule(series, items, 15);
       const matchingSession = upcoming.find(s => s.startTime.getTime() === scheduledStart.getTime());
-      
-      let chosenSlotIndex = series.current_item_index || 0;
+
       if (matchingSession) {
-        chosenSlotIndex = (matchingSession.index - 1) % items.length;
+        globalIndex = matchingSession.globalIndex;
       }
+
+      if (globalIndex >= totalSessions) {
+        console.log(`[Autolive] Series "${series.name}" completed all ${totalSessions} sessions. Deactivating.`);
+        await Autolive.update(series.id, { is_active: 0, status: 'offline' });
+        return;
+      }
+
+      const { item: chosenSlot, titleIndex } = this.getItemForGlobalIndex(series, items, globalIndex);
 
       const isNewSessionCheck = await new Promise((resolve) => {
         const ts = scheduledStart.getTime();
@@ -496,15 +507,6 @@ class AutoliveService {
         });
       });
 
-      if (isNewSessionCheck && series.is_random_video === 1) {
-        const chosenSlotRand = await this.getNextRandomSlot(series, items);
-        const idx = items.findIndex(it => it.id === chosenSlotRand.id);
-        if (idx !== -1) {
-          chosenSlotIndex = idx;
-        }
-      }
-      
-      const chosenSlot = items[chosenSlotIndex % items.length] || items[0];
       const chosenVideoId = chosenSlot.internal_playlist_id || chosenSlot.video_id || series.internal_playlist_id || series.video_id;
 
       let streamRecord = await this.getOrCreateStreamRecord(series, {
@@ -536,17 +538,8 @@ class AutoliveService {
       const titles = chosenSlot.titles || [];
       const thumbnails = chosenSlot.thumbnails || [];
       
-      const titleIdx = chosenSlot.current_index % (titles.length || 1);
-      const thumbIdx = chosenSlot.current_index % (thumbnails.length || 1);
-      
-      const title = titles[titleIdx] || series.name;
-      const thumbnail = thumbnails[thumbIdx] || '';
-      
-      if (isNewSession) {
-        await new Promise((resolve) => {
-          db.run('UPDATE autolive_items SET current_index = ? WHERE id = ?', [chosenSlot.current_index + 1, chosenSlot.id], () => resolve());
-        });
-      }
+      const title = titles[titleIndex % (titles.length || 1)] || series.name;
+      const thumbnail = thumbnails[titleIndex % (thumbnails.length || 1)] || '';
 
       const sourceSettings = await getAutoliveSourceSettings(chosenSlot);
       const sourceRes = sourceSettings.resolution || null;
@@ -671,13 +664,18 @@ class AutoliveService {
       // Get current item metadata and update stream record BEFORE starting
       const items = await Autolive.getItemsBySeriesId(series.id);
       if (items.length > 0) {
-        const currentItem = items[series.current_item_index % items.length];
-        console.log(`[Autolive] Starting stream ${streamRecord.id} with metadata. Thumbnail: ${currentItem.thumbnail_path}`);
+        const { item: currentItem, titleIndex } = this.getItemForGlobalIndex(series, items, series.current_item_index || 0);
+        const itemTitles = Array.isArray(currentItem.titles) ? currentItem.titles : [];
+        const itemThumbnails = Array.isArray(currentItem.thumbnails) ? currentItem.thumbnails : [];
+        const currentTitle = itemTitles[titleIndex % (itemTitles.length || 1)] || currentItem.title || series.name;
+        const currentThumbnail = itemThumbnails[titleIndex % (itemThumbnails.length || 1)] || currentItem.thumbnail_path || '';
+        
+        console.log(`[Autolive] Starting stream ${streamRecord.id} with round-based metadata. Title: ${currentTitle}`);
         await Stream.update(streamRecord.id, {
-          title: currentItem.title,
+          title: currentTitle,
           youtube_description: currentItem.description || '',
           youtube_tags: currentItem.tags || '',
-          youtube_thumbnail: currentItem.thumbnail_path || '',
+          youtube_thumbnail: currentThumbnail,
           resolution: sourceSettings.resolution || streamRecord.resolution || null,
           bitrate: sourceSettings.bitrate || streamRecord.bitrate || 2500,
           fps: sourceSettings.fps || streamRecord.fps || 30,
@@ -687,7 +685,7 @@ class AutoliveService {
           made_for_kids: series.made_for_kids === 1 ? 1 : 0,
           youtube_playlist_id: series.playlist_id || null
         });
-        console.log(`[Autolive] Stream record updated with item[${series.current_item_index}]: "${currentItem.title}"`);
+        console.log(`[Autolive] Stream record updated with globalIndex[${series.current_item_index}]: "${currentTitle}"`);
       }
 
       const result = await streamingService.startStream(streamId, false, baseUrl);
@@ -734,12 +732,24 @@ class AutoliveService {
         message: 'Autolive berhenti karena durasi atau jadwal item sudah selesai.'
       });
       
-      await Autolive.update(series.id, { 
+      const newIndex = (series.current_item_index || 0) + 1;
+      const stopItems = await Autolive.getItemsBySeriesId(series.id);
+      const totalSessions = this.getTotalSessions(stopItems);
+
+      const updateData = { 
         status: 'offline',
         youtube_broadcast_id: null,
         youtube_stream_id: null,
-        current_item_index: series.current_item_index + 1
-      });
+        current_item_index: newIndex
+      };
+
+      // If all sessions are done, deactivate the series
+      if (newIndex >= totalSessions) {
+        updateData.is_active = 0;
+        console.log(`[Autolive] Series "${series.name}" completed all ${totalSessions} sessions. Deactivated.`);
+      }
+
+      await Autolive.update(series.id, updateData);
     } catch (error) {
       console.error(`[Autolive] Stop failed for "${series.name}":`, error);
     }
@@ -750,8 +760,15 @@ class AutoliveService {
       const items = await Autolive.getItemsBySeriesId(series.id);
       if (items.length <= 1) return;
 
-      const nextIndex = (series.current_item_index + 1) % items.length;
-      const nextItem = items[nextIndex];
+      const nextGlobalIndex = (series.current_item_index || 0) + 1;
+      const totalSessions = this.getTotalSessions(items);
+      if (nextGlobalIndex >= totalSessions) return; // No more sessions
+
+      const { item: nextItem, titleIndex: nextTitleIndex } = this.getItemForGlobalIndex(series, items, nextGlobalIndex);
+      const nextTitles = Array.isArray(nextItem.titles) ? nextItem.titles : [];
+      const nextThumbnails = Array.isArray(nextItem.thumbnails) ? nextItem.thumbnails : [];
+      const swapTitle = nextTitles[nextTitleIndex % (nextTitles.length || 1)] || nextItem.title || series.name;
+      const swapThumbnail = nextThumbnails[nextTitleIndex % (nextThumbnails.length || 1)] || nextItem.thumbnail_path || '';
       
       // Find currently live stream ID
       const streamId = await new Promise((resolve) => {
@@ -764,7 +781,7 @@ class AutoliveService {
 
       if (!stream || !stream.youtube_broadcast_id) return;
 
-      console.log(`[Autolive] Swapping to next metadata: ${nextItem.title}`);
+      console.log(`[Autolive] Swapping to next metadata (globalIndex ${nextGlobalIndex}): ${swapTitle}`);
       
       // Update YouTube via Service
       const user = await require('../models/User').findById(series.user_id);
@@ -772,23 +789,21 @@ class AutoliveService {
       const channel = await YoutubeChannel.findById(series.youtube_channel_id);
       
       if (user && channel) {
-        // Use the existing logic from app.js or youtubeService to update metadata
         await youtubeService.updateLiveMetadata(series.user_id, series.youtube_channel_id, stream.youtube_broadcast_id, {
-          title: nextItem.title,
+          title: swapTitle,
           description: nextItem.description || '',
-          thumbnail_path: nextItem.thumbnail_path
+          thumbnail_path: swapThumbnail
         });
 
-        // FIX: Also update the local streams record so the UI reflects the change
         const Stream = require('../models/Stream');
         await Stream.update(streamId, {
-          title: nextItem.title,
+          title: swapTitle,
           youtube_description: nextItem.description || '',
-          youtube_thumbnail: nextItem.thumbnail_path
+          youtube_thumbnail: swapThumbnail
         });
 
         await Autolive.update(series.id, {
-          current_item_index: nextIndex,
+          current_item_index: nextGlobalIndex,
           last_metadata_update: new Date().toISOString()
         });
       }
@@ -817,25 +832,29 @@ class AutoliveService {
         return { success: true, skipped: true, message: 'Linked stream task has not been created yet' };
       }
 
-      // Determine the correct item matching this stream's scheduled start
+      // Determine the correct item matching this stream's scheduled start (round-based)
       const upcoming = this.getUpcomingSchedule(series, items, 15);
       const streamStart = stream.schedule_time ? new Date(stream.schedule_time) : new Date(series.start_time);
       const matchingSession = upcoming.find(s => s.startTime.getTime() === streamStart.getTime());
       
-      let currentItem = items[0];
+      let globalIndex = series.current_item_index || 0;
       if (matchingSession) {
-        currentItem = items[(matchingSession.index - 1) % items.length];
-      } else {
-        currentItem = items[(series.current_item_index || 0) % items.length];
+        globalIndex = matchingSession.globalIndex;
       }
+
+      const { item: currentItem, titleIndex } = this.getItemForGlobalIndex(series, items, globalIndex);
+      const syncTitles = Array.isArray(currentItem.titles) ? currentItem.titles : [];
+      const syncThumbnails = Array.isArray(currentItem.thumbnails) ? currentItem.thumbnails : [];
+      const currentTitle = syncTitles[titleIndex % (syncTitles.length || 1)] || currentItem.title || series.name;
+      const currentThumbnail = syncThumbnails[titleIndex % (syncThumbnails.length || 1)] || currentItem.thumbnail_path || '';
 
       const sourceSettings = await getAutoliveSourceSettings(currentItem);
       await Stream.update(streamId, {
-        title: currentItem.title,
+        title: currentTitle,
         video_id: currentItem.internal_playlist_id || currentItem.video_id || series.internal_playlist_id || series.video_id,
         youtube_description: currentItem.description || '',
         youtube_tags: currentItem.tags || '',
-        youtube_thumbnail: currentItem.thumbnail_path || '',
+        youtube_thumbnail: currentThumbnail,
         resolution: sourceSettings.resolution || stream.resolution || null,
         bitrate: sourceSettings.bitrate || stream.bitrate || 2500,
         fps: sourceSettings.fps || stream.fps || 30,
@@ -848,11 +867,11 @@ class AutoliveService {
 
       if (stream.youtube_broadcast_id) {
         await youtubeService.updateLiveMetadata(series.user_id, series.youtube_channel_id, stream.youtube_broadcast_id, {
-          title: currentItem.title,
+          title: currentTitle,
           description: currentItem.description || '',
           tags: currentItem.tags || '',
           category: series.category_id || '10',
-          thumbnail_path: currentItem.thumbnail_path
+          thumbnail_path: currentThumbnail
         });
       }
 
@@ -863,6 +882,67 @@ class AutoliveService {
     }
   }
 
+  // === Round-based rotation helpers ===
+  
+  static getTotalSessions(items) {
+    if (!items || items.length === 0) return 0;
+    const maxTitles = Math.max(...items.map(it => {
+      const titles = Array.isArray(it.titles) ? it.titles : [];
+      return titles.length || 1;
+    }));
+    return items.length * maxTitles;
+  }
+
+  static getFullOrderForRound(seriesId, roundNumber, itemCount) {
+    if (itemCount <= 1) return [0];
+    
+    // Round 0: sequential order
+    if (roundNumber === 0) {
+      return Array.from({ length: itemCount }, (_, i) => i);
+    }
+    
+    // Round 1+: seeded shuffle
+    let order = seededShuffle(
+      Array.from({ length: itemCount }, (_, i) => i),
+      hashCode(seriesId + '_round_' + roundNumber)
+    );
+    
+    // Anti-consecutive: ensure first of this round != last of previous round
+    const prevOrder = this.getFullOrderForRound(seriesId, roundNumber - 1, itemCount);
+    const lastOfPrev = prevOrder[itemCount - 1];
+    
+    if (order[0] === lastOfPrev) {
+      for (let swapIdx = 1; swapIdx < order.length; swapIdx++) {
+        if (order[swapIdx] !== lastOfPrev) {
+          [order[0], order[swapIdx]] = [order[swapIdx], order[0]];
+          break;
+        }
+      }
+    }
+    
+    return order;
+  }
+
+  static getItemForGlobalIndex(series, items, globalIndex) {
+    const itemCount = items.length;
+    if (itemCount === 0) return { item: null, titleIndex: 0, roundNumber: 0, positionInRound: 0 };
+    
+    const roundNumber = Math.floor(globalIndex / itemCount);
+    const positionInRound = globalIndex % itemCount;
+    const titleIndex = roundNumber;
+    
+    const order = this.getFullOrderForRound(series.id, roundNumber, itemCount);
+    const videoIndex = order[positionInRound];
+    
+    return {
+      item: items[videoIndex],
+      titleIndex,
+      roundNumber,
+      positionInRound,
+      videoOrderIndex: videoIndex
+    };
+  }
+
   static getUpcomingSchedule(series, items, count = 5) {
     if (!items || items.length === 0) return [];
     
@@ -870,46 +950,43 @@ class AutoliveService {
     const timeZone = getSeriesTimeZone(series);
     const durationMs = (series.duration || 60) * 60 * 1000;
     const now = new Date();
+    const totalSessions = this.getTotalSessions(items);
     
     let currentStart = this.getCurrentSessionStart(series, series.repeat_mode, now, timeZone);
-    let itemIndex = series.current_item_index || 0;
+    let globalIndex = series.current_item_index || 0;
     
     // If the current session is already in the past (finished), move to next
     if (new Date(currentStart.getTime() + durationMs) < now) {
       currentStart = this.getNextStartTime(series, series.repeat_mode, series.custom_dates, timeZone);
     }
-
-    // Keep track of the rotation index of each slot item for schedule preview calculations
-    const slotRotationIndices = {};
-    items.forEach(it => {
-      slotRotationIndices[it.id] = it.current_index || 0;
-    });
     
     for (let i = 0; i < count; i++) {
-      const item = items[itemIndex % items.length];
+      // Stop if all sessions exhausted
+      if (globalIndex >= totalSessions) break;
+      
+      const { item, titleIndex, positionInRound } = this.getItemForGlobalIndex(series, items, globalIndex);
+      if (!item) break;
+      
       const titles = Array.isArray(item.titles) ? item.titles : [];
       const thumbnails = Array.isArray(item.thumbnails) ? item.thumbnails : [];
       
-      const currentRotIdx = slotRotationIndices[item.id] || 0;
-      const title = titles[currentRotIdx % (titles.length || 1)] || series.name;
-      const thumbnail = thumbnails[currentRotIdx % (thumbnails.length || 1)] || '';
+      const title = titles[titleIndex % (titles.length || 1)] || series.name;
+      const thumbnail = thumbnails[titleIndex % (thumbnails.length || 1)] || '';
 
       schedule.push({
         startTime: new Date(currentStart),
         endTime: new Date(currentStart.getTime() + durationMs),
         title: title,
         thumbnail: thumbnail,
-        index: (itemIndex % items.length) + 1
+        index: positionInRound + 1,
+        globalIndex: globalIndex,
+        titleIndex: titleIndex
       });
-
-      slotRotationIndices[item.id] = currentRotIdx + 1;
       
       // Calculate next start
       const stepDays = this.getRepeatStepDays(series.repeat_mode);
       if (series.repeat_mode === 'none' || !stepDays) {
         if (series.repeat_mode === 'custom' && series.custom_dates) {
-             // For custom dates, we'd need to find the next date in the list
-             // This is a bit complex for a simple helper, so we'll just stop after 1 or do a simple search
              try {
                  const dates = JSON.parse(series.custom_dates);
                  const timeParts = getZonedParts(parseLocalDateTime(series.start_time), timeZone);
@@ -936,7 +1013,6 @@ class AutoliveService {
         }
       } else {
         if (series.repeat_mode === 'daily' && series.daily_times) {
-            // For daily times, we get the next candidate after currentStart (+1s to avoid returning same time)
             const nextRelativeTo = new Date(currentStart.getTime() + 1000);
             currentStart = this.getNextStartTime(series, series.repeat_mode, null, timeZone, nextRelativeTo);
         } else {
@@ -944,7 +1020,7 @@ class AutoliveService {
             currentStart = makeDateInTimeZone(addDaysToZonedParts(currentParts, stepDays), timeZone);
         }
       }
-      itemIndex++;
+      globalIndex++;
     }
     
     return schedule;
@@ -1026,6 +1102,30 @@ function shuffleArray(array) {
     [array[i], array[j]] = [array[j], array[i]];
   }
   return array;
+}
+
+function hashCode(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return Math.abs(hash) || 1;
+}
+
+function seededShuffle(array, seed) {
+  const result = [...array];
+  let s = seed || 1;
+  const rng = () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
 }
 
 module.exports = AutoliveService;
