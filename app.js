@@ -976,38 +976,15 @@ app.get('/gallery', isAuthenticated, async (req, res) => {
   try {
     const YoutubeChannel = require('./models/YoutubeChannel');
     const channels = await YoutubeChannel.findAll(req.session.userId);
-    const channelId = req.query.channel;
-
-    if (!channelId) {
-      // Root view: show channels
-      return res.render('gallery', {
-        title: 'Video Gallery',
-        active: 'gallery',
-        user: await User.findById(req.session.userId),
-        channels: channels,
-        showChannels: true,
-        videos: [],
-        folders: [],
-        currentFolder: null,
-        currentFolderId: '',
-        currentChannelId: ''
-      });
-    }
 
     const currentFolderId = normalizeFolderId(req.query.folder);
-    const folders = await MediaFolder.findAllByUserAndChannel(req.session.userId, channelId);
+    const folders = await MediaFolder.findAllByUserAndChannel(req.session.userId, null);
     const currentFolder = currentFolderId ? await MediaFolder.findById(currentFolderId, req.session.userId) : null;
     if (currentFolderId && !currentFolder) {
-      return res.redirect(`/gallery?channel=${channelId}`);
+      return res.redirect(`/gallery`);
     }
-    const videos = await Video.findByUserAndFolderAndChannel(req.session.userId, currentFolderId, channelId);
+    const videos = await Video.findByUserAndFolderAndChannel(req.session.userId, currentFolderId, null);
     
-    let currentChannelName = 'General Assets';
-    if (channelId !== 'general') {
-      const ch = channels.find(c => c.id === channelId);
-      if (ch) currentChannelName = ch.channel_name;
-    }
-
     res.render('gallery', {
       title: 'Video Gallery',
       active: 'gallery',
@@ -1018,8 +995,8 @@ app.get('/gallery', isAuthenticated, async (req, res) => {
       folders: folders,
       currentFolder: currentFolder,
       currentFolderId: currentFolderId || '',
-      currentChannelId: channelId,
-      currentChannelName: currentChannelName
+      currentChannelId: '',
+      currentChannelName: ''
     });
   } catch (error) {
     console.error('Gallery error:', error);
@@ -1029,32 +1006,16 @@ app.get('/gallery', isAuthenticated, async (req, res) => {
 
 app.get('/api/gallery/data', isAuthenticated, async (req, res) => {
   try {
-    const channelId = req.query.channel;
     const currentFolderId = normalizeFolderId(req.query.folder);
 
-    if (!channelId) {
-      const YoutubeChannel = require('./models/YoutubeChannel');
-      const channels = await YoutubeChannel.findAll(req.session.userId);
-      return res.json({
-        success: true,
-        channels,
-        showChannels: true,
-        videos: [],
-        folders: [],
-        currentFolder: null,
-        currentFolderId: '',
-        currentChannelId: ''
-      });
-    }
-
-    const folders = await MediaFolder.findAllByUserAndChannel(req.session.userId, channelId);
+    const folders = await MediaFolder.findAllByUserAndChannel(req.session.userId, null);
     const currentFolder = currentFolderId ? await MediaFolder.findById(currentFolderId, req.session.userId) : null;
 
     if (currentFolderId && !currentFolder) {
       return res.status(404).json({ success: false, error: 'Folder not found' });
     }
 
-    const videos = await Video.findByUserAndFolderAndChannel(req.session.userId, currentFolderId, channelId);
+    const videos = await Video.findByUserAndFolderAndChannel(req.session.userId, currentFolderId, null);
     res.json({
       success: true,
       showChannels: false,
@@ -1062,7 +1023,7 @@ app.get('/api/gallery/data', isAuthenticated, async (req, res) => {
       folders,
       currentFolder,
       currentFolderId: currentFolderId || '',
-      currentChannelId: channelId
+      currentChannelId: ''
     });
   } catch (error) {
     console.error('Gallery data error:', error);
@@ -4589,35 +4550,11 @@ app.get('/playlist', isAuthenticated, async (req, res) => {
   try {
     const YoutubeChannel = require('./models/YoutubeChannel');
     const channels = await YoutubeChannel.findAll(req.session.userId);
-    const channelId = req.query.channel;
 
-    if (!channelId) {
-      // Root view: show channels
-      return res.render('playlist', {
-        title: 'Playlist',
-        active: 'playlist',
-        user: await User.findById(req.session.userId),
-        channels: channels,
-        showChannels: true,
-        playlists: [],
-        videos: [],
-        audios: [],
-        currentChannelId: ''
-      });
-    }
-
-    const playlists = await Playlist.findAllByUserAndChannel(req.session.userId, channelId);
+    const playlists = await Playlist.findAllByUserAndChannel(req.session.userId, null);
     
-    // For videos and audios shown in playlist creation sidebars, we should only fetch those belonging to this channel
-    let allVideosQuery = 'SELECT * FROM videos WHERE user_id = ?';
+    let allVideosQuery = 'SELECT * FROM videos WHERE user_id = ? ORDER BY upload_date DESC';
     const params = [req.session.userId];
-    if (channelId === 'general') {
-      allVideosQuery += ' AND youtube_channel_id IS NULL';
-    } else {
-      allVideosQuery += ' AND youtube_channel_id = ?';
-      params.push(channelId);
-    }
-    allVideosQuery += ' ORDER BY upload_date DESC';
     
     const db = require('./db/database').db;
     const allVideos = await new Promise((resolve, reject) => {
@@ -4638,12 +4575,6 @@ app.get('/playlist', isAuthenticated, async (req, res) => {
       return filepath.includes('/audio/') || filepath.endsWith('.m4a') || filepath.endsWith('.aac') || filepath.endsWith('.mp3');
     });
 
-    let currentChannelName = 'General Assets';
-    if (channelId !== 'general') {
-      const ch = channels.find(c => c.id === channelId);
-      if (ch) currentChannelName = ch.channel_name;
-    }
-
     res.render('playlist', {
       title: 'Playlist',
       active: 'playlist',
@@ -4653,8 +4584,8 @@ app.get('/playlist', isAuthenticated, async (req, res) => {
       playlists: playlists,
       videos: videos,
       audios: audios,
-      currentChannelId: channelId,
-      currentChannelName: currentChannelName
+      currentChannelId: '',
+      currentChannelName: ''
     });
   } catch (error) {
     console.error('Playlist error:', error);
