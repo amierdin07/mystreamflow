@@ -820,59 +820,59 @@ class AutoliveService {
       const items = await Autolive.getItemsBySeriesId(series.id);
       if (items.length === 0) return { success: false, error: 'No metadata items' };
 
-      const streamId = await new Promise((resolve) => {
-        db.get("SELECT id FROM streams WHERE id LIKE ? AND (status = 'live' OR status = 'scheduled') ORDER BY schedule_time ASC LIMIT 1", [`autolive_${series.id}%`], (err, row) => {
-          resolve(row ? row.id : null);
+      const streams = await new Promise((resolve) => {
+        db.all("SELECT * FROM streams WHERE id LIKE ? AND (status = 'live' OR status = 'scheduled')", [`autolive_${series.id}%`], (err, rows) => {
+          resolve(rows || []);
         });
-      }) || `autolive_${series.id}`;
-
-      const stream = await Stream.findById(streamId);
-
-      if (!stream) {
-        return { success: true, skipped: true, message: 'Linked stream task has not been created yet' };
-      }
-
-      // Determine the correct item matching this stream's scheduled start (round-based)
-      const upcoming = this.getUpcomingSchedule(series, items, 15);
-      const streamStart = stream.schedule_time ? new Date(stream.schedule_time) : new Date(series.start_time);
-      const matchingSession = upcoming.find(s => s.startTime.getTime() === streamStart.getTime());
-      
-      let globalIndex = series.current_item_index || 0;
-      if (matchingSession) {
-        globalIndex = matchingSession.globalIndex;
-      }
-
-      const { item: currentItem, titleIndex } = this.getItemForGlobalIndex(series, items, globalIndex);
-      const syncTitles = Array.isArray(currentItem.titles) ? currentItem.titles : [];
-      const syncThumbnails = Array.isArray(currentItem.thumbnails) ? currentItem.thumbnails : [];
-      const currentTitle = syncTitles[titleIndex % (syncTitles.length || 1)] || currentItem.title || series.name;
-      const currentThumbnail = syncThumbnails[titleIndex % (syncThumbnails.length || 1)] || currentItem.thumbnail_path || '';
-
-      const sourceSettings = await getAutoliveSourceSettings(currentItem);
-      await Stream.update(streamId, {
-        title: currentTitle,
-        video_id: currentItem.internal_playlist_id || currentItem.video_id || series.internal_playlist_id || series.video_id,
-        youtube_description: currentItem.description || '',
-        youtube_tags: currentItem.tags || '',
-        youtube_thumbnail: currentThumbnail,
-        resolution: sourceSettings.resolution || stream.resolution || null,
-        bitrate: sourceSettings.bitrate || stream.bitrate || 2500,
-        fps: sourceSettings.fps || stream.fps || 30,
-        youtube_privacy: series.privacy || 'public',
-        youtube_category: series.category_id || '10',
-        youtube_monetization: series.monetization_enabled === 1 ? 1 : 0,
-        made_for_kids: series.made_for_kids === 1 ? 1 : 0,
-        youtube_playlist_id: series.playlist_id || null
       });
 
-      if (stream.youtube_broadcast_id) {
-        await youtubeService.updateLiveMetadata(series.user_id, series.youtube_channel_id, stream.youtube_broadcast_id, {
+      if (streams.length === 0) {
+        return { success: true, skipped: true, message: 'Linked stream tasks have not been created yet' };
+      }
+
+      for (const stream of streams) {
+        // Determine the correct item matching this stream's scheduled start (round-based)
+        const upcoming = this.getUpcomingSchedule(series, items, 15);
+        const streamStart = stream.schedule_time ? new Date(stream.schedule_time) : new Date(series.start_time);
+        const matchingSession = upcoming.find(s => s.startTime.getTime() === streamStart.getTime());
+        
+        let globalIndex = series.current_item_index || 0;
+        if (matchingSession) {
+          globalIndex = matchingSession.globalIndex;
+        }
+
+        const { item: currentItem, titleIndex } = this.getItemForGlobalIndex(series, items, globalIndex);
+        const syncTitles = Array.isArray(currentItem.titles) ? currentItem.titles : [];
+        const syncThumbnails = Array.isArray(currentItem.thumbnails) ? currentItem.thumbnails : [];
+        const currentTitle = syncTitles[titleIndex % (syncTitles.length || 1)] || currentItem.title || series.name;
+        const currentThumbnail = syncThumbnails[titleIndex % (syncThumbnails.length || 1)] || currentItem.thumbnail_path || '';
+
+        const sourceSettings = await getAutoliveSourceSettings(currentItem);
+        await Stream.update(stream.id, {
           title: currentTitle,
-          description: currentItem.description || '',
-          tags: currentItem.tags || '',
-          category: series.category_id || '10',
-          thumbnail_path: currentThumbnail
+          video_id: currentItem.internal_playlist_id || currentItem.video_id || series.internal_playlist_id || series.video_id,
+          youtube_description: currentItem.description || '',
+          youtube_tags: currentItem.tags || '',
+          youtube_thumbnail: currentThumbnail,
+          resolution: sourceSettings.resolution || stream.resolution || null,
+          bitrate: sourceSettings.bitrate || stream.bitrate || 2500,
+          fps: sourceSettings.fps || stream.fps || 30,
+          youtube_privacy: series.privacy || 'public',
+          youtube_category: series.category_id || '10',
+          youtube_monetization: series.monetization_enabled === 1 ? 1 : 0,
+          made_for_kids: series.made_for_kids === 1 ? 1 : 0,
+          youtube_playlist_id: series.playlist_id || null
         });
+
+        if (stream.youtube_broadcast_id) {
+          await youtubeService.updateLiveMetadata(series.user_id, series.youtube_channel_id, stream.youtube_broadcast_id, {
+            title: currentTitle,
+            description: currentItem.description || '',
+            tags: currentItem.tags || '',
+            category: series.category_id || '10',
+            thumbnail_path: currentThumbnail
+          });
+        }
       }
 
       return { success: true };
