@@ -1555,28 +1555,34 @@ async function healthCheckStreams() {
 
           if (stream.youtube_stream_id) {
             try {
-              const health = await youtubeService.getStreamHealth(
-                stream.user_id,
-                stream.youtube_channel_id,
-                stream.youtube_stream_id
-              );
+              const User = require('../models/User');
+              const user = await User.findById(stream.user_id);
+              const hasTelegram = user && user.telegram_bot_token && user.telegram_chat_id;
 
-              if (health && health.status) {
-                const status = health.status.toLowerCase();
-                if (status === 'poor' || status === 'bad') {
-                  const lastNotified = poorSignalNotified.get(streamId);
-                  // Notify only once every 30 minutes to avoid spam
-                  if (!lastNotified || (now - lastNotified) > (30 * 60 * 1000)) {
-                    await notificationService.sendPoorSignalNotification(
-                      stream.user_id,
-                      stream.title,
-                      status,
-                      health.configurationIssues || []
-                    );
-                    poorSignalNotified.set(streamId, now);
+              if (hasTelegram) {
+                const health = await youtubeService.getStreamHealth(
+                  stream.user_id,
+                  stream.youtube_channel_id,
+                  stream.youtube_stream_id
+                );
+
+                if (health && health.status) {
+                  const status = health.status.toLowerCase();
+                  if (status === 'poor' || status === 'bad') {
+                    const lastNotified = poorSignalNotified.get(streamId);
+                    // Notify only once every 30 minutes to avoid spam
+                    if (!lastNotified || (now - lastNotified) > (30 * 60 * 1000)) {
+                      await notificationService.sendPoorSignalNotification(
+                        stream.user_id,
+                        stream.title,
+                        status,
+                        health.configurationIssues || []
+                      );
+                      poorSignalNotified.set(streamId, now);
+                    }
+                  } else if (status === 'good' || status === 'excellent') {
+                    poorSignalNotified.delete(streamId);
                   }
-                } else if (status === 'good' || status === 'excellent') {
-                  poorSignalNotified.delete(streamId);
                 }
               }
             } catch (healthError) {

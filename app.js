@@ -5258,6 +5258,66 @@ app.get('/api/autolive/:id', isAuthenticated, async (req, res) => {
   }
 });
 
+app.get('/api/autolive/:id/download-schedule', isAuthenticated, async (req, res) => {
+  try {
+    const Autolive = require('./models/Autolive');
+    const AutoliveService = require('./services/autoliveService');
+    const series = await Autolive.findByIdWithItems(req.params.id);
+    if (!series || series.user_id !== req.session.userId) {
+      return res.status(404).send('Autolive series not found or unauthorized');
+    }
+    
+    const items = series.items || [];
+    if (items.length === 0) {
+      return res.status(400).send('No items found in this autolive series.');
+    }
+    
+    const totalSessions = AutoliveService.getTotalSessions(items);
+    // Download up to 100 or totalSessions, whichever is larger (generous limit)
+    const count = Math.max(100, totalSessions);
+    const schedule = AutoliveService.getUpcomingSchedule(series, items, count);
+    
+    const tz = series.timezone || process.env.APP_TIMEZONE || process.env.TZ || 'Asia/Bangkok';
+    
+    let content = `JADWAL TAYANG AUTOLIVE: ${series.name}\r\n`;
+    content += `Status: ${series.is_active ? 'AKTIF' : 'NON-AKTIF'}\r\n`;
+    content += `Jadwal Ulang: ${series.repeat_mode}\r\n`;
+    content += `Timezone: ${tz}\r\n`;
+    content += `Total Jadwal: ${schedule.length} video\r\n`;
+    content += `Tanggal Diunduh: ${new Date().toLocaleString('en-US', { timeZone: tz })}\r\n`;
+    content += `\r\n`;
+    content += `================================================================================\r\n`;
+    content += `NO.  | TANGGAL & WAKTU TAYANG         | JUDUL VIDEO\r\n`;
+    content += `================================================================================\r\n`;
+    
+    schedule.forEach((sched, index) => {
+      const formattedDate = sched.startTime.toLocaleString('en-US', {
+        timeZone: tz,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      const noStr = String(index + 1).padEnd(4, ' ');
+      const dateStr = formattedDate.padEnd(30, ' ');
+      content += `${noStr} | ${dateStr} | ${sched.title}\r\n`;
+    });
+    
+    content += `================================================================================\r\n`;
+    
+    const safeFileName = series.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="jadwal_autolive_${safeFileName}.txt"`);
+    res.send(content);
+  } catch (error) {
+    console.error('Error downloading autolive schedule:', error);
+    res.status(500).send('Internal Server Error: ' + error.message);
+  }
+});
+
+
 app.post('/api/autolive/upload-thumbnails', isAuthenticated, uploadThumbnail.any(), async (req, res) => {
   try {
     const uploadedFiles = req.files || [];

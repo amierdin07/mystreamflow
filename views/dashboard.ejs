@@ -2540,7 +2540,16 @@
         const cachedViewers = viewerCountCache.get(viewerCacheKey) || '...';
         const viewerBadge = stream.youtube_broadcast_id ? `<span class="flex items-center mt-1 text-green-400 text-[10px]"><i class="ti ti-eye mr-0.5"></i> <span class="concurrent-viewers" data-channel-id="${stream.youtube_channel_id}" data-broadcast-id="${stream.youtube_broadcast_id}">${cachedViewers}</span></span>` : '';
         const cpuBadge = `<span class="stream-cpu-badge ${cpuHiddenClass} text-[9px] text-gray-400 bg-dark-900/50 px-1 py-0.5 rounded border border-gray-700 ml-1.5" data-stream-id="${stream.id}">${cpuText}</span>`;
-        statusBadge = `<div><div class="flex items-center"><span class="flex items-center text-red-400"><span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse mr-1"></span><span class="text-[10px] font-medium">Live${durationDisplay ? ' • ' : ''}</span>${durationDisplay ? `<span class="text-[10px] font-medium tabular-nums live-duration" data-start-time="${stream.start_time}">${durationDisplay}</span>` : ''}</span>${cpuBadge}</div>${viewerBadge}</div>`;
+        
+        let tokenEstimation = '';
+        if (stream.start_time && stream.is_youtube_api) {
+          const startTime = new Date(stream.start_time);
+          const durationMins = Math.floor((new Date() - startTime) / (1000 * 60));
+          const estimatedTokens = 200 + Math.floor(durationMins / 5) * 2;
+          tokenEstimation = `<span class="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-950/40 text-amber-400 border border-amber-800/30" title="Estimasi kuota API YouTube terpakai untuk task ini"><i class="ti ti-coin text-[8px]"></i>${estimatedTokens} API Quota</span>`;
+        }
+
+        statusBadge = `<div><div class="flex items-center"><span class="flex items-center text-red-400"><span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse mr-1"></span><span class="text-[10px] font-medium">Live${durationDisplay ? ' • ' : ''}</span>${durationDisplay ? `<span class="text-[10px] font-medium tabular-nums live-duration" data-start-time="${stream.start_time}">${durationDisplay}</span>` : ''}</span>${cpuBadge}</div>${viewerBadge}${tokenEstimation ? `<div class="mt-1">${tokenEstimation}</div>` : ''}</div>`;
       } else {
         statusBadge = getStatusBadgeHTML(stream.status, '', stream.schedule_time, stream.id);
       }
@@ -2652,6 +2661,17 @@
         const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
         const seconds = Math.floor((durationMs % (1000 * 60)) / 1000).toString().padStart(2, '0');
         durationDisplay = `${hours}:${minutes}:${seconds}`;
+        let tokenEstimation = '';
+        if (stream.is_youtube_api) {
+          const durationMins = Math.floor(durationMs / (1000 * 60));
+          const estimatedTokens = 200 + Math.floor(durationMins / 5) * 2;
+          tokenEstimation = `
+            <span class="flex items-center w-fit bg-amber-950/40 text-amber-400 rounded-full px-2.5 py-1 text-xs border border-amber-800/30 mt-1.5" title="Estimasi kuota API YouTube terpakai untuk task ini">
+              <i class="ti ti-coin mr-1 text-[10px]"></i> ${estimatedTokens} API Quota
+            </span>
+          `;
+        }
+
         statusBadge = `
           <div class="flex flex-col gap-1.5">
             <div class="flex items-center gap-2">
@@ -2666,6 +2686,7 @@
             <span class="flex items-center w-fit bg-gray-800 text-green-400 rounded-full px-2.5 py-1 text-xs border border-gray-700">
               <i class="ti ti-eye mr-1"></i> <span class="concurrent-viewers ml-1" data-channel-id="${stream.youtube_channel_id}" data-broadcast-id="${stream.youtube_broadcast_id}">${cachedViewers}</span>
             </span>` : ''}
+            ${tokenEstimation}
           </div>
         `;
       } else {
