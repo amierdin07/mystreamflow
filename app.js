@@ -5447,6 +5447,22 @@ app.get('/api/autolive/:id/download-schedule', isAuthenticated, async (req, res)
     const tz = series.timezone || process.env.APP_TIMEZONE || process.env.TZ || 'Asia/Bangkok';
 
     // Fetch actual stream history from the database
+    // Fetch all playlists and videos to resolve source names
+    const playlists = await new Promise((resolve) => {
+      db.all("SELECT id, name FROM playlists", [], (err, rows) => {
+        resolve(rows || []);
+      });
+    });
+    const playlistMap = new Map(playlists.map(p => [p.id, p.name]));
+
+    const videos = await new Promise((resolve) => {
+      db.all("SELECT id, title FROM videos", [], (err, rows) => {
+        resolve(rows || []);
+      });
+    });
+    const videoMap = new Map(videos.map(v => [v.id, v.title]));
+
+    // Fetch actual stream history from the database
     const dbStreams = await new Promise((resolve, reject) => {
       db.all(
         'SELECT * FROM streams WHERE id LIKE ? ORDER BY COALESCE(schedule_time, start_time) ASC',
@@ -5482,10 +5498,20 @@ app.get('/api/autolive/:id/download-schedule', isAuthenticated, async (req, res)
         statusStr = 'Gagal';
       }
 
+      let sourceName = 'Default';
+      if (stream.video_id) {
+        if (playlistMap.has(stream.video_id)) {
+          sourceName = `Playlist: ${playlistMap.get(stream.video_id)}`;
+        } else if (videoMap.has(stream.video_id)) {
+          sourceName = `Video: ${videoMap.get(stream.video_id)}`;
+        }
+      }
+
       scheduleItems.push({
         startTime,
         title: stream.title,
-        status: statusStr
+        status: statusStr,
+        sourceName
       });
     });
 
@@ -5497,10 +5523,24 @@ app.get('/api/autolive/:id/download-schedule', isAuthenticated, async (req, res)
     generatedUpcoming.forEach(sched => {
       const timeMs = sched.startTime.getTime();
       if (!dbStartTimes.has(timeMs)) {
+        // Resolve item source name
+        const { item } = AutoliveService.getItemForGlobalIndex(series, items, sched.globalIndex);
+        const itemId = item.internal_playlist_id || item.video_id || series.internal_playlist_id || series.video_id;
+        
+        let sourceName = 'Default';
+        if (itemId) {
+          if (playlistMap.has(itemId)) {
+            sourceName = `Playlist: ${playlistMap.get(itemId)}`;
+          } else if (videoMap.has(itemId)) {
+            sourceName = `Video: ${videoMap.get(itemId)}`;
+          }
+        }
+
         scheduleItems.push({
           startTime: sched.startTime,
           title: sched.title,
-          status: 'Belum Mulai'
+          status: 'Belum Mulai',
+          sourceName
         });
       }
     });
@@ -5515,9 +5555,9 @@ app.get('/api/autolive/:id/download-schedule', isAuthenticated, async (req, res)
     content += `Total Jadwal: ${scheduleItems.length} video (termasuk riwayat)\r\n`;
     content += `Tanggal Diunduh: ${new Date().toLocaleString('en-US', { timeZone: tz })}\r\n`;
     content += `\r\n`;
-    content += `====================================================================================================\r\n`;
-    content += `NO.  | TANGGAL & WAKTU TAYANG         | STATUS             | JUDUL VIDEO\r\n`;
-    content += `====================================================================================================\r\n`;
+    content += `========================================================================================================================================================================\r\n`;
+    content += `NO.  | TANGGAL & WAKTU TAYANG         | STATUS             | SUMBER (PLAYLIST/VIDEO)                      | JUDUL VIDEO\r\n`;
+    content += `========================================================================================================================================================================\r\n`;
     
     scheduleItems.forEach((item, index) => {
       const formattedDate = item.startTime.toLocaleString('en-US', {
@@ -5532,10 +5572,11 @@ app.get('/api/autolive/:id/download-schedule', isAuthenticated, async (req, res)
       const noStr = String(index + 1).padEnd(4, ' ');
       const dateStr = formattedDate.padEnd(30, ' ');
       const statusStr = item.status.padEnd(18, ' ');
-      content += `${noStr} | ${dateStr} | ${statusStr} | ${item.title}\r\n`;
+      const sourceStr = (item.sourceName || 'Default').padEnd(44, ' ');
+      content += `${noStr} | ${dateStr} | ${statusStr} | ${sourceStr} | ${item.title}\r\n`;
     });
     
-    content += `====================================================================================================\r\n`;
+    content += `========================================================================================================================================================================\r\n`;
     
     const safeFileName = series.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
