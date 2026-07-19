@@ -395,6 +395,27 @@ function createTables() {
         }
       });
 
+      db.run(`CREATE TABLE IF NOT EXISTS youtube_apps (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        client_id TEXT NOT NULL,
+        client_secret TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )`, (err) => {
+        if (err && !err.message.includes('already exists')) {
+          console.error('Error creating youtube_apps table:', err.message);
+        }
+      });
+
+      db.run(`ALTER TABLE youtube_channels ADD COLUMN app_id TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+          console.error('Error adding app_id column to youtube_channels:', err.message);
+        }
+      });
+
       db.run(`ALTER TABLE streams ADD COLUMN youtube_channel_id TEXT`, (err) => {
         if (err && !err.message.includes('duplicate column name')) {
           console.error('Error adding youtube_channel_id column to streams:', err.message);
@@ -678,11 +699,35 @@ function createTables() {
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY (video_id) REFERENCES videos(id)
               )`, (err) => {
-                if (err && !err.message.includes('already exists')) {
-                  console.error('Error creating loop_tasks table:', err.message);
-                }
-                resolve();
-              });
+                 if (err && !err.message.includes('already exists')) {
+                   console.error('Error creating loop_tasks table:', err.message);
+                 }
+                 
+                 // Migrate existing channels to use current user credentials if empty
+                 db.all(`SELECT youtube_client_id, youtube_client_secret FROM users LIMIT 1`, [], (userErr, rows) => {
+                   if (!userErr && rows && rows.length > 0) {
+                     const userRow = rows[0];
+                     if (userRow.youtube_client_id && userRow.youtube_client_secret) {
+                       db.run(
+                         `UPDATE youtube_channels 
+                          SET youtube_client_id = ?, youtube_client_secret = ? 
+                          WHERE youtube_client_id IS NULL OR youtube_client_id = ''`,
+                         [userRow.youtube_client_id, userRow.youtube_client_secret],
+                         (migErr) => {
+                           if (migErr) {
+                             console.error('Error migrating credentials on startup:', migErr.message);
+                           }
+                           resolve();
+                         }
+                       );
+                     } else {
+                       resolve();
+                     }
+                   } else {
+                     resolve();
+                   }
+                 });
+               });
                     });
                   });
                 });

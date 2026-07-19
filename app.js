@@ -1221,8 +1221,10 @@ app.get('/settings', isAuthenticated, async (req, res) => {
     const { decrypt } = require('./utils/encryption');
     const YoutubeChannel = require('./models/YoutubeChannel');
     const AppSettings = require('./models/AppSettings');
+    const YoutubeApp = require('./models/YoutubeApp');
     const hasYoutubeCredentials = !!(user.youtube_client_id && user.youtube_client_secret);
     const youtubeChannels = await YoutubeChannel.findAll(req.session.userId);
+    const youtubeApps = await YoutubeApp.findAll(req.session.userId);
     const isYoutubeConnected = youtubeChannels.length > 0;
     const defaultChannel = youtubeChannels.find(c => c.is_default) || youtubeChannels[0];
     
@@ -1237,6 +1239,7 @@ app.get('/settings', isAuthenticated, async (req, res) => {
       youtubeClientSecret: user.youtube_client_secret ? '••••••••••••••••' : '',
       youtubeConnected: isYoutubeConnected,
       youtubeChannels: youtubeChannels,
+      youtubeApps: youtubeApps,
       youtubeChannelName: defaultChannel?.channel_name || '',
       youtubeChannelThumbnail: defaultChannel?.channel_thumbnail || '',
       youtubeSubscriberCount: defaultChannel?.subscriber_count || '0',
@@ -2664,6 +2667,50 @@ app.post('/api/settings/youtube-credentials', isAuthenticated, [
   }
 });
 
+app.get('/api/youtube-apps', isAuthenticated, async (req, res) => {
+  try {
+    const YoutubeApp = require('./models/YoutubeApp');
+    const apps = await YoutubeApp.findAll(req.session.userId);
+    res.json({ success: true, apps });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/youtube-apps', isAuthenticated, [
+  body('name').trim().notEmpty().withMessage('Project/App Name is required'),
+  body('clientId').trim().notEmpty().withMessage('Client ID is required'),
+  body('clientSecret').trim().notEmpty().withMessage('Client Secret is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, error: errors.array()[0].msg });
+    }
+    const YoutubeApp = require('./models/YoutubeApp');
+    const { name, clientId, clientSecret } = req.body;
+    const newApp = await YoutubeApp.create({
+      user_id: req.session.userId,
+      name,
+      client_id: clientId,
+      client_secret: encrypt(clientSecret)
+    });
+    res.json({ success: true, app: newApp });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/youtube-apps/:id', isAuthenticated, async (req, res) => {
+  try {
+    const YoutubeApp = require('./models/YoutubeApp');
+    const success = await YoutubeApp.delete(req.params.id, req.session.userId);
+    res.json({ success });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/settings/youtube-status', isAuthenticated, async (req, res) => {
   try {
     const user = await User.findById(req.session.userId);
@@ -2904,11 +2951,26 @@ app.get('/auth/youtube', isAuthenticated, async (req, res) => {
   try {
     const user = await User.findById(req.session.userId);
     
-    if (!user.youtube_client_id || !user.youtube_client_secret) {
+    let clientId = user.youtube_client_id;
+    let clientSecretEncrypted = user.youtube_client_secret;
+    
+    if (req.query.app_id) {
+      const YoutubeApp = require('./models/YoutubeApp');
+      const appRecord = await YoutubeApp.findById(req.query.app_id);
+      if (appRecord && appRecord.user_id === req.session.userId) {
+        clientId = appRecord.client_id;
+        clientSecretEncrypted = appRecord.client_secret;
+        req.session.oauth_app_id = req.query.app_id;
+      }
+    } else {
+      delete req.session.oauth_app_id;
+    }
+    
+    if (!clientId || !clientSecretEncrypted) {
       return res.redirect('/settings?error=Please save your YouTube API credentials first&activeTab=integration');
     }
     
-    const clientSecret = decrypt(user.youtube_client_secret);
+    const clientSecret = decrypt(clientSecretEncrypted);
     if (!clientSecret) {
       return res.redirect('/settings?error=Failed to decrypt credentials&activeTab=integration');
     }
@@ -2917,7 +2979,7 @@ app.get('/auth/youtube', isAuthenticated, async (req, res) => {
     const redirectUri = `${baseUrl}/auth/youtube/callback`;
     console.log('[DEBUG] YouTube OAuth Redirect URI:', redirectUri);
     
-    const oauth2Client = getYouTubeOAuth2Client(user.youtube_client_id, clientSecret, redirectUri);
+    const oauth2Client = getYouTubeOAuth2Client(clientId, clientSecret, redirectUri);
     
     const scopes = [
       'https://www.googleapis.com/auth/youtube.readonly',
@@ -2954,11 +3016,25 @@ app.get('/auth/youtube/callback', isAuthenticated, async (req, res) => {
     
     const user = await User.findById(req.session.userId);
     
-    if (!user.youtube_client_id || !user.youtube_client_secret) {
+    let clientId = user.youtube_client_id;
+    let clientSecretEncrypted = user.youtube_client_secret;
+    let appId = null;
+
+    if (req.session.oauth_app_id) {
+      const YoutubeApp = require('./models/YoutubeApp');
+      const appRecord = await YoutubeApp.findById(req.session.oauth_app_id);
+      if (appRecord && appRecord.user_id === req.session.userId) {
+        clientId = appRecord.client_id;
+        clientSecretEncrypted = appRecord.client_secret;
+        appId = appRecord.id;
+      }
+    }
+
+    if (!clientId || !clientSecretEncrypted) {
       return res.redirect('/settings?error=YouTube credentials not found&activeTab=integration');
     }
     
-    const clientSecret = decrypt(user.youtube_client_secret);
+    const clientSecret = decrypt(clientSecretEncrypted);
     if (!clientSecret) {
       return res.redirect('/settings?error=Failed to decrypt credentials&activeTab=integration');
     }
@@ -2967,7 +3043,7 @@ app.get('/auth/youtube/callback', isAuthenticated, async (req, res) => {
     const redirectUri = `${baseUrl}/auth/youtube/callback`;
     console.log('[DEBUG] YouTube Callback Redirect URI:', redirectUri);
     
-    const oauth2Client = getYouTubeOAuth2Client(user.youtube_client_id, clientSecret, redirectUri);
+    const oauth2Client = getYouTubeOAuth2Client(clientId, clientSecret, redirectUri);
     
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
@@ -2989,7 +3065,7 @@ app.get('/auth/youtube/callback', isAuthenticated, async (req, res) => {
     const subscriberCount = channel.statistics?.subscriberCount || '0';
     
     const YoutubeChannel = require('./models/YoutubeChannel');
-    const existingChannel = await YoutubeChannel.findByChannelIdAndClientId(req.session.userId, channelId, user.youtube_client_id);
+    const existingChannel = await YoutubeChannel.findByChannelIdAndClientId(req.session.userId, channelId, clientId);
     
     if (existingChannel) {
       await YoutubeChannel.update(existingChannel.id, {
@@ -2998,8 +3074,9 @@ app.get('/auth/youtube/callback', isAuthenticated, async (req, res) => {
         channel_name: channelName,
         channel_thumbnail: channelThumbnail,
         subscriber_count: subscriberCount,
-        youtube_client_id: user.youtube_client_id,
-        youtube_client_secret: user.youtube_client_secret
+        youtube_client_id: clientId,
+        youtube_client_secret: clientSecretEncrypted,
+        app_id: appId
       });
     } else {
       await YoutubeChannel.create({
@@ -3010,14 +3087,18 @@ app.get('/auth/youtube/callback', isAuthenticated, async (req, res) => {
         subscriber_count: subscriberCount,
         access_token: encrypt(tokens.access_token),
         refresh_token: tokens.refresh_token ? encrypt(tokens.refresh_token) : null,
-        youtube_client_id: user.youtube_client_id,
-        youtube_client_secret: user.youtube_client_secret
+        youtube_client_id: clientId,
+        youtube_client_secret: clientSecretEncrypted,
+        app_id: appId
       });
     }
     
     await User.update(req.session.userId, {
       youtube_redirect_uri: redirectUri
     });
+    
+    // Clean up temporary session value
+    delete req.session.oauth_app_id;
     
     res.redirect('/settings?success=YouTube channel connected successfully&activeTab=integration');
   } catch (error) {

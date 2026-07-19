@@ -333,6 +333,38 @@
                 </button>
               </div>
             </form>
+
+            <!-- YouTube API Projects (For Quota Rotation) -->
+            <div class="bg-dark-900/50 rounded-xl p-6 border border-gray-700/50 shadow-lg mt-6 space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h4 class="text-base font-semibold text-white">Secondary API Projects</h4>
+                  <p class="text-gray-400 text-xs mt-0.5">Daftarkan Client ID tambahan untuk rotasi kuota.</p>
+                </div>
+                <button type="button" onclick="openAddYtAppModal()" class="px-2.5 py-1.5 bg-primary hover:bg-blue-600 text-white rounded-lg transition-colors text-xs flex items-center gap-1">
+                  <i class="ti ti-plus"></i>
+                  <span>Add Project</span>
+                </button>
+              </div>
+              
+              <div id="youtube-apps-list" class="space-y-2">
+                <% if (typeof youtubeApps !== 'undefined' && youtubeApps.length > 0) { %>
+                  <% youtubeApps.forEach(function(app) { %>
+                    <div class="bg-dark-900 rounded-lg p-3 border border-gray-700 flex items-center justify-between gap-4">
+                      <div class="min-w-0 flex-1">
+                        <p class="font-medium text-white text-xs truncate"><%= app.name %></p>
+                        <p class="text-[10px] text-gray-500 font-mono select-all truncate" title="<%= app.client_id %>"><%= app.client_id.substring(0, 25) %>...</p>
+                      </div>
+                      <button type="button" onclick="deleteYtApp('<%= app.id %>')" class="p-1 text-gray-500 hover:text-red-400 transition-colors flex-shrink-0">
+                        <i class="ti ti-trash text-sm"></i>
+                      </button>
+                    </div>
+                  <% }); %>
+                <% } else { %>
+                  <p class="text-xs text-gray-500 text-center py-4">No secondary API projects added yet.</p>
+                <% } %>
+              </div>
+            </div>
           </div>
 
           <div class="lg:pl-8 space-y-8">
@@ -342,12 +374,45 @@
                   <h4 class="text-lg font-semibold mb-1">Connected Channels</h4>
                   <p class="text-gray-400 text-sm">Manage your YouTube channels for streaming</p>
                 </div>
-                <button type="button" id="connect-youtube"
-                  class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  <%= (typeof hasYoutubeCredentials === 'undefined' || !hasYoutubeCredentials) ? 'disabled' : '' %>>
-                  <i class="ti ti-plus"></i>
-                  <span>Add Channel</span>
-                </button>
+                <div class="relative" id="add-channel-dropdown">
+                  <button type="button" id="connect-youtube-dropdown-btn"
+                    class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    <% 
+                      const hasAnyCredentials = (typeof hasYoutubeCredentials !== 'undefined' && hasYoutubeCredentials) || (typeof youtubeApps !== 'undefined' && youtubeApps.length > 0);
+                    %>
+                    <%= !hasAnyCredentials ? 'disabled' : '' %>
+                    onclick="toggleAddChannelDropdown()">
+                    <i class="ti ti-plus"></i>
+                    <span>Add Channel</span>
+                    <i class="ti ti-chevron-down text-xs ml-1"></i>
+                  </button>
+                  <div id="add-channel-menu" class="hidden absolute right-0 mt-2 w-64 bg-dark-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1 overflow-hidden">
+                    <% if (typeof hasYoutubeCredentials !== 'undefined' && hasYoutubeCredentials) { %>
+                    <button type="button" onclick="connectWithApi()" class="w-full text-left px-4 py-2.5 hover:bg-dark-700 transition-colors flex items-center gap-3">
+                      <div class="w-7 h-7 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+                        <i class="ti ti-key text-blue-400 text-sm"></i>
+                      </div>
+                      <div class="min-w-0">
+                        <p class="text-white text-sm font-medium truncate">Default API</p>
+                        <p class="text-gray-500 text-[10px] font-mono truncate"><%= youtubeClientId ? youtubeClientId.substring(0, 20) + '...' : '' %></p>
+                      </div>
+                    </button>
+                    <% } %>
+                    <% if (typeof youtubeApps !== 'undefined' && youtubeApps.length > 0) { %>
+                      <% youtubeApps.forEach(function(app) { %>
+                    <button type="button" onclick="connectWithApi('<%= app.id %>')" class="w-full text-left px-4 py-2.5 hover:bg-dark-700 transition-colors flex items-center gap-3">
+                      <div class="w-7 h-7 rounded-full bg-green-600/20 flex items-center justify-center flex-shrink-0">
+                        <i class="ti ti-key text-green-400 text-sm"></i>
+                      </div>
+                      <div class="min-w-0">
+                        <p class="text-white text-sm font-medium truncate"><%= app.name %></p>
+                        <p class="text-gray-500 text-[10px] font-mono truncate"><%= app.client_id.substring(0, 20) %>...</p>
+                      </div>
+                    </button>
+                      <% }); %>
+                    <% } %>
+                  </div>
+                </div>
               </div>
               
               <div id="youtube-channels-list" class="space-y-3">
@@ -372,7 +437,15 @@
                                 <span class="px-2 py-0.5 bg-blue-600/20 text-blue-600 text-xs rounded-sm">Default</span>
                               <% } %>
                             </div>
-                            <p class="text-xs text-gray-400"><%= Number(channel.subscriber_count || 0).toLocaleString() %> subscribers • API: <%= channel.youtube_client_id ? channel.youtube_client_id.substring(0, 8) + '...' : 'Default' %></p>
+                            <p class="text-xs text-gray-400"><%= Number(channel.subscriber_count || 0).toLocaleString() %> subscribers</p>
+                            <% 
+                              let apiLabel = 'Default API';
+                              if (channel.app_id && typeof youtubeApps !== 'undefined') {
+                                const linkedApp = youtubeApps.find(a => a.id === channel.app_id);
+                                if (linkedApp) apiLabel = linkedApp.name;
+                              }
+                            %>
+                            <p class="text-[10px] text-gray-500 mt-0.5"><i class="ti ti-key mr-0.5"></i><%= apiLabel %></p>
                           </div>
                         </div>
                         <div class="flex items-center gap-2">
@@ -606,6 +679,47 @@
     <i id="toast-icon" class="mr-2"></i>
     <span id="toast-message"></span>
   </div>
+
+  <!-- Add YouTube API Project Modal -->
+  <div id="addYtAppModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+    <div class="bg-dark-800 rounded-xl border border-gray-700 shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between p-5 border-b border-gray-700">
+        <div>
+          <h3 class="text-lg font-semibold text-white">Add API Project</h3>
+          <p class="text-gray-400 text-xs mt-0.5">Tambahkan Client ID dari Google Cloud Project baru</p>
+        </div>
+        <button onclick="closeAddYtAppModal()" class="text-gray-400 hover:text-white transition-colors">
+          <i class="ti ti-x text-xl"></i>
+        </button>
+      </div>
+      <form onsubmit="submitAddYtApp(event)" class="p-5 space-y-4">
+        <div class="space-y-1.5">
+          <label class="block text-sm font-medium text-gray-300">Nama Project</label>
+          <input type="text" id="ytAppName" placeholder="Misal: Project B, Project Cadangan"
+            class="bg-dark-900 text-white px-3 py-2 rounded-lg block w-full focus:outline-none focus:ring-1 focus:ring-primary border border-gray-700 text-sm">
+        </div>
+        <div class="space-y-1.5">
+          <label class="block text-sm font-medium text-gray-300">Client ID</label>
+          <input type="text" id="ytAppClientId" placeholder="xxxx.apps.googleusercontent.com"
+            class="bg-dark-900 text-white px-3 py-2 rounded-lg block w-full focus:outline-none focus:ring-1 focus:ring-primary border border-gray-700 text-sm font-mono">
+        </div>
+        <div class="space-y-1.5">
+          <label class="block text-sm font-medium text-gray-300">Client Secret</label>
+          <input type="password" id="ytAppClientSecret" placeholder="Enter Client Secret"
+            class="bg-dark-900 text-white px-3 py-2 rounded-lg block w-full focus:outline-none focus:ring-1 focus:ring-primary border border-gray-700 text-sm">
+        </div>
+        <div class="flex items-center gap-3 pt-2">
+          <button type="submit" class="flex-1 px-4 py-2.5 bg-primary hover:bg-blue-600 text-white rounded-lg transition-colors text-sm font-medium">
+            <i class="ti ti-plus mr-1"></i>Add Project
+          </button>
+          <button type="button" onclick="closeAddYtAppModal()" class="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     function showToast(type, message) {
       const toast = document.getElementById('toast');
@@ -1038,7 +1152,7 @@
       const youtubeCredentialsForm = document.getElementById('youtube-credentials-form');
       const youtubeClientIdInput = document.getElementById('youtube-client-id');
       const youtubeClientSecretInput = document.getElementById('youtube-client-secret');
-      const connectYoutubeBtn = document.getElementById('connect-youtube');
+      const connectYoutubeBtn = document.getElementById('connect-youtube-dropdown-btn');
       const disconnectYoutubeBtn = document.getElementById('disconnect-youtube');
 
       function generateRedirectUri() {
@@ -1133,10 +1247,82 @@
         });
       }
 
-      if (connectYoutubeBtn) {
-        connectYoutubeBtn.addEventListener('click', () => {
-          window.location.href = '/auth/youtube';
-        });
+      // --- YouTube API Projects & Add Channel Dropdown ---
+      function toggleAddChannelDropdown() {
+        const menu = document.getElementById('add-channel-menu');
+        menu.classList.toggle('hidden');
+      }
+      document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('add-channel-dropdown');
+        const menu = document.getElementById('add-channel-menu');
+        if (dropdown && menu && !dropdown.contains(e.target)) {
+          menu.classList.add('hidden');
+        }
+      });
+
+      function connectWithApi(appId) {
+        const menu = document.getElementById('add-channel-menu');
+        if (menu) menu.classList.add('hidden');
+        const url = appId ? `/auth/youtube?app_id=${appId}` : '/auth/youtube';
+        window.location.href = url;
+      }
+
+      function openAddYtAppModal() {
+        document.getElementById('addYtAppModal').classList.remove('hidden');
+        document.getElementById('ytAppName').focus();
+      }
+      function closeAddYtAppModal() {
+        document.getElementById('addYtAppModal').classList.add('hidden');
+        document.getElementById('ytAppName').value = '';
+        document.getElementById('ytAppClientId').value = '';
+        document.getElementById('ytAppClientSecret').value = '';
+      }
+
+      async function submitAddYtApp(e) {
+        e.preventDefault();
+        const name = document.getElementById('ytAppName').value.trim();
+        const clientId = document.getElementById('ytAppClientId').value.trim();
+        const clientSecret = document.getElementById('ytAppClientSecret').value.trim();
+        if (!name || !clientId || !clientSecret) {
+          showToast('error', 'Semua field harus diisi');
+          return;
+        }
+        try {
+          const res = await fetch('/api/youtube-apps', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '<%= csrfToken %>' },
+            body: JSON.stringify({ name, clientId, clientSecret })
+          });
+          const data = await res.json();
+          if (data.success) {
+            showToast('success', 'API Project added successfully');
+            closeAddYtAppModal();
+            setTimeout(() => window.location.reload(), 1000);
+          } else {
+            showToast('error', data.error || 'Failed to add project');
+          }
+        } catch (err) {
+          showToast('error', 'Failed to add project');
+        }
+      }
+
+      async function deleteYtApp(id) {
+        if (!confirm('Delete this API Project? Connected channels using this project will still work.')) return;
+        try {
+          const res = await fetch(`/api/youtube-apps/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-Token': '<%= csrfToken %>' }
+          });
+          const data = await res.json();
+          if (data.success) {
+            showToast('success', 'API Project deleted');
+            setTimeout(() => window.location.reload(), 1000);
+          } else {
+            showToast('error', data.error || 'Failed to delete');
+          }
+        } catch (err) {
+          showToast('error', 'Failed to delete project');
+        }
       }
 
       const disconnectAllBtn = document.getElementById('disconnect-all-youtube');
