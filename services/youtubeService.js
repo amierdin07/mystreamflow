@@ -499,12 +499,16 @@ async function getYoutubeInstance(userId, channelId) {
   const selectedChannel = await YoutubeChannel.findById(channelId);
   if (!user || !selectedChannel || !selectedChannel.access_token) return null;
   
-  const clientSecret = decrypt(user.youtube_client_secret);
+  // Use channel-specific client credentials if available, otherwise fall back to user-wide credentials
+  const clientId = selectedChannel.youtube_client_id || user.youtube_client_id;
+  const clientSecretEncrypted = selectedChannel.youtube_client_secret || user.youtube_client_secret;
+  
+  const clientSecret = decrypt(clientSecretEncrypted);
   const accessToken = decrypt(selectedChannel.access_token);
   const refreshToken = decrypt(selectedChannel.refresh_token);
   
   const baseUrl = process.env.BASE_URL || 'http://localhost:7575';
-  const oauth2Client = getYouTubeOAuth2Client(user.youtube_client_id, clientSecret, baseUrl);
+  const oauth2Client = getYouTubeOAuth2Client(clientId, clientSecret, baseUrl);
   oauth2Client.setCredentials({
     access_token: accessToken,
     refresh_token: refreshToken

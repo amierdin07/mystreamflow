@@ -2989,7 +2989,7 @@ app.get('/auth/youtube/callback', isAuthenticated, async (req, res) => {
     const subscriberCount = channel.statistics?.subscriberCount || '0';
     
     const YoutubeChannel = require('./models/YoutubeChannel');
-    const existingChannel = await YoutubeChannel.findByChannelId(req.session.userId, channelId);
+    const existingChannel = await YoutubeChannel.findByChannelIdAndClientId(req.session.userId, channelId, user.youtube_client_id);
     
     if (existingChannel) {
       await YoutubeChannel.update(existingChannel.id, {
@@ -2997,7 +2997,9 @@ app.get('/auth/youtube/callback', isAuthenticated, async (req, res) => {
         refresh_token: tokens.refresh_token ? encrypt(tokens.refresh_token) : existingChannel.refresh_token,
         channel_name: channelName,
         channel_thumbnail: channelThumbnail,
-        subscriber_count: subscriberCount
+        subscriber_count: subscriberCount,
+        youtube_client_id: user.youtube_client_id,
+        youtube_client_secret: user.youtube_client_secret
       });
     } else {
       await YoutubeChannel.create({
@@ -3007,7 +3009,9 @@ app.get('/auth/youtube/callback', isAuthenticated, async (req, res) => {
         channel_thumbnail: channelThumbnail,
         subscriber_count: subscriberCount,
         access_token: encrypt(tokens.access_token),
-        refresh_token: tokens.refresh_token ? encrypt(tokens.refresh_token) : null
+        refresh_token: tokens.refresh_token ? encrypt(tokens.refresh_token) : null,
+        youtube_client_id: user.youtube_client_id,
+        youtube_client_secret: user.youtube_client_secret
       });
     }
     
