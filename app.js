@@ -5551,13 +5551,38 @@ app.get('/api/autolive/:id/download-schedule', isAuthenticated, async (req, res)
 app.post('/api/autolive/upload-thumbnails', isAuthenticated, uploadThumbnail.any(), async (req, res) => {
   try {
     const uploadedFiles = req.files || [];
-    const thumbnails = uploadedFiles.map(file => {
-      return {
-        originalName: file.originalname,
-        filename: file.filename,
-        path: `/uploads/thumbnails/${file.filename}`
-      };
-    });
+    const thumbnails = [];
+    
+    for (const file of uploadedFiles) {
+      const thumbFilename = `thumb-${path.parse(file.filename).name}.jpg`;
+      try {
+        await generateImageThumbnail(file.path, thumbFilename);
+        
+        // Clean up the original uploaded file to save space if it's different from the thumbnail
+        if (file.filename !== thumbFilename) {
+          try {
+            fs.unlinkSync(file.path);
+          } catch (unlinkErr) {
+            console.warn('[Autolive] Failed to delete original uploaded file:', unlinkErr.message);
+          }
+        }
+        
+        thumbnails.push({
+          originalName: file.originalname,
+          filename: thumbFilename,
+          path: `/uploads/thumbnails/${thumbFilename}`
+        });
+      } catch (thumbErr) {
+        console.error('[Autolive] Error generating thumbnail on upload:', thumbErr);
+        // Fallback to original uploaded file if ffmpeg fails
+        thumbnails.push({
+          originalName: file.originalname,
+          filename: file.filename,
+          path: `/uploads/thumbnails/${file.filename}`
+        });
+      }
+    }
+    
     res.json({ success: true, thumbnails });
   } catch (error) {
     console.error('Error uploading thumbnails:', error);
@@ -5610,8 +5635,23 @@ app.post('/api/autolive', isAuthenticated, uploadThumbnail.any(), async (req, re
         const fileKey = `slot_${i}_thumbnail_${j}`;
         const file = uploadedFileMap.get(fileKey);
         if (file) {
-          finalOriginals.push(file.filename);
-          finalThumbnails.push(`/uploads/thumbnails/${file.filename}`);
+          const thumbFilename = `thumb-${path.parse(file.filename).name}.jpg`;
+          try {
+            await generateImageThumbnail(file.path, thumbFilename);
+            if (file.filename !== thumbFilename) {
+              try {
+                fs.unlinkSync(file.path);
+              } catch (unlinkErr) {
+                console.warn('[Autolive] Failed to delete original uploaded file:', unlinkErr.message);
+              }
+            }
+            finalOriginals.push(thumbFilename);
+            finalThumbnails.push(`/uploads/thumbnails/${thumbFilename}`);
+          } catch (thumbErr) {
+            console.error('[Autolive] Error generating thumbnail on save:', thumbErr);
+            finalOriginals.push(file.filename);
+            finalThumbnails.push(`/uploads/thumbnails/${file.filename}`);
+          }
         }
       }
       
@@ -5694,8 +5734,23 @@ app.put('/api/autolive/:id', isAuthenticated, uploadThumbnail.any(), async (req,
           const fileKey = `slot_${i}_thumbnail_${j}`;
           const file = uploadedFileMap.get(fileKey);
           if (file) {
-            finalOriginals.push(file.filename);
-            finalThumbnails.push(`/uploads/thumbnails/${file.filename}`);
+            const thumbFilename = `thumb-${path.parse(file.filename).name}.jpg`;
+            try {
+              await generateImageThumbnail(file.path, thumbFilename);
+              if (file.filename !== thumbFilename) {
+                try {
+                  fs.unlinkSync(file.path);
+                } catch (unlinkErr) {
+                  console.warn('[Autolive] Failed to delete original uploaded file:', unlinkErr.message);
+                }
+              }
+              finalOriginals.push(thumbFilename);
+              finalThumbnails.push(`/uploads/thumbnails/${thumbFilename}`);
+            } catch (thumbErr) {
+              console.error('[Autolive] Error generating thumbnail on save:', thumbErr);
+              finalOriginals.push(file.filename);
+              finalThumbnails.push(`/uploads/thumbnails/${file.filename}`);
+            }
           }
         }
 

@@ -44,7 +44,8 @@ const generateImageThumbnail = (imagePath, thumbnailName) => {
     const thumbnailPath = path.join(paths.thumbnails, thumbnailName);
     ffmpeg(imagePath)
       .outputOptions([
-        '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2'
+        '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2',
+        '-q:v', '2'
       ])
       .output(thumbnailPath)
       .on('end', () => {

@@ -103,6 +103,39 @@ function resolveThumbnailPath(thumbnailPath) {
   return candidates[0];
 }
 
+async function ensureCompressedThumbnailPath(thumbnailPath) {
+  if (!thumbnailPath || !fs.existsSync(thumbnailPath)) return thumbnailPath;
+
+  try {
+    const stats = fs.statSync(thumbnailPath);
+    const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+    if (stats.size <= MAX_SIZE) {
+      return thumbnailPath;
+    }
+
+    console.log(`[YouTubeService] Thumbnail file size (${(stats.size / 1024 / 1024).toFixed(2)}MB) exceeds 2MB limit. Resizing and compressing...`);
+    const parsed = path.parse(thumbnailPath);
+    const compressedName = `${parsed.name}-compressed.jpg`;
+    
+    // Lazy load to prevent circular dependencies
+    const { generateImageThumbnail } = require('../utils/videoProcessor');
+    const { paths } = require('../utils/storage');
+    const compressedPath = path.join(paths.thumbnails, compressedName);
+
+    await generateImageThumbnail(thumbnailPath, compressedName);
+
+    if (fs.existsSync(compressedPath)) {
+      const newStats = fs.statSync(compressedPath);
+      console.log(`[YouTubeService] Successfully resized and compressed thumbnail to ${(newStats.size / 1024 / 1024).toFixed(2)}MB`);
+      return compressedPath;
+    }
+  } catch (err) {
+    console.error('[YouTubeService] Failed to resize thumbnail on-the-fly:', err.message);
+  }
+
+  return thumbnailPath;
+}
+
 function handleYoutubeError(error, context = '') {
   const message = error.message || '';
   const errors = error.errors || [];
@@ -364,11 +397,12 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
       const thumbnailPath = resolveThumbnailPath(stream.youtube_thumbnail);
       if (fs.existsSync(thumbnailPath)) {
         console.log(`[YouTubeService] Found thumbnail file at: ${thumbnailPath}`);
-        const thumbnailStream = fs.createReadStream(thumbnailPath);
+        const finalPath = await ensureCompressedThumbnailPath(thumbnailPath);
+        const thumbnailStream = fs.createReadStream(finalPath);
         await youtube.thumbnails.set({
           videoId: broadcastId,
           media: {
-            mimeType: getThumbnailMimeType(thumbnailPath),
+            mimeType: getThumbnailMimeType(finalPath),
             body: thumbnailStream
           }
         });
@@ -731,11 +765,12 @@ async function updateLiveMetadata(userId, channelId, broadcastId, metadata) {
       const fullThumbnailPath = resolveThumbnailPath(metadata.thumbnail_path);
       
       if (fs.existsSync(fullThumbnailPath)) {
-        const thumbnailStream = fs.createReadStream(fullThumbnailPath);
+        const finalPath = await ensureCompressedThumbnailPath(fullThumbnailPath);
+        const thumbnailStream = fs.createReadStream(finalPath);
         await youtube.thumbnails.set({
           videoId: broadcastId,
           media: {
-            mimeType: getThumbnailMimeType(fullThumbnailPath),
+            mimeType: getThumbnailMimeType(finalPath),
             body: thumbnailStream
           }
         });
