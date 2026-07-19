@@ -2953,6 +2953,7 @@ app.get('/auth/youtube', isAuthenticated, async (req, res) => {
     
     let clientId = user.youtube_client_id;
     let clientSecretEncrypted = user.youtube_client_secret;
+    let appId = '';
     
     if (req.query.app_id) {
       const YoutubeApp = require('./models/YoutubeApp');
@@ -2960,10 +2961,8 @@ app.get('/auth/youtube', isAuthenticated, async (req, res) => {
       if (appRecord && appRecord.user_id === req.session.userId) {
         clientId = appRecord.client_id;
         clientSecretEncrypted = appRecord.client_secret;
-        req.session.oauth_app_id = req.query.app_id;
+        appId = appRecord.id;
       }
-    } else {
-      delete req.session.oauth_app_id;
     }
     
     if (!clientId || !clientSecretEncrypted) {
@@ -2991,7 +2990,7 @@ app.get('/auth/youtube', isAuthenticated, async (req, res) => {
       access_type: 'offline',
       scope: scopes,
       prompt: 'consent',
-      state: req.session.userId
+      state: `${req.session.userId}:${appId}`
     });
     
     res.redirect(authUrl);
@@ -3014,15 +3013,21 @@ app.get('/auth/youtube/callback', isAuthenticated, async (req, res) => {
       return res.redirect('/settings?error=No authorization code received&activeTab=integration');
     }
     
+    // Parse user_id and app_id from the state parameter
+    const [userIdFromState, appIdFromState] = (state || '').split(':');
+    if (userIdFromState !== req.session.userId) {
+      return res.redirect('/settings?error=Invalid state parameter (session mismatch)&activeTab=integration');
+    }
+
     const user = await User.findById(req.session.userId);
     
     let clientId = user.youtube_client_id;
     let clientSecretEncrypted = user.youtube_client_secret;
     let appId = null;
 
-    if (req.session.oauth_app_id) {
+    if (appIdFromState) {
       const YoutubeApp = require('./models/YoutubeApp');
-      const appRecord = await YoutubeApp.findById(req.session.oauth_app_id);
+      const appRecord = await YoutubeApp.findById(appIdFromState);
       if (appRecord && appRecord.user_id === req.session.userId) {
         clientId = appRecord.client_id;
         clientSecretEncrypted = appRecord.client_secret;
@@ -3096,9 +3101,6 @@ app.get('/auth/youtube/callback', isAuthenticated, async (req, res) => {
     await User.update(req.session.userId, {
       youtube_redirect_uri: redirectUri
     });
-    
-    // Clean up temporary session value
-    delete req.session.oauth_app_id;
     
     res.redirect('/settings?success=YouTube channel connected successfully&activeTab=integration');
   } catch (error) {
