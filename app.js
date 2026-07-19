@@ -2986,6 +2986,8 @@ app.get('/auth/youtube', isAuthenticated, async (req, res) => {
       'https://www.googleapis.com/auth/youtube'
     ];
     
+    console.log('[DEBUG] Auth YouTube start. Query app_id:', req.query.app_id, 'Resolved appId:', appId);
+    
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: scopes,
@@ -2993,6 +2995,7 @@ app.get('/auth/youtube', isAuthenticated, async (req, res) => {
       state: `${req.session.userId}:${appId}`
     });
     
+    console.log('[DEBUG] Generated OAuth URL with state:', `${req.session.userId}:${appId}`);
     res.redirect(authUrl);
   } catch (error) {
     console.error('YouTube OAuth error:', error);
@@ -3014,8 +3017,11 @@ app.get('/auth/youtube/callback', isAuthenticated, async (req, res) => {
     }
     
     // Parse user_id and app_id from the state parameter
+    console.log('[DEBUG] Auth YouTube callback. Raw state:', state);
     const [userIdFromState, appIdFromState] = (state || '').split(':');
+    console.log('[DEBUG] Parsed userId:', userIdFromState, 'appId:', appIdFromState);
     if (userIdFromState !== req.session.userId) {
+      console.warn('[DEBUG] Session mismatch. userIdFromState:', userIdFromState, 'session.userId:', req.session.userId);
       return res.redirect('/settings?error=Invalid state parameter (session mismatch)&activeTab=integration');
     }
 
