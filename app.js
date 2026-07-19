@@ -5204,13 +5204,91 @@ app.get('/autolive', isAuthenticated, async (req, res) => {
     
     const Autolive = require('./models/Autolive');
     const AutoliveService = require('./services/autoliveService');
+    const { db } = require('./db/database');
     let series = await Autolive.findAll(req.session.userId);
     
     // Fetch items and schedule for each series
     series = await Promise.all(series.map(async (s) => {
       const items = await Autolive.getItemsBySeriesId(s.id);
-      const schedule = AutoliveService.getUpcomingSchedule(s, items, 5);
-      return { ...s, items, schedule };
+      
+      // Fetch DB streams (past & prepared history)
+      const dbStreams = await new Promise((resolve, reject) => {
+        db.all(
+          'SELECT * FROM streams WHERE id LIKE ? ORDER BY COALESCE(schedule_time, start_time) DESC LIMIT 10',
+          [`autolive_${s.id}_%`],
+          (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows || []);
+          }
+        );
+      });
+
+      const dbStartTimes = new Set();
+      const scheduleItems = [];
+
+      dbStreams.forEach(stream => {
+        let startTime = null;
+        if (stream.schedule_time) {
+          startTime = new Date(stream.schedule_time);
+        } else if (stream.start_time) {
+          startTime = new Date(stream.start_time);
+        }
+        
+        if (!startTime || isNaN(startTime.getTime())) return;
+        dbStartTimes.add(startTime.getTime());
+
+        let statusStr = 'Belum Mulai';
+        if (stream.status === 'live') {
+          statusStr = 'Sedang Berlangsung';
+        } else if (['done', 'offline', 'complete'].includes(stream.status)) {
+          statusStr = 'Sudah Selesai';
+        } else if (stream.status === 'error' || stream.status === 'failed') {
+          statusStr = 'Gagal';
+        }
+
+        scheduleItems.push({
+          startTime,
+          title: stream.title,
+          thumbnail: stream.youtube_thumbnail || '',
+          index: 'Histori',
+          status: statusStr
+        });
+      });
+
+      // Generate upcoming
+      const totalSessions = AutoliveService.getTotalSessions(items);
+      const upcomingCount = Math.max(10, totalSessions);
+      const generatedUpcoming = AutoliveService.getUpcomingSchedule(s, items, upcomingCount);
+      generatedUpcoming.forEach(sched => {
+        const timeMs = sched.startTime.getTime();
+        if (!dbStartTimes.has(timeMs)) {
+          scheduleItems.push({
+            startTime: sched.startTime,
+            title: sched.title,
+            thumbnail: sched.thumbnail,
+            index: sched.index,
+            status: 'Belum Mulai'
+          });
+        }
+      });
+
+      // Filter past/live/upcoming
+      const pastItems = scheduleItems.filter(item => ['Sudah Selesai', 'Gagal'].includes(item.status));
+      const currentLiveItems = scheduleItems.filter(item => item.status === 'Sedang Berlangsung');
+      const upcomingItems = scheduleItems.filter(item => item.status === 'Belum Mulai');
+
+      // Keep latest 3 past runs
+      pastItems.sort((a, b) => b.startTime - a.startTime);
+      const limitedPast = pastItems.slice(0, 3).reverse();
+
+      // Keep next 5 upcoming runs
+      upcomingItems.sort((a, b) => a.startTime - b.startTime);
+      const limitedUpcoming = upcomingItems.slice(0, 5);
+
+      const finalSchedule = [...limitedPast, ...currentLiveItems, ...limitedUpcoming];
+      finalSchedule.sort((a, b) => a.startTime - b.startTime);
+
+      return { ...s, items, schedule: finalSchedule };
     }));
     
     const YoutubeChannel = require('./models/YoutubeChannel');
@@ -5262,6 +5340,7 @@ app.get('/api/autolive/:id/download-schedule', isAuthenticated, async (req, res)
   try {
     const Autolive = require('./models/Autolive');
     const AutoliveService = require('./services/autoliveService');
+    const { db } = require('./db/database');
     const series = await Autolive.findByIdWithItems(req.params.id);
     if (!series || series.user_id !== req.session.userId) {
       return res.status(404).send('Autolive series not found or unauthorized');
@@ -5271,27 +5350,84 @@ app.get('/api/autolive/:id/download-schedule', isAuthenticated, async (req, res)
     if (items.length === 0) {
       return res.status(400).send('No items found in this autolive series.');
     }
-    
-    const totalSessions = AutoliveService.getTotalSessions(items);
-    // Download up to 100 or totalSessions, whichever is larger (generous limit)
-    const count = Math.max(100, totalSessions);
-    const schedule = AutoliveService.getUpcomingSchedule(series, items, count);
-    
+
     const tz = series.timezone || process.env.APP_TIMEZONE || process.env.TZ || 'Asia/Bangkok';
+
+    // Fetch actual stream history from the database
+    const dbStreams = await new Promise((resolve, reject) => {
+      db.all(
+        'SELECT * FROM streams WHERE id LIKE ? ORDER BY COALESCE(schedule_time, start_time) ASC',
+        [`autolive_${series.id}_%`],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows || []);
+        }
+      );
+    });
+
+    const dbStartTimes = new Set();
+    const scheduleItems = [];
+
+    // Parse and add history streams from DB
+    dbStreams.forEach(stream => {
+      let startTime = null;
+      if (stream.schedule_time) {
+        startTime = new Date(stream.schedule_time);
+      } else if (stream.start_time) {
+        startTime = new Date(stream.start_time);
+      }
+      
+      if (!startTime || isNaN(startTime.getTime())) return;
+      dbStartTimes.add(startTime.getTime());
+
+      let statusStr = 'Belum Mulai';
+      if (stream.status === 'live') {
+        statusStr = 'Sedang Berlangsung';
+      } else if (['done', 'offline', 'complete'].includes(stream.status)) {
+        statusStr = 'Sudah Selesai';
+      } else if (stream.status === 'error' || stream.status === 'failed') {
+        statusStr = 'Gagal';
+      }
+
+      scheduleItems.push({
+        startTime,
+        title: stream.title,
+        status: statusStr
+      });
+    });
+
+    // Generate upcoming schedules
+    const totalSessions = AutoliveService.getTotalSessions(items);
+    const upcomingCount = Math.max(100, totalSessions);
+    const generatedUpcoming = AutoliveService.getUpcomingSchedule(series, items, upcomingCount);
+
+    generatedUpcoming.forEach(sched => {
+      const timeMs = sched.startTime.getTime();
+      if (!dbStartTimes.has(timeMs)) {
+        scheduleItems.push({
+          startTime: sched.startTime,
+          title: sched.title,
+          status: 'Belum Mulai'
+        });
+      }
+    });
+
+    // Sort all chronologically by start time
+    scheduleItems.sort((a, b) => a.startTime - b.startTime);
     
-    let content = `JADWAL TAYANG AUTOLIVE: ${series.name}\r\n`;
-    content += `Status: ${series.is_active ? 'AKTIF' : 'NON-AKTIF'}\r\n`;
+    let content = `JADWAL & RIWAYAT TAYANG AUTOLIVE: ${series.name}\r\n`;
+    content += `Status Seri: ${series.is_active ? 'AKTIF' : 'NON-AKTIF'}\r\n`;
     content += `Jadwal Ulang: ${series.repeat_mode}\r\n`;
     content += `Timezone: ${tz}\r\n`;
-    content += `Total Jadwal: ${schedule.length} video\r\n`;
+    content += `Total Jadwal: ${scheduleItems.length} video (termasuk riwayat)\r\n`;
     content += `Tanggal Diunduh: ${new Date().toLocaleString('en-US', { timeZone: tz })}\r\n`;
     content += `\r\n`;
-    content += `================================================================================\r\n`;
-    content += `NO.  | TANGGAL & WAKTU TAYANG         | JUDUL VIDEO\r\n`;
-    content += `================================================================================\r\n`;
+    content += `====================================================================================================\r\n`;
+    content += `NO.  | TANGGAL & WAKTU TAYANG         | STATUS             | JUDUL VIDEO\r\n`;
+    content += `====================================================================================================\r\n`;
     
-    schedule.forEach((sched, index) => {
-      const formattedDate = sched.startTime.toLocaleString('en-US', {
+    scheduleItems.forEach((item, index) => {
+      const formattedDate = item.startTime.toLocaleString('en-US', {
         timeZone: tz,
         year: 'numeric',
         month: 'short',
@@ -5302,10 +5438,11 @@ app.get('/api/autolive/:id/download-schedule', isAuthenticated, async (req, res)
       });
       const noStr = String(index + 1).padEnd(4, ' ');
       const dateStr = formattedDate.padEnd(30, ' ');
-      content += `${noStr} | ${dateStr} | ${sched.title}\r\n`;
+      const statusStr = item.status.padEnd(18, ' ');
+      content += `${noStr} | ${dateStr} | ${statusStr} | ${item.title}\r\n`;
     });
     
-    content += `================================================================================\r\n`;
+    content += `====================================================================================================\r\n`;
     
     const safeFileName = series.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');

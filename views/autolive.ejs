@@ -150,7 +150,16 @@
                            title="Klik untuk lihat thumbnail">
                         <%= sched.title %>
                       </div>
-                      <div class="flex items-center gap-1.5 mt-0.5">
+                      <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <% if (sched.status === 'Sedang Berlangsung') { %>
+                          <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">LIVE</span>
+                        <% } else if (sched.status === 'Sudah Selesai') { %>
+                          <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-green-500/10 text-green-400 border border-green-500/20">SUDAH</span>
+                        <% } else if (sched.status === 'Gagal') { %>
+                          <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-red-500/10 text-red-500 border border-red-500/20">GAGAL</span>
+                        <% } else { %>
+                          <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">AKAN TAYANG</span>
+                        <% } %>
                         <span class="text-[9px] text-amber-400/80 font-mono"><%= helpers.formatDateTime(sched.startTime.toISOString()) %></span>
                         <span class="text-[9px] text-gray-600">•</span>
                         <span class="text-[9px] text-gray-500">Video <%= sched.index %></span>
