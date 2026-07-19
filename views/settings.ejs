@@ -1247,83 +1247,7 @@
         });
       }
 
-      // --- YouTube API Projects & Add Channel Dropdown ---
-      function toggleAddChannelDropdown() {
-        const menu = document.getElementById('add-channel-menu');
-        menu.classList.toggle('hidden');
-      }
-      document.addEventListener('click', (e) => {
-        const dropdown = document.getElementById('add-channel-dropdown');
-        const menu = document.getElementById('add-channel-menu');
-        if (dropdown && menu && !dropdown.contains(e.target)) {
-          menu.classList.add('hidden');
-        }
-      });
 
-      function connectWithApi(appId) {
-        const menu = document.getElementById('add-channel-menu');
-        if (menu) menu.classList.add('hidden');
-        const url = appId ? `/auth/youtube?app_id=${appId}` : '/auth/youtube';
-        window.location.href = url;
-      }
-
-      function openAddYtAppModal() {
-        document.getElementById('addYtAppModal').classList.remove('hidden');
-        document.getElementById('ytAppName').focus();
-      }
-      function closeAddYtAppModal() {
-        document.getElementById('addYtAppModal').classList.add('hidden');
-        document.getElementById('ytAppName').value = '';
-        document.getElementById('ytAppClientId').value = '';
-        document.getElementById('ytAppClientSecret').value = '';
-      }
-
-      async function submitAddYtApp(e) {
-        e.preventDefault();
-        const name = document.getElementById('ytAppName').value.trim();
-        const clientId = document.getElementById('ytAppClientId').value.trim();
-        const clientSecret = document.getElementById('ytAppClientSecret').value.trim();
-        if (!name || !clientId || !clientSecret) {
-          showToast('error', 'Semua field harus diisi');
-          return;
-        }
-        try {
-          const res = await fetch('/api/youtube-apps', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '<%= csrfToken %>' },
-            body: JSON.stringify({ name, clientId, clientSecret })
-          });
-          const data = await res.json();
-          if (data.success) {
-            showToast('success', 'API Project added successfully');
-            closeAddYtAppModal();
-            setTimeout(() => window.location.reload(), 1000);
-          } else {
-            showToast('error', data.error || 'Failed to add project');
-          }
-        } catch (err) {
-          showToast('error', 'Failed to add project');
-        }
-      }
-
-      async function deleteYtApp(id) {
-        if (!confirm('Delete this API Project? Connected channels using this project will still work.')) return;
-        try {
-          const res = await fetch(`/api/youtube-apps/${id}`, {
-            method: 'DELETE',
-            headers: { 'X-CSRF-Token': '<%= csrfToken %>' }
-          });
-          const data = await res.json();
-          if (data.success) {
-            showToast('success', 'API Project deleted');
-            setTimeout(() => window.location.reload(), 1000);
-          } else {
-            showToast('error', data.error || 'Failed to delete');
-          }
-        } catch (err) {
-          showToast('error', 'Failed to delete project');
-        }
-      }
 
       const disconnectAllBtn = document.getElementById('disconnect-all-youtube');
       if (disconnectAllBtn) {
@@ -1481,5 +1405,83 @@
   }
   if (window.location.hash === '#about') {
     loadContributors();
+  }
+
+  // --- YouTube API Projects & Add Channel Dropdown (global scope) ---
+  function toggleAddChannelDropdown() {
+    const menu = document.getElementById('add-channel-menu');
+    menu.classList.toggle('hidden');
+  }
+  document.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('add-channel-dropdown');
+    const menu = document.getElementById('add-channel-menu');
+    if (dropdown && menu && !dropdown.contains(e.target)) {
+      menu.classList.add('hidden');
+    }
+  });
+
+  function connectWithApi(appId) {
+    const menu = document.getElementById('add-channel-menu');
+    if (menu) menu.classList.add('hidden');
+    const url = appId ? `/auth/youtube?app_id=${appId}` : '/auth/youtube';
+    window.location.href = url;
+  }
+
+  function openAddYtAppModal() {
+    document.getElementById('addYtAppModal').classList.remove('hidden');
+    document.getElementById('ytAppName').focus();
+  }
+  function closeAddYtAppModal() {
+    document.getElementById('addYtAppModal').classList.add('hidden');
+    document.getElementById('ytAppName').value = '';
+    document.getElementById('ytAppClientId').value = '';
+    document.getElementById('ytAppClientSecret').value = '';
+  }
+
+  async function submitAddYtApp(e) {
+    e.preventDefault();
+    const name = document.getElementById('ytAppName').value.trim();
+    const clientId = document.getElementById('ytAppClientId').value.trim();
+    const clientSecret = document.getElementById('ytAppClientSecret').value.trim();
+    if (!name || !clientId || !clientSecret) {
+      showToast('error', 'Semua field harus diisi');
+      return;
+    }
+    try {
+      const res = await fetch('/api/youtube-apps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '<%= csrfToken %>' },
+        body: JSON.stringify({ name, clientId, clientSecret })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('success', 'API Project added successfully');
+        closeAddYtAppModal();
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        showToast('error', data.error || 'Failed to add project');
+      }
+    } catch (err) {
+      showToast('error', 'Failed to add project');
+    }
+  }
+
+  async function deleteYtApp(id) {
+    if (!confirm('Delete this API Project? Connected channels using this project will still work.')) return;
+    try {
+      const res = await fetch(`/api/youtube-apps/${id}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRF-Token': '<%= csrfToken %>' }
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('success', 'API Project deleted');
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        showToast('error', data.error || 'Failed to delete');
+      }
+    } catch (err) {
+      showToast('error', 'Failed to delete project');
+    }
   }
   </script>
