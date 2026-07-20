@@ -1296,6 +1296,17 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
   } catch (error) {
     addStreamLog(streamId, `Start failed: ${error.message}`);
     const diagnostics = buildFailureDiagnostics(streamId, error);
+    try {
+      const currentStream = await Stream.findById(streamId);
+      if (currentStream) {
+        await Stream.updateStatus(streamId, 'offline', currentStream.user_id, {
+          stopReason: 'start_failed',
+          stopMessage: diagnostics.reason || error.message
+        });
+      }
+    } catch (e) {
+      console.error(`Failed to update stream status on start failure:`, e.message);
+    }
     return {
       success: false,
       error: diagnostics.reason || error.message,
@@ -1491,6 +1502,7 @@ async function syncStreamStatuses() {
 const poorSignalNotified = new Map();
 
 async function healthCheckStreams() {
+  return; // Disabled to prevent YouTube API quota exhaustion
   try {
     const now = Date.now();
     const staleThreshold = 5 * 60 * 1000;

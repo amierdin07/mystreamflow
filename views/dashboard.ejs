@@ -208,13 +208,12 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Platform</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Schedule</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Signal</th>
               <th class="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-700">
             <tr id="empty-state" class="hover:bg-dark-700/50 transition-colors" style="display: none;">
-              <td colspan="<%= (typeof youtubeConnected !== 'undefined' && youtubeConnected) ? '9' : '7' %>" class="px-6 py-10 text-center">
+              <td colspan="<%= (typeof youtubeConnected !== 'undefined' && youtubeConnected) ? '8' : '6' %>" class="px-6 py-10 text-center">
                 <div class="flex flex-col items-center">
                   <div class="w-16 h-16 rounded-full bg-dark-700 flex items-center justify-center mb-4">
                     <i class="ti ti-broadcast text-gray-500 text-2xl"></i>
@@ -2598,7 +2597,6 @@
         <div class="flex flex-col gap-1">
           ${statusBadge}
           ${getStopReasonHTML(stream, true)}
-          <div class="signal-container" data-stream-id="${stream.id}">${signalHTML}</div>
         </div>
         <div class="flex items-center gap-1.5">
           ${getActionButtonHTML(stream.status, stream.id, 'mobile')}
@@ -2779,12 +2777,6 @@
         <div class="flex flex-col items-start">
           ${statusBadge}
           ${getStopReasonHTML(stream)}
-        </div>
-      </td>
-      <td class="px-6 py-4 whitespace-nowrap">
-        <div class="signal-container" data-stream-id="${stream.id}">
-          ${signalHTML}
-        </div>
       </td>
       <td class="px-6 py-4 whitespace-nowrap text-right">
         <div class="flex items-center justify-end space-x-2">
@@ -2976,9 +2968,6 @@
       fetchServerTimeSync();
       startCountdowns();
 
-      setInterval(pollStreamHealth, 30000); // Poll health every 30 seconds
-      pollStreamHealth();
-
       // Auto-refresh streams data every 15 seconds
       setInterval(() => {
         const newModal = document.getElementById('newStreamModal');
@@ -2999,6 +2988,7 @@
     });
 
     async function pollStreamHealth() {
+      return; // Disabled to prevent YouTube API quota exhaustion
       const activeLiveStreams = Array.from(document.querySelectorAll('[data-stream-id]')).map(el => el.dataset.streamId);
       const uniqueStreamIds = [...new Set(activeLiveStreams)];
       

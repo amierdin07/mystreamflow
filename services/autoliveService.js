@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 
 let checkInterval = null;
-const PREPARE_WINDOW_MS = 3 * 60 * 60 * 1000;
+const PREPARE_WINDOW_MS = 1 * 60 * 1000; // Reduced to 1 minute to avoid showing scheduled streams in advance and save API quota
 
 // Parse start_time from DB. Handles both:
 // - New ISO UTC strings ("2026-04-27T10:20:00.000Z") - from browser UTC conversion
