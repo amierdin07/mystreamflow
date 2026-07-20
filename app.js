@@ -3076,7 +3076,7 @@ app.get('/auth/youtube/callback', isAuthenticated, async (req, res) => {
     const subscriberCount = channel.statistics?.subscriberCount || '0';
     
     const YoutubeChannel = require('./models/YoutubeChannel');
-    const existingChannel = await YoutubeChannel.findByChannelIdAndClientId(req.session.userId, channelId, clientId);
+    const existingChannel = await YoutubeChannel.findByChannelId(req.session.userId, channelId);
     
     if (existingChannel) {
       await YoutubeChannel.update(existingChannel.id, {
