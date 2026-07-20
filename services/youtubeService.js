@@ -240,6 +240,7 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
   let youtubeStreamId = stream.youtube_stream_id;
   let rtmpUrl = stream.rtmp_url;
   let streamKey = stream.stream_key;
+  const isReused = !!broadcastId;
 
   if (broadcastId && rtmpUrl && streamKey) {
       if (!loggedAlreadyHasBroadcast.has(streamId)) {
@@ -350,7 +351,6 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
       // For Autolive, we skip redundant updates if it was updated in the last 10 minutes
       const lastUpdate = stream.updated_at ? new Date(stream.updated_at).getTime() : 0;
       const now = Date.now();
-      const isReused = !!stream.youtube_broadcast_id;
       // Update if it's new OR if more than 10 minutes have passed since last DB update
       const needsUpdate = !isReused || (now - lastUpdate > 600000); 
 
