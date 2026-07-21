@@ -525,7 +525,7 @@ class AutoliveService {
       const isNewSession = !streamRecord.schedule_time || (new Date(streamRecord.schedule_time).getTime() !== scheduledStart.getTime());
 
       if (isNewSession) {
-        await Autolive.update(series.id, { current_item_index: chosenSlotIndex });
+        await Autolive.update(series.id, { current_item_index: globalIndex });
       }
       
       if (chosenSlot.internal_playlist_id) {
