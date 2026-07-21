@@ -57,6 +57,32 @@ class YoutubeApp {
       );
     });
   }
+
+  static update(id, userId, data) {
+    const fields = [];
+    const values = [];
+
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined) {
+        fields.push(`${key} = ?`);
+        values.push(value);
+      }
+    });
+
+    values.push(id);
+    values.push(userId);
+
+    return new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE youtube_apps SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`,
+        values,
+        function (err) {
+          if (err) return reject(err);
+          resolve(this.changes > 0);
+        }
+      );
+    });
+  }
 }
 
 module.exports = YoutubeApp;

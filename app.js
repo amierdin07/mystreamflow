@@ -1225,6 +1225,18 @@ app.get('/settings', isAuthenticated, async (req, res) => {
     const hasYoutubeCredentials = !!(user.youtube_client_id && user.youtube_client_secret);
     const youtubeChannels = await YoutubeChannel.findAll(req.session.userId);
     const youtubeApps = await YoutubeApp.findAll(req.session.userId);
+    
+    // Decrypt client_secret for editing/copying in settings page
+    youtubeApps.forEach(app => {
+      if (app.client_secret) {
+        try {
+          app.client_secret_decrypted = decrypt(app.client_secret);
+        } catch (e) {
+          app.client_secret_decrypted = '';
+        }
+      }
+    });
+
     const isYoutubeConnected = youtubeChannels.length > 0;
     const defaultChannel = youtubeChannels.find(c => c.is_default) || youtubeChannels[0];
     
@@ -2705,6 +2717,41 @@ app.delete('/api/youtube-apps/:id', isAuthenticated, async (req, res) => {
   try {
     const YoutubeApp = require('./models/YoutubeApp');
     const success = await YoutubeApp.delete(req.params.id, req.session.userId);
+    res.json({ success });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/youtube-apps/:id', isAuthenticated, [
+  body('name').trim().notEmpty().withMessage('Project/App Name is required'),
+  body('clientId').trim().notEmpty().withMessage('Client ID is required'),
+  body('clientSecret').trim().notEmpty().withMessage('Client Secret is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, error: errors.array()[0].msg });
+    }
+    const YoutubeApp = require('./models/YoutubeApp');
+    const { encrypt } = require('./utils/encryption');
+    const { name, clientId, clientSecret } = req.body;
+    
+    let secretToSave = clientSecret;
+    if (!clientSecret.startsWith('••••')) {
+      secretToSave = encrypt(clientSecret);
+    } else {
+      const existing = await YoutubeApp.findById(req.params.id);
+      if (existing) {
+        secretToSave = existing.client_secret;
+      }
+    }
+
+    const success = await YoutubeApp.update(req.params.id, req.session.userId, {
+      name,
+      client_id: clientId,
+      client_secret: secretToSave
+    });
     res.json({ success });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

@@ -348,21 +348,29 @@
               </div>
               
               <div id="youtube-apps-list" class="space-y-2">
-                <% if (typeof youtubeApps !== 'undefined' && youtubeApps.length > 0) { %>
-                  <% youtubeApps.forEach(function(app) { %>
-                    <div class="bg-dark-900 rounded-lg p-3 border border-gray-700 flex items-center justify-between gap-4">
-                      <div class="min-w-0 flex-1">
-                        <p class="font-medium text-white text-xs truncate"><%= app.name %></p>
-                        <p class="text-[10px] text-gray-500 font-mono select-all truncate" title="<%= app.client_id %>"><%= app.client_id.substring(0, 25) %>...</p>
-                      </div>
-                      <button type="button" onclick="deleteYtApp('<%= app.id %>')" class="p-1 text-gray-500 hover:text-red-400 transition-colors flex-shrink-0">
-                        <i class="ti ti-trash text-sm"></i>
-                      </button>
-                    </div>
-                  <% }); %>
-                <% } else { %>
-                  <p class="text-xs text-gray-500 text-center py-4">No secondary API projects added yet.</p>
-                <% } %>
+                 <% if (typeof youtubeApps !== 'undefined' && youtubeApps.length > 0) { %>
+                   <% youtubeApps.forEach(function(app) { %>
+                     <div class="bg-dark-900 rounded-lg p-3 border border-gray-700 flex items-center justify-between gap-4">
+                       <div class="min-w-0 flex-1">
+                         <p class="font-medium text-white text-xs truncate"><%= app.name %></p>
+                         <p class="text-[10px] text-gray-500 font-mono select-all truncate" title="<%= app.client_id %>"><%= app.client_id %></p>
+                       </div>
+                       <div class="flex items-center gap-1.5 flex-shrink-0">
+                         <button type="button" 
+                                 onclick="openEditYtAppModal('<%= app.id %>', '<%= app.name.replace(/'/g, "\\'") %>', '<%= app.client_id %>', '<%= (app.client_secret_decrypted || '').replace(/'/g, "\\'") %>')" 
+                                 class="p-1 text-gray-500 hover:text-blue-400 transition-colors" 
+                                 title="Edit Project">
+                           <i class="ti ti-edit text-sm"></i>
+                         </button>
+                         <button type="button" onclick="deleteYtApp('<%= app.id %>')" class="p-1 text-gray-500 hover:text-red-400 transition-colors" title="Delete Project">
+                           <i class="ti ti-trash text-sm"></i>
+                         </button>
+                       </div>
+                     </div>
+                   <% }); %>
+                 <% } else { %>
+                   <p class="text-xs text-gray-500 text-center py-4">No secondary API projects added yet.</p>
+                 <% } %>
               </div>
             </div>
           </div>
@@ -680,19 +688,20 @@
     <span id="toast-message"></span>
   </div>
 
-  <!-- Add YouTube API Project Modal -->
+  <!-- Add/Edit YouTube API Project Modal -->
   <div id="addYtAppModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
     <div class="bg-dark-800 rounded-xl border border-gray-700 shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between p-5 border-b border-gray-700">
         <div>
-          <h3 class="text-lg font-semibold text-white">Add API Project</h3>
-          <p class="text-gray-400 text-xs mt-0.5">Tambahkan Client ID dari Google Cloud Project baru</p>
+          <h3 class="text-lg font-semibold text-white" id="ytAppModalTitle">Add API Project</h3>
+          <p class="text-gray-400 text-xs mt-0.5" id="ytAppModalSubtitle">Tambahkan Client ID dari Google Cloud Project baru</p>
         </div>
         <button onclick="closeAddYtAppModal()" class="text-gray-400 hover:text-white transition-colors">
           <i class="ti ti-x text-xl"></i>
         </button>
       </div>
-      <form onsubmit="submitAddYtApp(event)" class="p-5 space-y-4">
+      <form onsubmit="submitYtAppForm(event)" class="p-5 space-y-4">
+        <input type="hidden" id="ytAppId" value="">
         <div class="space-y-1.5">
           <label class="block text-sm font-medium text-gray-300">Nama Project</label>
           <input type="text" id="ytAppName" placeholder="Misal: Project B, Project Cadangan"
@@ -709,7 +718,7 @@
             class="bg-dark-900 text-white px-3 py-2 rounded-lg block w-full focus:outline-none focus:ring-1 focus:ring-primary border border-gray-700 text-sm">
         </div>
         <div class="flex items-center gap-3 pt-2">
-          <button type="submit" class="flex-1 px-4 py-2.5 bg-primary hover:bg-blue-600 text-white rounded-lg transition-colors text-sm font-medium">
+          <button type="submit" id="ytAppSubmitBtn" class="flex-1 px-4 py-2.5 bg-primary hover:bg-blue-600 text-white rounded-lg transition-colors text-sm font-medium">
             <i class="ti ti-plus mr-1"></i>Add Project
           </button>
           <button type="button" onclick="closeAddYtAppModal()" class="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm">
@@ -1428,41 +1437,74 @@
   }
 
   function openAddYtAppModal() {
+    document.getElementById('ytAppId').value = '';
+    document.getElementById('ytAppModalTitle').textContent = 'Add API Project';
+    document.getElementById('ytAppModalSubtitle').textContent = 'Tambahkan Client ID dari Google Cloud Project baru';
+    document.getElementById('ytAppSubmitBtn').innerHTML = '<i class="ti ti-plus mr-1"></i>Add Project';
+    
+    document.getElementById('ytAppName').value = '';
+    document.getElementById('ytAppClientId').value = '';
+    document.getElementById('ytAppClientSecret').value = '';
+    document.getElementById('ytAppClientSecret').placeholder = 'Enter Client Secret';
+
     document.getElementById('addYtAppModal').classList.remove('hidden');
     document.getElementById('ytAppName').focus();
   }
+
+  function openEditYtAppModal(id, name, clientId, clientSecret) {
+    document.getElementById('ytAppId').value = id;
+    document.getElementById('ytAppModalTitle').textContent = 'Edit API Project';
+    document.getElementById('ytAppModalSubtitle').textContent = 'Update Client ID & Secret dari Google Cloud Project Anda';
+    document.getElementById('ytAppSubmitBtn').innerHTML = '<i class="ti ti-device-floppy mr-1"></i>Save Changes';
+    
+    document.getElementById('ytAppName').value = name;
+    document.getElementById('ytAppClientId').value = clientId;
+    document.getElementById('ytAppClientSecret').value = clientSecret || '';
+    document.getElementById('ytAppClientSecret').placeholder = 'Masukkan Client Secret Baru (kosongkan jika tidak diganti)';
+
+    document.getElementById('addYtAppModal').classList.remove('hidden');
+    document.getElementById('ytAppName').focus();
+  }
+
   function closeAddYtAppModal() {
     document.getElementById('addYtAppModal').classList.add('hidden');
+    document.getElementById('ytAppId').value = '';
     document.getElementById('ytAppName').value = '';
     document.getElementById('ytAppClientId').value = '';
     document.getElementById('ytAppClientSecret').value = '';
   }
 
-  async function submitAddYtApp(e) {
+  async function submitYtAppForm(e) {
     e.preventDefault();
+    const id = document.getElementById('ytAppId').value;
     const name = document.getElementById('ytAppName').value.trim();
     const clientId = document.getElementById('ytAppClientId').value.trim();
     const clientSecret = document.getElementById('ytAppClientSecret').value.trim();
-    if (!name || !clientId || !clientSecret) {
+    
+    if (!name || !clientId || (!id && !clientSecret)) {
       showToast('error', 'Semua field harus diisi');
       return;
     }
+
     try {
-      const res = await fetch('/api/youtube-apps', {
-        method: 'POST',
+      const url = id ? `/api/youtube-apps/${id}` : '/api/youtube-apps';
+      const method = id ? 'PUT' : 'POST';
+      
+      const res = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '<%= csrfToken %>' },
         body: JSON.stringify({ name, clientId, clientSecret })
       });
       const data = await res.json();
       if (data.success) {
-        showToast('success', 'API Project added successfully');
+        showToast('success', id ? 'API Project updated successfully' : 'API Project added successfully');
         closeAddYtAppModal();
         setTimeout(() => window.location.reload(), 1000);
       } else {
-        showToast('error', data.error || 'Failed to add project');
+        showToast('error', data.error || 'Failed to save project');
       }
     } catch (err) {
-      showToast('error', 'Failed to add project');
+      showToast('error', 'Failed to save project');
     }
   }
 
