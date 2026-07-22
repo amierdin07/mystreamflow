@@ -1071,19 +1071,19 @@ async function startStream(streamId, isRetry = false, baseUrl = null) {
         const ytResult = await youtubeService.createYouTubeBroadcast(streamId, effectiveBaseUrl);
         if (!ytResult.success) {
           addStreamLog(streamId, `YouTube broadcast failed: ${ytResult.error}`);
-          return { success: false, error: ytResult.error || 'Failed to create YouTube broadcast' };
+          throw new Error(ytResult.error || 'Failed to create YouTube broadcast');
         }
         stream = await Stream.findById(streamId);
         addStreamLog(streamId, `YouTube broadcast created: ${ytResult.broadcastId}`);
       } catch (ytError) {
         const betterError = youtubeService.handleYoutubeError(ytError, `(Stream: ${stream.title})`);
         addStreamLog(streamId, `YouTube API error: ${betterError.message}`);
-        return { success: false, error: betterError.message };
+        throw betterError;
       }
     }
 
     if (!stream.rtmp_url || !stream.stream_key) {
-      return { success: false, error: 'Missing RTMP URL or stream key' };
+      throw new Error('Missing RTMP URL or stream key');
     }
 
     const ffmpegArgs = await buildFFmpegArgs(stream);
