@@ -250,8 +250,8 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
   }
   
   const user = await User.findById(stream.user_id);
-  if (!user || !user.youtube_client_id || !user.youtube_client_secret) {
-    throw new Error('YouTube API credentials not configured');
+  if (!user) {
+    throw new Error('User not found');
   }
 
   const selectedChannel = await YoutubeChannel.findById(stream.youtube_channel_id);
@@ -259,7 +259,14 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
     throw new Error('YouTube channel not found or not connected');
   }
 
-  const clientSecret = decrypt(user.youtube_client_secret);
+  const clientId = selectedChannel.youtube_client_id || user.youtube_client_id;
+  const clientSecretEncrypted = selectedChannel.youtube_client_secret || user.youtube_client_secret;
+
+  if (!clientId || !clientSecretEncrypted) {
+    throw new Error('YouTube API credentials not configured');
+  }
+
+  const clientSecret = decrypt(clientSecretEncrypted);
   const accessToken = decrypt(selectedChannel.access_token);
   const refreshToken = decrypt(selectedChannel.refresh_token);
 
@@ -268,7 +275,7 @@ async function createYouTubeBroadcast(streamId, baseUrl) {
   }
 
   const redirectUri = `${baseUrl}/auth/youtube/callback`;
-  const oauth2Client = getYouTubeOAuth2Client(user.youtube_client_id, clientSecret, redirectUri);
+  const oauth2Client = getYouTubeOAuth2Client(clientId, clientSecret, redirectUri);
   oauth2Client.setCredentials({
     access_token: accessToken,
     refresh_token: refreshToken

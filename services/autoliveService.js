@@ -184,8 +184,9 @@ class AutoliveService {
         await this.stopAutoliveStream(series, targetStart);
       }
 
-      // 3. Prepare future sessions 3 hours before start
-      const shouldPrepare = !isPastSession && (timeToTarget <= PREPARE_WINDOW_MS || series.repeat_mode === 'nonstop');
+      // 3. Prepare future sessions 3 hours before start (skip if already offline or done)
+      const isFailedOrFinished = linkedStream && (linkedStream.status === 'offline' || linkedStream.status === 'done');
+      const shouldPrepare = !isPastSession && !isFailedOrFinished && (timeToTarget <= PREPARE_WINDOW_MS || series.repeat_mode === 'nonstop');
       if (shouldPrepare) {
         const lastSync = series.last_metadata_update ? new Date(series.last_metadata_update).getTime() : 0;
         const shouldSync = !linkedStream || (now.getTime() - lastSync > 30 * 60 * 1000) || timeToTarget < 5 * 60 * 1000;
@@ -580,7 +581,7 @@ class AutoliveService {
         schedule_time: scheduledStart.toISOString(),
         end_time: scheduledEnd.toISOString(),
         duration: series.duration || null,
-        status: streamRecord.status === 'live' ? 'live' : 'scheduled'
+        status: (streamRecord.status === 'live' || streamRecord.status === 'offline' || streamRecord.status === 'done') ? streamRecord.status : 'scheduled'
       });
 
       const baseUrl = process.env.BASE_URL || 'http://localhost:7575';
